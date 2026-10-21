@@ -1,0 +1,22 @@
+{
+  "name": "report",
+  "version": "0.0.0",
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "bitrix:check": "node scripts/bitrix-check.cjs",
+    "test": "jest --runInBand",
+    "test:unit": "jest --selectProjects unit --runInBand",
+    "test:unit:watch": "jest --selectProjects unit --watchAll",
+    "test:e2e": "jest --selectProjects e2e --runInBand",
+    "test:ci": "jest --ci --runInBand",
+    "test:install": "playwright install chromium"
+  },
+  "devDependencies": {
+    "jest": "30.5.2",
+    "playwright": "1.64.1",
+    "serve-handler": "6.1.7"
+  }
+}
