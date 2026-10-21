@@ -6,6 +6,7 @@
     "node": ">=22"
   },
   "scripts": {
+    "start": "node server.js",
     "bitrix:check": "node scripts/bitrix-check.cjs",
     "test": "jest --runInBand",
     "test:unit": "jest --selectProjects unit --runInBand",
