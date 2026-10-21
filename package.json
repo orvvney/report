@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "engines": {
-    "node": ">=22"
+    "node": ">=22.12.0"
   },
   "scripts": {
     "start": "node server.js",
@@ -13,11 +13,19 @@
     "test:unit:watch": "jest --selectProjects unit --watchAll",
     "test:e2e": "jest --selectProjects e2e --runInBand",
     "test:ci": "jest --ci --runInBand",
-    "test:install": "playwright install chromium"
+    "test:install": "playwright install chromium",
+    "build": "vite build"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "4.3.3",
+    "@vitejs/plugin-vue": "6.0.10",
     "jest": "30.5.2",
     "playwright": "1.64.1",
-    "serve-handler": "6.1.7"
+    "serve-handler": "6.1.7",
+    "tailwindcss": "4.3.3",
+    "vite": "8.3.5"
+  },
+  "dependencies": {
+    "vue": "3.5.44"
   }
 }

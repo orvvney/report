@@ -1,0 +1,10 @@
+@import 'tailwindcss';
+@theme { --font-sans: Arial, 'Noto Sans Armenian', sans-serif; }
+body { margin: 0; background: #f5f7fb; color: #18253d; }
+button, a { -webkit-tap-highlight-color: transparent; }
+button { cursor: pointer; }
+button:disabled { cursor: wait; }
+:focus-visible { outline: 3px solid #2563eb; outline-offset: 4px; }
+dialog::backdrop { background: rgb(15 23 42 / 45%); }
+.chart-column:focus { outline: none; }
+.chart-column:focus-visible rect:last-of-type { stroke: #1e3a8a; stroke-width: 3; }

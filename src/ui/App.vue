@@ -1,0 +1,130 @@
+<script setup>
+import { computed, nextTick, onMounted, ref } from 'vue';
+const mode = ref('rooms'), report = ref(null), loading = ref(false), failed = ref(false);
+const tooltip = ref(null), dialog = ref(null), problemButton = ref(null);
+const months = ['Հունվար', 'Փետրվար', 'Մարտ', 'Ապրիլ', 'Մայիս', 'Հունիս', 'Հուլիս', 'Օգոստոս', 'Սեպտեմբեր', 'Հոկտեմբեր', 'Նոյեմբեր', 'Դեկտեմբեր'];
+const fields = { rooms: 'Սենյակների քանակ', date: 'Կնքման ամսաթիվ', amount: 'Ընդհանուր արժեք', currency: 'Արժույթ' };
+const reasons = { missing: 'Լրացված չէ', invalid: 'Անվավեր արժեք', unsupported_currency: 'Աջակցվում է միայն AMD' };
+const categories = computed(() => report.value?.[mode.value] || []);
+const hasData = computed(() => categories.value.some((entry) => entry.count > 0));
+const width = computed(() => Math.max(920, categories.value.length * 96 + 120));
+const maximum = computed(() => categories.value.reduce((max, entry) => Math.max(max, Number(entry.amount)), 0) || 1);
+const axisTitle = computed(() => fields[mode.value === 'rooms' ? 'rooms' : 'date']);
+const label = (entry) => mode.value === 'rooms' ? String(entry.category) : months[entry.category - 1];
+const fullAmount = (amount) => {
+  const [whole, fraction] = amount.split('.');
+  return whole.replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + (fraction ? `.${fraction}` : '');
+};
+const shortAmount = (amount) => {
+  const [divisor, suffix] = amount >= 1e9 ? [1e9, 'մլրդ'] : amount >= 1e6 ? [1e6, 'մլն'] : amount >= 1e3 ? [1e3, 'հազ.'] : [1, ''];
+  return `${new Intl.NumberFormat('hy-AM', { maximumSignificantDigits: 3 }).format(amount / divisor)} ${suffix}`.trim();
+};
+const step = computed(() => (width.value - 120) / Math.max(1, categories.value.length));
+const barX = (index) => 100 + index * step.value + step.value * 0.2;
+const barHeight = (entry) => Number(entry.amount) / maximum.value * 260;
+function switchMode(value) { mode.value = value; tooltip.value = null; }
+function closeProblems() { dialog.value?.close(); }
+function trapFocus(event) {
+  if (event.key !== 'Tab') return;
+  const elements = [...dialog.value.querySelectorAll('button, a[href]')];
+  const first = elements[0], last = elements.at(-1);
+  if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+  else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+}
+function restoreFocus() { problemButton.value?.focus(); }
+async function openProblems() { await nextTick(); dialog.value.showModal(); }
+function backdrop(event) {
+  const rect = dialog.value.getBoundingClientRect();
+  if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) closeProblems();
+}
+async function refresh() {
+  if (loading.value) return;
+  closeProblems(); tooltip.value = null; report.value = null; failed.value = false; loading.value = true;
+  try {
+    const response = await fetch('/api/report', { cache: 'no-store' });
+    if (!response.ok) throw new Error();
+    report.value = await response.json();
+  } catch { failed.value = true; }
+  finally { loading.value = false; }
+}
+onMounted(refresh);
+</script>
+
+<template>
+  <main class="mx-auto max-w-7xl px-3 py-8 sm:px-8 sm:py-14">
+    <header class="mb-7">
+      <p class="mb-2 text-xs font-semibold tracking-wider text-blue-700">ՎԱՃԱՌՔԻ ՎԵՐԼՈՒԾՈՒԹՅՈՒՆ</p>
+      <h1 class="text-2xl font-semibold tracking-tight sm:text-3xl">Կնքված գործարքներ</h1>
+      <p class="mt-3 text-sm text-slate-500">Գործարքների ընդհանուր արժեքը՝ ըստ սենյակների և ամսաթվի</p>
+    </header>
+    <section aria-label="Գործարքների հաշվետվություն" class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div class="relative flex flex-col items-center gap-4 border-b border-slate-100 px-3 pb-5 pt-20 sm:px-6 lg:py-6">
+        <button type="button" class="absolute right-4 top-5 rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium hover:bg-slate-50 disabled:opacity-50 lg:right-6 lg:top-6"
+          :disabled="loading" @click="refresh">Թարմացնել <span aria-hidden="true">↻</span></button>
+        <div role="group" aria-label="Խմբավորում" class="flex max-w-full rounded-xl bg-slate-100 p-1">
+          <button v-for="item in ['rooms', 'months']" :key="item" type="button"
+            :aria-pressed="mode === item" @click="switchMode(item)"
+            class="rounded-lg px-3 py-2.5 text-xs font-medium transition-colors sm:px-5 sm:text-sm"
+            :class="mode === item ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600 hover:text-blue-700'">
+            {{ fields[item === 'rooms' ? 'rooms' : 'date'] }}
+          </button>
+        </div>
+      </div>
+      <div v-if="loading" role="status" class="flex min-h-96 items-center justify-center p-8 text-center text-slate-500">Տվյալները բեռնվում են…</div>
+      <div v-else-if="failed" role="alert" class="flex min-h-96 items-center justify-center p-8 text-center text-red-700">Չհաջողվեց բեռնել տվյալները։ Փորձեք կրկին։</div>
+      <template v-else-if="report">
+        <div class="flex flex-wrap items-center justify-between gap-2 px-5 pt-6 sm:px-8">
+          <h2 class="text-sm font-medium">Ընդհանուր արժեք (AMD)</h2>
+          <p class="text-sm text-slate-500">{{ mode === 'months' ? report.year : 'Ամբողջ ժամանակահատվածը' }}</p>
+        </div>
+        <p v-if="!hasData" role="status" class="pt-6 text-center text-slate-500">Տվյալներ չկան</p>
+        <div class="overflow-x-auto px-2 pt-4" aria-label="Գծապատկերի տարածք" tabindex="0">
+          <svg v-if="categories.length" :viewBox="`0 0 ${width} 390`" :style="{ minWidth: `${width}px` }" class="block w-full" role="group" :aria-label="axisTitle">
+            <g v-for="tick in 5" :key="tick">
+              <line x1="100" :x2="width - 20" :y1="300 - (tick - 1) * 65" :y2="300 - (tick - 1) * 65" stroke="#e5eaf2" />
+              <text x="86" :y="305 - (tick - 1) * 65" text-anchor="end" font-size="12" fill="#64748b">{{ shortAmount(maximum * (tick - 1) / 4) }}</text>
+            </g>
+            <g v-for="(entry, index) in categories" :key="entry.category" class="chart-column cursor-pointer" role="button" tabindex="0"
+              :aria-label="`${label(entry)}՝ ${fullAmount(entry.amount)} AMD, ${entry.count} գործարք`"
+              :aria-describedby="tooltip === entry ? 'bar-tooltip' : undefined"
+              @mouseenter="tooltip = entry" @mouseleave="tooltip = null" @focus="tooltip = entry" @blur="tooltip = null"
+              @click="tooltip = entry" @keydown.enter.prevent="tooltip = entry" @keydown.space.prevent="tooltip = entry" @keydown.esc="tooltip = null">
+              <rect :x="barX(index)" y="30" :width="step * .6" height="275" fill="transparent" />
+              <rect :x="barX(index)" :y="300 - barHeight(entry)" :width="step * .6" :height="barHeight(entry)" rx="4" :fill="tooltip === entry ? '#1d4ed8' : '#3b82f6'" />
+              <text :x="barX(index) + step * .3" y="328" text-anchor="middle" font-size="12" fill="#475569">{{ label(entry) }}</text>
+            </g>
+            <text :x="width / 2" y="373" text-anchor="middle" font-size="14" fill="#475569">{{ axisTitle }}</text>
+          </svg>
+          <p v-else class="py-24 text-center text-sm text-slate-500">{{ axisTitle }}</p>
+        </div>
+        <div class="min-h-24 px-5 py-3 sm:px-8" aria-live="polite">
+          <div v-if="tooltip" id="bar-tooltip" role="tooltip" class="inline-block rounded-xl bg-slate-900 px-4 py-3 text-sm text-white shadow-lg">
+            <p class="mb-1 font-semibold">{{ axisTitle }} · {{ label(tooltip) }}</p>
+            <p>Ընդհանուր արժեք՝ {{ fullAmount(tooltip.amount) }} AMD</p>
+            <p class="mt-1 text-slate-300">Գործարքների քանակ՝ {{ tooltip.count }}</p>
+          </div>
+        </div>
+        <footer class="flex justify-end border-t border-slate-100 px-4 py-5 sm:px-6">
+          <button v-if="report.problems.length" ref="problemButton" type="button" @click="openProblems"
+            class="rounded-lg bg-amber-50 px-3 py-2 text-left text-xs font-medium text-amber-900 hover:bg-amber-100 sm:text-sm">
+            Խնդրահարույց գործարքներ <span class="ml-2 rounded-md bg-white px-2 py-1">{{ report.problems.length }}</span>
+          </button>
+          <p v-else class="text-xs text-slate-400">Արժույթ՝ AMD</p>
+        </footer>
+      </template>
+    </section>
+    <dialog ref="dialog" aria-labelledby="problems-title" @click="backdrop" @close="restoreFocus" @keydown="trapFocus"
+      class="fixed inset-0 m-auto max-h-[80vh] w-[calc(100%-2rem)] max-w-2xl overflow-y-auto rounded-2xl border-0 bg-white p-0 shadow-xl">
+      <div class="sticky top-0 flex items-center justify-between gap-4 border-b border-slate-100 bg-white px-5 py-5">
+        <h2 id="problems-title" class="text-base font-semibold sm:text-lg">Խնդրահարույց գործարքներ</h2>
+        <button type="button" aria-label="Փակել" autofocus @click="closeProblems" class="rounded-md px-3 py-1 text-2xl hover:bg-slate-100">×</button>
+      </div>
+      <ul class="divide-y divide-slate-100 px-5">
+        <li v-for="problem in report?.problems || []" :key="problem.id" class="flex gap-5 py-4 text-sm">
+          <a :href="problem.url" target="_blank" rel="noopener noreferrer" class="shrink-0 font-semibold text-blue-700 underline underline-offset-4">{{ problem.id }}</a>
+          <div class="space-y-1"><p v-for="reason in problem.reasons" :key="reason.field">{{ fields[reason.field] }}՝ {{ reasons[reason.code] }}</p></div>
+        </li>
+      </ul>
+    </dialog>
+  </main>
+</template>

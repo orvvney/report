@@ -1,31 +1,40 @@
 const http = require('node:http');
 const path = require('node:path');
-const { readFile } = require('node:fs/promises');
+const { readFile, realpath } = require('node:fs/promises');
+const { loadReport } = require('./src/report/load.cjs');
 
-function createServer() {
-  const indexPath = path.join(__dirname, 'index.html');
-
+function createServer({ distPath = path.join(__dirname, 'dist'), ...reportOptions } = {}) {
   return http.createServer(async (request, response) => {
-    // Serve only the page: the project root contains the private CRM webhook.
     const pathname = request.url.split('?')[0];
-    if (!['GET', 'HEAD'].includes(request.method)
-      || !['/', '/index.html'].includes(pathname)) {
+    if (request.method === 'GET' && pathname === '/api/report') {
+      const { status, body } = await loadReport(reportOptions);
+      response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      response.end(JSON.stringify(body));
+      return;
+    }
+    const isIndex = ['/', '/index.html'].includes(pathname);
+    const isAsset = /^\/assets\/[a-zA-Z0-9_-]+\.(?:js|css)$/.test(pathname);
+    if (!['GET', 'HEAD'].includes(request.method) || (!isIndex && !isAsset)) {
       response.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
       response.end('Not found');
       return;
     }
-
     try {
-      const index = await readFile(indexPath);
+      const root = await realpath(distPath);
+      const file = await realpath(path.join(root, isIndex ? 'index.html' : pathname));
+      if (!file.startsWith(`${root}${path.sep}`)) throw new Error('Outside public build');
+      const contents = await readFile(file);
       response.writeHead(200, {
-        'Content-Type': 'text/html; charset=utf-8',
-        'Content-Length': index.length,
-        'Cache-Control': 'no-store',
+        'Content-Type': isIndex ? 'text/html; charset=utf-8'
+          : pathname.endsWith('.js') ? 'text/javascript; charset=utf-8' : 'text/css; charset=utf-8',
+        'Content-Length': contents.length, 'Cache-Control': 'no-store',
+        'X-Content-Type-Options': 'nosniff',
       });
-      response.end(request.method === 'HEAD' ? undefined : index);
+      response.end(request.method === 'HEAD' ? undefined : contents);
     } catch {
-      response.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
-      response.end('Unable to read index.html');
+      response.writeHead(isIndex ? 503 : 404, { 'Content-Type': 'text/plain; charset=utf-8' });
+      response.end(request.method === 'HEAD' ? undefined : isIndex
+        ? 'Էջը պատրաստ չէ։ Կատարեք npm run build։' : 'Not found');
     }
   });
 }

@@ -1,10 +1,10 @@
 describe('home page', () => {
-  test('loads the starter page over HTTP and displays its content', async () => {
+  test('loads the built report over HTTP', async () => {
     const response = await page.goto('/');
 
     expect(response.status()).toBe(200);
-    await page.getByText('hello world', { exact: false }).waitFor({ state: 'visible' });
-    expect(await page.locator('body').innerText()).toMatch(/test\s+hello world/);
+    await page.getByRole('heading', { name: 'Կնքված գործարքներ' }).waitFor({ state: 'visible' });
+    await page.getByRole('button', { name: '2՝ 45 AMD, 3 գործարք', exact: true }).waitFor();
   });
 
   test('does not serve local secrets or project files', async () => {
@@ -19,7 +19,7 @@ describe('home page', () => {
     const response = await page.goto('/index.html?view=report');
     expect(response.status()).toBe(200);
     expect(response.headers()['content-type']).toBe('text/html; charset=utf-8');
-    await page.getByText('hello world', { exact: false }).waitFor({ state: 'visible' });
+    await page.getByRole('heading', { name: 'Կնքված գործարքներ' }).waitFor({ state: 'visible' });
 
     const head = await page.request.head('/');
     expect(head.status()).toBe(200);
