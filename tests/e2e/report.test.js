@@ -214,6 +214,244 @@ const clearRanges = async () => {
 const labels = () => columns().evaluateAll((els) => els.map((el) => el.getAttribute('aria-label')));
 const baseFilters = async () => { fixture.state.items = require('../support/crm-fixture.cjs').filterItems(); await page.goto(url); await ready(); };
 
+const filterPanel = () => page.getByRole('form', { name: 'Զտիչներ', exact: true });
+const filterArea = () => page.getByLabel('Զտիչների տարածք', { exact: true });
+const filterGeometry = () => filterPanel().locator('fieldset').evaluateAll((elements) => elements.map((element) => {
+  const box = element.getBoundingClientRect();
+  const text = document.createRange(); text.selectNodeContents(element.querySelector('legend'));
+  const title = text.getBoundingClientRect();
+  return { x: box.x, y: box.y, height: box.height, width: box.width, right: box.right, titleCenter: title.x + title.width / 2 };
+}));
+const expectEqualPixels = (a, b) => expect(Math.abs(a - b)).toBeLessThanOrEqual(1); // Browser subpixel rounding.
+
+test.each([1440, 1024, 375, 320])('filter layout reflows without scrolling or clipping at %i px', async (width) => {
+  await page.setViewportSize({ width, height: 1000 }); await baseFilters();
+  expect(await filterPanel().locator('legend').evaluateAll((els) => els.map((el) => getComputedStyle(el).fontSize)))
+    .toEqual(['12px', '12px', '12px', '12px']);
+  fs.mkdirSync('test-results', { recursive: true });
+  await page.screenshot({ path: `test-results/filters-layout-${width}.png`, fullPage: true, animations: 'disabled' });
+  let previousRoomWidth = 0;
+  for (const count of [4, 6, 12]) {
+    fixture.state.items = [deal(1, { ufCrmRooms: count })]; await reloadReport();
+    const boxes = await filterGeometry();
+    const panel = await filterPanel().boundingBox();
+    const leftInset = boxes[0].x - panel.x;
+    const panelBorder = await filterPanel().evaluate((el) => parseFloat(getComputedStyle(el).borderLeftWidth));
+    expectEqualPixels(leftInset - panelBorder, 24);
+    expectEqualPixels(panel.x + panel.width - boxes.at(-1).right, leftInset);
+    boxes.forEach((box) => expectEqualPixels(box.titleCenter, box.x + box.width / 2));
+    boxes.slice(1).forEach((box) => expectEqualPixels(box.width, boxes[1].width));
+    const rows = [...new Set(boxes.map((box) => box.y))];
+    expect(rows).toHaveLength(width === 1440 ? 1 : width === 1024 ? 2 : 4);
+    if (width === 1440) {
+      const gaps = boxes.slice(1).map((box, i) => box.x - boxes[i].right);
+      gaps.forEach((gap) => expectEqualPixels(gap, 16));
+      expect(boxes[0].width).toBeGreaterThan(previousRoomWidth); previousRoomWidth = boxes[0].width;
+    }
+    for (let i = 1; i < rows.length; i++) {
+      const previousBottom = Math.max(...boxes.filter((box) => box.y === rows[i - 1]).map((box) => box.y + box.height));
+      expectEqualPixels(rows[i] - previousBottom, 16);
+    }
+    const buttons = await filterPanel().getByRole('button').evaluateAll((els) => els.map((el) => {
+      const box = el.getBoundingClientRect(); return { x: box.x, y: box.y, width: box.width, height: box.height, fits: el.scrollWidth <= el.clientWidth };
+    }));
+    expect(buttons).toHaveLength(count);
+    buttons.forEach((box) => { expect(box.width).toBe(40); expect(box.height).toBe(box.width); expect(box.fits).toBe(true); });
+    if (count === 12) expect(new Set(buttons.map((box) => box.y)).size).toBeGreaterThan(1);
+    const inputBoxes = await filterPanel().locator('input').evaluateAll((els) => els.map((el) => {
+      const box = el.getBoundingClientRect(); return { height: box.height, y: box.y };
+    }));
+    inputBoxes.forEach((box) => expectEqualPixels(box.height, buttons[0].height));
+    if (width === 1440) inputBoxes.forEach((box) => expectEqualPixels(box.y, buttons[0].y));
+    const controlsFit = await filterPanel().locator('input, button, legend').evaluateAll((elements) => elements.every((el) => {
+      const box = el.getBoundingClientRect(), parent = el.closest('fieldset').getBoundingClientRect();
+      return box.x >= parent.x - 1 && box.right <= parent.right + 1 && box.top >= parent.top && box.bottom <= parent.bottom + 1;
+    }));
+    expect(controlsFit).toBe(true);
+    await room(count).click(); expect(await room(count).getAttribute('aria-pressed')).toBe('false');
+    expectEqualPixels((await filterGeometry())[0].width, boxes[0].width);
+    await room(count).press('Space'); expect(await room(count).getAttribute('aria-pressed')).toBe('true');
+    expect(await filterArea().evaluate((el) => el.scrollWidth <= el.clientWidth && el.scrollHeight <= el.clientHeight)).toBe(true);
+    await filterArea().evaluate((el) => { el.scrollLeft = el.scrollWidth; });
+    expect(await filterArea().evaluate((el) => el.scrollLeft)).toBe(0);
+    const graphScroll = page.getByLabel('Գծապատկերի տարածք', { exact: true });
+    await graphScroll.evaluate((el) => { el.scrollLeft = el.scrollWidth; });
+    expect(await filterArea().evaluate((el) => el.scrollLeft)).toBe(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: `test-results/filters-layout-${width}-${count}.png`, fullPage: true, animations: 'disabled' });
+  }
+  fixture.state.items = []; await reloadReport();
+  expect(await filterPanel().getByRole('button').count()).toBe(0);
+  expect((await filterGeometry())[0].width).toBeGreaterThan(0);
+  expect(await filterPanel().locator('legend').first().isVisible()).toBe(true);
+  for (const resizeWidth of [375, 1024, 1440]) {
+    await page.setViewportSize({ width: resizeWidth, height: 1000 }); await baseFilters();
+    expect(await filterArea().evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(false);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  }
+});
+
+test.each([1440, 375])('filter hints stay inside empty controls and preserve partial native dates at %i px', async (width) => {
+  await page.setViewportSize({ width, height: 1000 }); await baseFilters();
+  expect(await filterPanel().locator('label').count()).toBe(0);
+  // getComputedStyle(input, '::-webkit-datetime-edit') returns host styles in
+  // Chromium. Read the actual native shadow element through DevTools instead.
+  const native = await page.context().newCDPSession(page);
+  await native.send('DOM.enable'); await native.send('CSS.enable');
+  const nativeDateOpacity = async (side) => {
+    const { root } = await native.send('DOM.getDocument', { depth: -1, pierce: true });
+    const find = (node, predicate) => {
+      if (predicate(node)) return node;
+      for (const child of [...(node.children || []), ...(node.shadowRoots || [])]) {
+        const result = find(child, predicate); if (result) return result;
+      }
+    };
+    const attr = (node, key) => {
+      const i = node.attributes?.indexOf(key); return i >= 0 ? node.attributes[i + 1] : undefined;
+    };
+    const control = find(root, (node) => attr(node, 'id') === `date-${side}`);
+    const editor = find(control, (node) => attr(node, 'pseudo') === '-webkit-datetime-edit');
+    const { computedStyle } = await native.send('CSS.getComputedStyleForNode', { nodeId: editor.nodeId });
+    return computedStyle.find(({ name }) => name === 'opacity').value;
+  };
+  const assertHint = async (kind, side, shown) => {
+    const control = input(kind, side);
+    if (kind !== 'date') {
+      expect(await control.getAttribute('placeholder')).toBe(side === 'min' ? 'Սկսած' : 'Մինչև');
+      expect(await control.evaluate((el) => el.matches(':placeholder-shown'))).toBe(shown);
+      return;
+    }
+    const hint = control.locator('..').locator('[aria-hidden="true"]');
+    expect(await hint.count()).toBe(shown ? 1 : 0);
+    expect(await nativeDateOpacity(side)).toBe(shown ? '0' : '1');
+    if (shown) {
+      expect(await hint.innerText()).toBe(side === 'min' ? 'Սկսած' : 'Մինչև');
+      const outer = await control.boundingBox(), inner = await hint.boundingBox();
+      expect(inner.x).toBeGreaterThan(outer.x); expect(inner.y).toBeGreaterThanOrEqual(outer.y);
+      expect(inner.x + inner.width).toBeLessThan(outer.x + outer.width);
+      expect(inner.y + inner.height).toBeLessThanOrEqual(outer.y + outer.height);
+      expect(await hint.evaluate((el) => getComputedStyle(el).pointerEvents)).toBe('none');
+    }
+  };
+  for (const [kind, values] of [['amount', ['200.2', '400.4']], ['area', ['50', '80']], ['date', ['2026-01-01', '2026-12-31']]]) {
+    for (const [i, side] of ['min', 'max'].entries()) {
+      await input(kind, side).focus(); await assertHint(kind, side, true);
+      await input(kind, side).fill(values[i]); await assertHint(kind, side, false);
+      await input(kind, side).fill(''); await assertHint(kind, side, true);
+    }
+    await input(kind, 'min').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `test-results/filters-hints-${width}-${kind}-empty.png`, fullPage: true, animations: 'disabled' });
+    await input(kind, 'min').fill(values[0]); await input(kind, 'max').fill(values[1]);
+    await page.screenshot({ path: `test-results/filters-hints-${width}-${kind}-filled.png`, fullPage: true, animations: 'disabled' });
+  }
+  await clearRanges();
+  // Typing into a blank native date must reveal the actual edited segments.
+  await input('date', 'min').focus(); await input('date', 'min').press('1');
+  expect(await input('date', 'min').evaluate((el) => el.validity.badInput)).toBe(true);
+  await assertHint('date', 'min', false);
+  await input('date', 'min').fill('2026-01-01');
+  const applied = await labels();
+  await input('date', 'min').focus(); await input('date', 'min').press('ArrowRight'); await input('date', 'min').press('Backspace');
+  expect(await input('date', 'min').evaluate((el) => el.validity.badInput)).toBe(true);
+  expect(await input('date', 'min').getAttribute('aria-invalid')).toBe('true');
+  await assertHint('date', 'min', false); expect(await labels()).toEqual(applied);
+  await input('date', 'max').focus(); await assertHint('date', 'min', false);
+  await page.screenshot({ path: `test-results/filters-hints-${width}-date-partial.png`, fullPage: true, animations: 'disabled' });
+  await input('date', 'min').fill(''); await assertHint('date', 'min', true);
+  expect(await page.getByRole('alert').count()).toBe(0);
+  const before = (await filterGeometry()).map(({ x, width, titleCenter }) => ({ x, width, titleCenter }));
+  await input('amount', 'min').fill('200'); await input('amount', 'max').fill('100');
+  // Compare in content coordinates: focus can scroll the panel on narrow screens.
+  const after = await filterGeometry();
+  for (let i = 0; i < before.length; i++) {
+    expectEqualPixels(after[i].width, before[i].width);
+    expectEqualPixels(after[i].x - after[0].x, before[i].x - before[0].x);
+    expectEqualPixels(after[i].titleCenter - after[i].x, before[i].titleCenter - before[i].x);
+  }
+  const errorId = await input('amount', 'max').getAttribute('aria-describedby');
+  expect(await page.locator(`#${errorId}`).isVisible()).toBe(true);
+  await input('amount', 'max').fill('400'); await clearRanges();
+  expect(await page.getByRole('alert').count()).toBe(0);
+  await native.detach();
+});
+
+test('room buttons retain their size and distinguish selected and unselected colors', async () => {
+  await baseFilters();
+  const appearance = () => room(1).evaluate((el) => {
+    const style = getComputedStyle(el), box = el.getBoundingClientRect();
+    return { background: style.backgroundColor, border: style.borderTopColor, color: style.color,
+      fontSize: style.fontSize, width: box.width, height: box.height };
+  });
+  expect(await appearance()).toEqual({ background: 'rgb(102, 133, 235)', border: 'rgb(102, 133, 235)', color: 'rgb(255, 255, 255)', fontSize: '13px', width: 40, height: 40 });
+  await room(1).click();
+  expect(await appearance()).toEqual({ background: 'rgb(255, 255, 255)', border: 'rgb(203, 213, 225)', color: 'rgb(24, 37, 61)', fontSize: '13px', width: 40, height: 40 });
+  await room(1).press('Space'); expect(await room(1).getAttribute('aria-pressed')).toBe('true');
+  await room(2).click(); await room(3).click(); await room(1).click();
+  expect(await room(1).getAttribute('aria-pressed')).toBe('true');
+});
+
+test.each([1440, 375])('filter units stay at the right inside empty and filled numeric controls at %i px', async (width) => {
+  await page.setViewportSize({ width, height: 1000 }); await baseFilters();
+  expect(await filterPanel().locator('legend').allTextContents()).toEqual([
+    'Սենյակների քանակ', 'Ընդհանուր արժեք', 'Մակերես', 'Կնքման ամսաթիվ',
+  ]);
+  for (const [kind, unit] of [['amount', '֏'], ['area', '(մ²)']]) {
+    for (const side of ['min', 'max']) {
+      const control = input(kind, side);
+      const suffix = control.locator('..').getByText(unit, { exact: true });
+      for (const value of ['', '200.2', '12345678901234567890.12', 'abc', '']) {
+        await control.fill(value);
+        expect(await control.inputValue()).toBe(value);
+        expect(await suffix.isVisible()).toBe(true);
+        const box = await control.boundingBox(), suffixBox = await suffix.boundingBox();
+        expect(suffixBox.x).toBeGreaterThan(box.x);
+        expectEqualPixels(box.x + box.width - suffixBox.x - suffixBox.width, 8);
+        expectEqualPixels(suffixBox.y + suffixBox.height / 2, box.y + box.height / 2);
+        const padding = await control.evaluate((el) => parseFloat(getComputedStyle(el).paddingRight));
+        expect(box.x + box.width - padding).toBeLessThan(suffixBox.x);
+        expect(await suffix.getAttribute('aria-hidden')).toBe('true');
+        expect(await suffix.evaluate((el) => getComputedStyle(el).pointerEvents)).toBe('none');
+      }
+      await rooms().focus(); await control.scrollIntoViewIfNeeded();
+      const suffixBox = await suffix.boundingBox();
+      await page.mouse.click(suffixBox.x + suffixBox.width / 2, suffixBox.y + suffixBox.height / 2);
+      expect(await control.evaluate((el) => el === document.activeElement)).toBe(true);
+    }
+    await controlPairScreenshot(kind, width, 'empty');
+    await input(kind, 'min').fill('50'); await input(kind, 'max').fill('200.2');
+    await controlPairScreenshot(kind, width, 'filled');
+    await input(kind, 'min').fill(''); await input(kind, 'max').fill('');
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+async function controlPairScreenshot(kind, width, state) {
+  await filterPanel().locator('fieldset').filter({ has: input(kind, 'min') })
+    .evaluate((el) => el.scrollIntoView({ block: 'nearest', inline: 'center' }));
+  fs.mkdirSync('test-results', { recursive: true });
+  await page.screenshot({ path: `test-results/filters-units-${width}-${kind}-${state}.png`, fullPage: true, animations: 'disabled' });
+}
+
+test('filter inputs focus without an extra outline and keep their normal or error border', async () => {
+  await baseFilters();
+  for (const kind of ['amount', 'area', 'date']) {
+    for (const side of ['min', 'max']) {
+      const control = input(kind, side);
+      await control.click();
+      expect(await control.evaluate((el) => el === document.activeElement)).toBe(true);
+      expect(await control.evaluate((el) => {
+        const style = getComputedStyle(el);
+        return { outline: style.outlineStyle, border: style.borderTopWidth, color: style.borderTopColor, height: el.getBoundingClientRect().height };
+      })).toEqual({ outline: 'none', border: '1px', color: 'rgb(203, 213, 225)', height: 40 });
+    }
+  }
+  await input('amount', 'min').fill('200'); await input('amount', 'max').fill('100');
+  expect(await input('amount', 'max').evaluate((el) => getComputedStyle(el).borderTopColor)).toBe('rgb(185, 28, 28)');
+  expect(await input('amount', 'max').evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('none');
+  await room(1).focus(); await page.keyboard.press('Tab');
+  expect(await room(2).evaluate((el) => getComputedStyle(el).outlineStyle)).not.toBe('none');
+});
+
 test('filters intersect instantly, keep global problems, preserve mode and never fetch again', async () => {
   let requests = 0; page.on('request', (request) => { if (request.url().endsWith('/api/report')) requests++; });
   await baseFilters();
@@ -341,7 +579,7 @@ test('filter panel disables on load/failure and retry restores saved filters', a
   expect(await problems().innerText()).toMatch(/1/);
 });
 
-test.each([1440, 375])('filters precede grouping without a reset button, with independent scroll and keyboard access at %i px', async (width) => {
+test.each([1440, 375])('filters precede grouping without a reset button or panel scroll and retain keyboard access at %i px', async (width) => {
   await page.setViewportSize({ width, height: 1000 }); await baseFilters();
   const panel = page.getByRole('form', { name: 'Զտիչներ', exact: true });
   const panelScroll = page.getByLabel('Զտիչների տարածք', { exact: true });
@@ -351,13 +589,14 @@ test.each([1440, 375])('filters precede grouping without a reset button, with in
   expect(panelBox.y + panelBox.height).toBeLessThan(groupBox.y);
   expect(await page.getByRole('button', { name: 'Զտիչները վերակայել', exact: true }).count()).toBe(0);
   const boxes = await panel.locator('fieldset').evaluateAll((els) => els.map((el) => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y }; }));
-  expect(new Set(boxes.map((b) => b.y)).size).toBe(1);
+  expect(new Set(boxes.map((b) => b.y)).size).toBe(width === 375 ? 4 : 1);
   expect(boxes.map((b) => b.x)).toEqual(boxes.map((b) => b.x).sort((a, b) => a - b));
-  expect(await panelScroll.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(width === 375);
+  expect(await panelScroll.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(false);
   const refreshBox = await refresh().boundingBox();
   await panelScroll.evaluate((el) => { el.scrollLeft = el.scrollWidth; });
   expect(await graphScroll.evaluate((el) => el.scrollLeft)).toBe(0);
   const panelPosition = await panelScroll.evaluate((el) => el.scrollLeft);
+  expect(panelPosition).toBe(0);
   await graphScroll.evaluate((el) => { el.scrollLeft = el.scrollWidth; });
   expect(await panelScroll.evaluate((el) => el.scrollLeft)).toBe(panelPosition);
   expect(await refresh().boundingBox()).toEqual(refreshBox);
@@ -368,7 +607,7 @@ test.each([1440, 375])('filters precede grouping without a reset button, with in
   await input('amount', 'min').fill('200'); await input('amount', 'max').fill('100');
   const errorId = await input('amount', 'max').getAttribute('aria-describedby');
   expect(await page.locator(`#${errorId}`).innerText()).toBe('Սկզբնական արժեքը չպետք է գերազանցի վերջնական արժեքը');
-  expect(await input('amount', 'max').evaluate((el) => getComputedStyle(el).outlineStyle)).not.toBe('none');
+  expect(await input('amount', 'max').evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('none');
   await panel.locator('fieldset').filter({ has: input('amount', 'min') }).evaluate((el) => el.scrollIntoView({ block: 'nearest', inline: 'center' }));
   await page.screenshot({ path: `test-results/filters-error-${width}.png`, fullPage: true });
   await input('date', 'min').focus();

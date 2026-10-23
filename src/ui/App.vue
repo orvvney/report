@@ -19,6 +19,8 @@ const filtered = computed(() => calculate(report.value?.deals || [], report.valu
 }));
 const categories = computed(() => report.value ? filtered.value[mode.value] : []);
 const errorText = (code) => code === 'reversed' ? 'Սկզբնական արժեքը չպետք է գերազանցի վերջնական արժեքը' : 'Անվավեր արժեք';
+// An unfinished native date has an empty value too; keep its visible segments.
+const emptyDate = (side) => !ranges.date.draft[side] && !ranges.date.badInput[side];
 function editRange(kind, side, event) {
   const range = ranges[kind];
   range.draft[side] = event.target.value;
@@ -91,7 +93,7 @@ onMounted(refresh);
     </header>
     <section aria-label="Գործարքների հաշվետվություն" class="rounded-2xl border border-slate-200 bg-white shadow-sm">
       <form class="filter-panel" aria-label="Զտիչներ" @submit.prevent>
-        <div class="filter-scroll" tabindex="0" aria-label="Զտիչների տարածք">
+        <div aria-label="Զտիչների տարածք">
           <div class="filter-row">
             <fieldset class="room-filter" :disabled="disabled">
               <legend>{{ fields.rooms }}</legend>
@@ -102,16 +104,21 @@ onMounted(refresh);
               </div>
             </fieldset>
             <fieldset v-for="kind in ['amount', 'area', 'date']" :key="kind" :disabled="disabled" class="range-filter" :class="{ 'date-filter': kind === 'date' }">
-              <legend>{{ fields[kind] }}{{ kind === 'amount' ? ' (AMD)' : '' }}</legend>
+              <legend>{{ kind === 'area' ? 'Մակերես' : fields[kind] }}</legend>
               <div class="range-inputs">
-                <div v-for="side in ['min', 'max']" :key="side">
-                  <label :for="`${kind}-${side}`">{{ side === 'min' ? 'Սկսած' : 'Մինչև' }}</label>
+                <div v-for="side in ['min', 'max']" :key="side" class="range-control" :class="{ 'has-unit': kind !== 'date' }">
                   <input :id="`${kind}-${side}`" :type="kind === 'date' ? 'date' : 'text'"
+                    :class="{ 'date-empty': kind === 'date' && emptyDate(side) }"
+                    :placeholder="kind === 'date' ? undefined : side === 'min' ? 'Սկսած' : 'Մինչև'"
                     :inputmode="kind === 'date' ? undefined : 'decimal'"
                     :aria-label="`${fields[kind]}՝ ${side === 'min' ? 'Սկսած' : 'Մինչև'}`"
                     :aria-invalid="!!ranges[kind].errors[side]"
                     :aria-describedby="ranges[kind].errors[side] ? `${kind}-error` : undefined"
+                    @keyup="kind === 'date' && editRange(kind, side, $event)"
+                    @blur="kind === 'date' && editRange(kind, side, $event)"
                     :value="ranges[kind].draft[side]" @input="editRange(kind, side, $event)" />
+                  <span v-if="kind === 'date' && emptyDate(side)" class="date-placeholder" aria-hidden="true">{{ side === 'min' ? 'Սկսած' : 'Մինչև' }}</span>
+                  <span v-if="kind !== 'date'" class="range-unit" aria-hidden="true">{{ kind === 'amount' ? '֏' : '(մ²)' }}</span>
                 </div>
               </div>
               <p v-if="Object.keys(ranges[kind].errors).length" :id="`${kind}-error`" class="filter-error" role="alert">{{ errorText(Object.values(ranges[kind].errors)[0]) }}</p>
