@@ -8,6 +8,16 @@ button:disabled { cursor: wait; }
 dialog::backdrop { background: rgb(15 23 42 / 45%); }
 .chart-column:focus { outline: none; }
 .chart-column:focus-visible rect:last-of-type { stroke: #1e3a8a; stroke-width: 3; }
+.refresh-button { display: grid; place-items: center; flex-shrink: 0; width: 40px; height: 40px; border: 1px solid #e2e8f0; border-radius: 8px; background: white; font-size: 24px; }
+.refresh-button:hover { background: #f8fafc; }
+.refresh-button:disabled { opacity: .5; }
+.chart-footer-info { display: flex; flex-direction: column; gap: 16px; }
+.chart-summary { max-width: 100%; overflow-x: auto; white-space: nowrap; font-size: 10px; }
+.chart-x-title { align-self: flex-end; text-align: right; overflow-wrap: anywhere; }
+@media (min-width: 640px) {
+  .chart-footer-info { flex-direction: row; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; }
+  .chart-summary { font-size: 12px; }
+}
 
 /* Filters precede grouping controls and scroll independently of the SVG. */
 .filter-panel { min-width: 0; margin: 12px; padding: 12px 0 8px; border: 1px solid #dbe4ef; border-radius: 12px; background: rgb(248 250 252 / 97%); box-shadow: 0 4px 16px #18253d0a; }

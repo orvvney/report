@@ -4,7 +4,7 @@ describe('home page', () => {
 
     expect(response.status()).toBe(200);
     await page.getByRole('heading', { name: 'Կնքված գործարքներ' }).waitFor({ state: 'visible' });
-    await page.getByRole('button', { name: '2՝ 35 AMD, 2 գործարք', exact: true }).waitFor();
+    await page.getByRole('img', { name: '2՝ 35 AMD, 2 գործարք', exact: true }).waitFor();
   });
 
   test('does not serve local secrets or project files', async () => {
