@@ -1,11 +1,36 @@
 <script setup>
-import { computed, nextTick, onMounted, ref } from 'vue';
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
+import filters from '../report/filter.cjs';
+const { calculate, roomOptions, reconcileRooms, toggleRoom, validateRange } = filters;
 const mode = ref('rooms'), report = ref(null), loading = ref(false), failed = ref(false);
 const tooltip = ref(null), dialog = ref(null), problemButton = ref(null);
 const months = ['Հունվար', 'Փետրվար', 'Մարտ', 'Ապրիլ', 'Մայիս', 'Հունիս', 'Հուլիս', 'Օգոստոս', 'Սեպտեմբեր', 'Հոկտեմբեր', 'Նոյեմբեր', 'Դեկտեմբեր'];
-const fields = { rooms: 'Սենյակների քանակ', date: 'Կնքման ամսաթիվ', amount: 'Ընդհանուր արժեք', currency: 'Արժույթ' };
+const fields = { rooms: 'Սենյակների քանակ', date: 'Կնքման ամսաթիվ', amount: 'Ընդհանուր արժեք', area: 'Մակերես (մ²)', currency: 'Արժույթ' };
 const reasons = { missing: 'Լրացված չէ', invalid: 'Անվավեր արժեք', unsupported_currency: 'Աջակցվում է միայն AMD' };
-const categories = computed(() => report.value?.[mode.value] || []);
+const availableRooms = ref([]), selectedRooms = ref([]);
+const ranges = reactive(Object.fromEntries(['amount', 'area', 'date'].map((kind) => [kind, {
+  draft: { min: '', max: '' }, applied: { min: null, max: null }, errors: {}, badInput: {},
+}])));
+const disabled = computed(() => loading.value || failed.value || !report.value);
+const filtered = computed(() => calculate(report.value?.deals || [], report.value?.year, {
+  rooms: selectedRooms.value, ...Object.fromEntries(Object.entries(ranges).map(([kind, range]) => [kind, range.applied])),
+}));
+const categories = computed(() => report.value ? filtered.value[mode.value] : []);
+watch(filtered, () => { tooltip.value = null; }, { flush: 'sync' });
+const period = computed(() => {
+  const { min, max } = ranges.date.applied;
+  const bounds = [min && `Սկսած ${min}`, max && `Մինչև ${max}`].filter(Boolean).join(' · ');
+  return [mode.value === 'months' ? report.value?.year : '', bounds || (mode.value === 'rooms' ? 'Ամբողջ ժամանակահատվածը' : '')].filter(Boolean).join(' · ');
+});
+const errorText = (code) => code === 'reversed' ? 'Սկզբնական արժեքը չպետք է գերազանցի վերջնական արժեքը' : 'Անվավեր արժեք';
+function editRange(kind, side, event) {
+  const range = ranges[kind];
+  range.draft[side] = event.target.value;
+  range.badInput[side] = event.target.validity.badInput;
+  const result = validateRange(kind, range.draft, range.badInput);
+  range.errors = result.errors;
+  if (result.valid) range.applied = result.values;
+}
 const hasData = computed(() => categories.value.some((entry) => entry.count > 0));
 const width = computed(() => Math.max(920, categories.value.length * 96 + 120));
 const maximum = computed(() => categories.value.reduce((max, entry) => Math.max(max, Number(entry.amount)), 0) || 1);
@@ -43,7 +68,11 @@ async function refresh() {
   try {
     const response = await fetch('/api/report', { cache: 'no-store' });
     if (!response.ok) throw new Error();
-    report.value = await response.json();
+    const snapshot = await response.json();
+    const available = roomOptions(snapshot.deals);
+    selectedRooms.value = reconcileRooms(availableRooms.value, selectedRooms.value, available);
+    availableRooms.value = available;
+    report.value = snapshot;
   } catch { failed.value = true; }
   finally { loading.value = false; }
 }
@@ -58,6 +87,35 @@ onMounted(refresh);
       <p class="mt-3 text-sm text-slate-500">Գործարքների ընդհանուր արժեքը՝ ըստ սենյակների և ամսաթվի</p>
     </header>
     <section aria-label="Գործարքների հաշվետվություն" class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <form class="filter-panel" aria-label="Զտիչներ" @submit.prevent>
+        <div class="filter-scroll" tabindex="0" aria-label="Զտիչների տարածք">
+          <div class="filter-row">
+            <fieldset class="room-filter" :disabled="disabled">
+              <legend>{{ fields.rooms }}</legend>
+              <div class="room-buttons">
+                <button v-for="room in availableRooms" :key="room" type="button"
+                  :aria-pressed="selectedRooms.includes(room)" :aria-label="`${fields.rooms}՝ ${room}`"
+                  @click="selectedRooms = toggleRoom(selectedRooms, room)">{{ room }}</button>
+              </div>
+            </fieldset>
+            <fieldset v-for="kind in ['amount', 'area', 'date']" :key="kind" :disabled="disabled" class="range-filter" :class="{ 'date-filter': kind === 'date' }">
+              <legend>{{ fields[kind] }}{{ kind === 'amount' ? ' (AMD)' : '' }}</legend>
+              <div class="range-inputs">
+                <div v-for="side in ['min', 'max']" :key="side">
+                  <label :for="`${kind}-${side}`">{{ side === 'min' ? 'Սկսած' : 'Մինչև' }}</label>
+                  <input :id="`${kind}-${side}`" :type="kind === 'date' ? 'date' : 'text'"
+                    :inputmode="kind === 'date' ? undefined : 'decimal'"
+                    :aria-label="`${fields[kind]}՝ ${side === 'min' ? 'Սկսած' : 'Մինչև'}`"
+                    :aria-invalid="!!ranges[kind].errors[side]"
+                    :aria-describedby="ranges[kind].errors[side] ? `${kind}-error` : undefined"
+                    :value="ranges[kind].draft[side]" @input="editRange(kind, side, $event)" />
+                </div>
+              </div>
+              <p v-if="Object.keys(ranges[kind].errors).length" :id="`${kind}-error`" class="filter-error" role="alert">{{ errorText(Object.values(ranges[kind].errors)[0]) }}</p>
+            </fieldset>
+          </div>
+        </div>
+      </form>
       <div class="relative flex flex-col items-center gap-4 border-b border-slate-100 px-3 pb-5 pt-20 sm:px-6 lg:py-6">
         <button type="button" class="absolute right-4 top-5 rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium hover:bg-slate-50 disabled:opacity-50 lg:right-6 lg:top-6"
           :disabled="loading" @click="refresh">Թարմացնել <span aria-hidden="true">↻</span></button>
@@ -75,7 +133,7 @@ onMounted(refresh);
       <template v-else-if="report">
         <div class="flex flex-wrap items-center justify-between gap-2 px-5 pt-6 sm:px-8">
           <h2 class="text-sm font-medium">Ընդհանուր արժեք (AMD)</h2>
-          <p class="text-sm text-slate-500">{{ mode === 'months' ? report.year : 'Ամբողջ ժամանակահատվածը' }}</p>
+          <p class="text-sm text-slate-500">{{ period }}</p>
         </div>
         <p v-if="!hasData" role="status" class="pt-6 text-center text-slate-500">Տվյալներ չկան</p>
         <div class="overflow-x-auto px-2 pt-4" aria-label="Գծապատկերի տարածք" tabindex="0">

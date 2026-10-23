@@ -3,9 +3,12 @@ const fields = {
   ufCrmRooms: { title: 'Սենյակների քանակ', type: 'integer' },
   ufCrmArea: { title: 'Մակերես (մ²)', type: 'double' },
   ufCrmDate: { title: 'Կնքման ամսաթիվ', type: 'date' },
+  ufCrmProperty: { title: 'Անշարժ գույքի տեսակ', type: 'enumeration', isMultiple: false,
+    items: [{ ID: '71', VALUE: 'Բնակարան' }, { ID: '72', VALUE: 'Ավտոկայանատեղի' },
+      { ID: '73', VALUE: 'Թաունհաուս' }, { ID: '74', VALUE: 'Հասարակական տարածք' }] },
 };
 const deal = (id, overrides = {}) => ({ id, categoryId: 3, stageId: 'C3:WON',
-  opportunity: '10', currencyId: 'AMD', ufCrmRooms: 2, ufCrmDate: '2026-01-15', ...overrides });
+  ufCrmArea: '50', opportunity: '10', currencyId: 'AMD', ufCrmRooms: 2, ufCrmDate: '2026-01-15', ufCrmProperty: '71', ...overrides });
 function sampleItems() {
   return [deal(1), deal(2, { opportunity: '25', ufCrmDate: '2025-12-31' }),
     deal(3, { ufCrmRooms: 6, opportunity: '1000000.1234', ufCrmDate: '2026-12-31' }),
@@ -16,6 +19,7 @@ function sampleItems() {
 }
 function createFixture(state = {}) {
   state.items ??= sampleItems(); state.reads ??= 0; state.requests ??= [];
+  state.fields ??= structuredClone(fields);
   const fetchImpl = async (url, options) => {
     const method = url.split('/').at(-1).replace(/\.json$/, '');
     const params = JSON.parse(options.body);
@@ -27,7 +31,7 @@ function createFixture(state = {}) {
       return reply({ result: { categories: [{ id: 3, name: 'Վաճառք' }] } });
     }
     if (method === 'crm.status.list') return reply({ result: [{ ENTITY_ID: 'DEAL_STAGE_3', STATUS_ID: 'C3:WON', NAME: 'Կնքված' }] });
-    if (method === 'crm.item.fields') return reply({ result: { fields } });
+    if (method === 'crm.item.fields') return reply({ result: { fields: state.fields } });
     if (method === 'crm.item.list') {
       if (state.failPage === params.start) return reply({ error: 'ACCESS_DENIED', error_description: WEBHOOK });
       const matching = state.items.filter((item) => item.categoryId === params.filter.categoryId && item.stageId === params.filter.stageId);
@@ -40,3 +44,18 @@ function createFixture(state = {}) {
   return { state, fetchImpl, env: { BITRIX24_WEBHOOK_URL: WEBHOOK }, now: () => new Date(state.time || '2026-06-01T10:00:00Z') };
 }
 module.exports = { createFixture, deal, sampleItems, fields, WEBHOOK };
+
+function filterItems() {
+  return [
+    deal(1, { ufCrmRooms: 1, opportunity: '100.1', ufCrmArea: '50', ufCrmDate: '2026-01-01' }),
+    deal(2, { opportunity: '200.2', ufCrmArea: '65.5', ufCrmDate: '2026-06-15' }),
+    deal(3, { ufCrmRooms: 3, opportunity: '300.3', ufCrmArea: '80', ufCrmDate: '2025-12-31' }),
+    deal(4, { opportunity: '400.4', ufCrmArea: '80', ufCrmDate: '2026-12-31' }),
+    deal(5, { ufCrmRooms: 5, opportunity: '500', ufCrmArea: undefined, ufCrmDate: '2026-01-01' }),
+    deal(6, { ufCrmRooms: 4, opportunity: '600', ufCrmArea: '90', ufCrmDate: undefined }),
+    deal(7, { ufCrmRooms: undefined, opportunity: '700', ufCrmArea: '100', ufCrmDate: '2026-01-01' }),
+    deal(8, { ufCrmRooms: 6, opportunity: undefined, ufCrmArea: '110', ufCrmDate: '2026-01-01' }),
+    deal(9, { ufCrmRooms: 20, opportunity: '900', ufCrmArea: '120', ufCrmDate: '2026-01-01', ufCrmProperty: '72' }),
+  ];
+}
+module.exports.filterItems = filterItems;

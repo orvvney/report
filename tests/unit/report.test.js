@@ -3,39 +3,75 @@ const { deal, fields } = require('../support/crm-fixture.cjs');
 const metadata = Object.entries(fields).map(([code, field]) => ({ code, ...field }));
 const report = (items, time = '2026-06-01T00:00:00Z') => aggregate({ items, fields: metadata }, { portalOrigin: 'https://portal.example', now: new Date(time) });
 
-test('sums all-time rooms, fills gaps through maximum even on an excluded deal, and emits every month', () => {
+test('only apartments contribute to totals, room range and problems', () => {
+  const result = report([
+    deal(1, { opportunity: '100' }),
+    deal(2, { opportunity: '200', ufCrmRooms: 3, ufCrmDate: '2025-12-01' }),
+    deal(3, { ufCrmProperty: '72', ufCrmRooms: 20, opportunity: '900' }),
+    deal(4, { ufCrmProperty: '73', ufCrmDate: null }),
+    deal(5, { ufCrmProperty: '74', opportunity: 0 }),
+    deal(6, { ufCrmProperty: null, currencyId: 'USD' }),
+  ]);
+  expect(result.rooms).toEqual([
+    { category: 1, amount: '0', count: 0 }, { category: 2, amount: '100', count: 1 },
+    { category: 3, amount: '200', count: 1 },
+  ]);
+  expect(result.months[0]).toEqual({ category: 1, amount: '100', count: 1 });
+  expect(result.months.slice(1).every((m) => m.amount === '0' && m.count === 0)).toBe(true);
+  expect(result.problems).toEqual([]);
+});
+
+test.each([undefined, null, '', ' ', '999', false, true, ['71'], { id: '71' }, 'Բնակարան'])('excludes property type %p entirely', (ufCrmProperty) => {
+  const result = report([deal(1, { ufCrmProperty, ufCrmRooms: 20, opportunity: 0, ufCrmDate: null })]);
+  expect(result.rooms).toEqual([]);
+  expect(result.months.every((m) => m.amount === '0' && m.count === 0)).toBe(true);
+  expect(result.problems).toEqual([]);
+});
+
+test('accepts numeric and string apartment IDs and retains only apartment problems', () => {
+  const result = report([deal(1, { ufCrmProperty: 71, ufCrmDate: null }),
+    deal(2, { ufCrmProperty: '71', ufCrmRooms: null }),
+    ...['72', '73', '74', undefined].map((ufCrmProperty, i) => deal(i + 3, { ufCrmProperty, ufCrmDate: null, ufCrmRooms: null }))]);
+  expect(result.rooms).toEqual([]);
+  expect(result.deals).toEqual([]);
+  expect(result.months[0].count).toBe(0);
+  expect(result.problems.map((p) => p.id)).toEqual([1, 2]);
+});
+
+test('sums all-time rooms, fills gaps through eligible maximum only, and emits every month', () => {
   const result = report([deal(1), deal(2, { opportunity: '25', ufCrmDate: '2025-12-01' }), deal(3, { ufCrmRooms: 6, opportunity: 0 })]);
-  expect(result.rooms).toEqual([1, 2, 3, 4, 5, 6].map((category) => ({ category, amount: category === 2 ? '35' : '0', count: category === 2 ? 2 : 0 })));
+  expect(result.rooms).toEqual([1, 2].map((category) => ({ category, amount: category === 2 ? '35' : '0', count: category === 2 ? 2 : 0 })));
   expect(result.months).toHaveLength(12);
   expect(result.months[0]).toEqual({ category: 1, amount: '10', count: 1 });
   expect(result.months.slice(1).every((entry) => entry.amount === '0')).toBe(true);
   expect(result.problems[0].reasons).toEqual([{ field: 'amount', code: 'invalid' }]);
 });
-test('missing grouping fields exclude independently, unique problems include old/future dates and sort by numeric ID', () => {
+test('missing grouping fields exclude from both charts, unique problems include old/future dates and sort by numeric ID', () => {
   const result = report([deal(10, { ufCrmDate: null }), deal(2, { ufCrmRooms: null, opportunity: 25 }),
     deal(3, { ufCrmRooms: '', ufCrmDate: ' ' }), deal(4, { ufCrmRooms: null, ufCrmDate: '2027-01-01' }),
     deal(5, { ufCrmRooms: null, ufCrmDate: '2025-01-01' })]);
-  expect(result.rooms[1]).toEqual({ category: 2, amount: '10', count: 1 });
-  expect(result.months[0]).toEqual({ category: 1, amount: '25', count: 1 });
+  expect(result.rooms).toEqual([]);
+  expect(result.deals).toEqual([]);
+  expect(result.months[0]).toEqual({ category: 1, amount: '0', count: 0 });
   expect(result.problems.map((p) => p.id)).toEqual([2, 3, 4, 5, 10]);
   expect(result.problems[1]).toEqual({ id: 3, url: 'https://portal.example/crm/deal/details/3/',
     reasons: [{ field: 'rooms', code: 'missing' }, { field: 'date', code: 'missing' }] });
 });
-test.each([undefined, null, '', ' ', false, true, [], {}, 0, -1, 2.5, '2x', '0x10', 'Infinity', Number.MAX_SAFE_INTEGER + 1])('rejects invalid room value %p without excluding its month', (value) => {
+test.each([undefined, null, '', ' ', false, true, [], {}, 0, -1, 2.5, '2x', '0x10', 'Infinity', Number.MAX_SAFE_INTEGER + 1])('rejects invalid room value %p and its month', (value) => {
   const result = report([deal(1, { ufCrmRooms: value })]);
   expect(result.rooms).toEqual([]);
-  expect(result.months[0].amount).toBe('10');
+  expect(result.months[0].amount).toBe('0');
   expect(result.problems[0].reasons[0].field).toBe('rooms');
 });
 test.each([undefined, null, '', ' ', false, true, [], {}, 0, '0', -1, '12abc', NaN, Infinity, '1,000'])('rejects amount %p from both charts', (value) => {
   const result = report([deal(1, { opportunity: value })]);
-  expect(result.rooms[1].amount).toBe('0');
+  expect(result.rooms).toEqual([]);
   expect(result.months[0].count).toBe(0);
   expect(result.problems[0].reasons).toEqual([{ field: 'amount', code: [undefined, null, '', ' '].includes(value) ? 'missing' : 'invalid' }]);
 });
 test.each([['USD', 'unsupported_currency'], [null, 'missing'], ['', 'missing'], [false, 'invalid']])('rejects currency %p from both charts', (value, code) => {
   const result = report([deal(1, { currencyId: value })]);
-  expect(result.rooms[1].count).toBe(0);
+  expect(result.rooms).toEqual([]);
   expect(result.months[0].count).toBe(0);
   expect(result.problems[0].reasons).toEqual([{ field: 'currency', code }]);
 });
@@ -53,7 +89,7 @@ test('calendar validation never rolls invalid days and keeps date component with
   const result = report([deal(1, { ufCrmDate: '2026-01-01T00:00:00+04:00' }), deal(2, { ufCrmDate: '2026-12-31T23:59:59-10:00' }),
     deal(3, { ufCrmDate: '2026-02-30' }), deal(4, { ufCrmDate: '2027-01-01' })]);
   expect(result.months[0].count).toBe(1); expect(result.months[11].count).toBe(1);
-  expect(result.rooms[1].count).toBe(4);
+  expect(result.rooms[1].count).toBe(3);
   expect(result.problems[0].reasons).toEqual([{ field: 'date', code: 'invalid' }]);
   expect(report([deal(1, { ufCrmDate: '2024-02-29' })], '2024-07-01').months[1].count).toBe(1);
 });

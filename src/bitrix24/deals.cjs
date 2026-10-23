@@ -38,7 +38,7 @@ function unique(rows, name, nameKey, idKey, kind) {
   return matches[0];
 }
 
-async function getDeals(call) {
+async function getDeals(call, { additionalFields = [] } = {}) {
   const categories = await listAll(call, 'crm.category.list', { entityTypeId: 2 },
     (result) => result?.categories);
   const category = unique(categories, PIPELINE, 'name', 'id', 'Воронка');
@@ -59,9 +59,10 @@ async function getDeals(call) {
     .filter(([code]) => code.startsWith('ufCrm'))
     .map(([code, field]) => {
       if (!isObject(field)) invalid('crm.item.fields');
-      return { code, title: field.title, type: field.type };
+      return { code, title: field.title, type: field.type,
+        ...(additionalFields.includes(field.title) ? { items: field.items, isMultiple: field.isMultiple } : {}) };
     });
-  const selectedFields = FIELD_NAMES.map((name) => {
+  const selectedFields = [...FIELD_NAMES, ...additionalFields].map((name) => {
     const field = unique(fields, name, 'title', 'code', 'Поле');
     if (typeof field.type !== 'string' || !field.type) invalid('crm.item.fields');
     return field;

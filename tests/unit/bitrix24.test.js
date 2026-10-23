@@ -128,6 +128,16 @@ describe('Bitrix24 configuration', () => {
 });
 
 describe('Bitrix24 complete check', () => {
+  test('CLI keeps all property types and does not require property metadata', async () => {
+    const f = fixture({ count: 4 });
+    f.items.forEach((item, i) => { item.ufCrmProperty = ['71', '72', '73', null][i]; });
+    const original = await run(f.fetchImpl);
+    expect(original.code).toBe(0);
+    expect(original.out).toContain('Загружено сделок: 4');
+    f.fields.ufCrmProperty = { title: 'Անշարժ գույքի տեսակ', type: 'enumeration', items: null };
+    const withUnusedField = await run(f.fetchImpl);
+    expect(withUnusedField).toEqual(original);
+  });
   test('keeps system and custom fields when the portal omits system fields in original-name mode', async () => {
     const result = await run(fixture({ count: 1 }).fetchImpl);
     expect(result.code).toBe(0);
