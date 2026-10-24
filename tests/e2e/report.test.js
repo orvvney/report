@@ -111,22 +111,28 @@ test('refresh replaces totals, closes list, preserves mode and recalculates year
   expect(fixture.state.reads).toBe(2);
 });
 test('loading hides old data and disables refresh, last-page failure is not partial success, then recovery and empty result', async () => {
+  const heading = page.getByRole('heading', { name: 'Կնքված բնակարանների հաշվետվություն', level: 1, exact: true });
   fixture.state.gate = new Promise((resolve) => { release = resolve; });
   await page.goto(url);
   await page.getByText('Տվյալները բեռնվում են…').waitFor();
+  expect(await heading.isVisible()).toBe(true);
   expect(await refresh().isDisabled()).toBe(true); expect(await columns().count()).toBe(0);
   release(); fixture.state.gate = null; await ready();
   fixture.state.items = Array.from({ length: 51 }, (_, i) => deal(i + 1)); fixture.state.failPage = 50;
   fixture.state.gate = new Promise((resolve) => { release = resolve; });
   await refresh().click(); await page.getByText('Տվյալները բեռնվում են…').waitFor();
+  expect(await heading.isVisible()).toBe(true);
   expect(await refresh().isDisabled()).toBe(true); expect(await columns().count()).toBe(0); expect(await problems().count()).toBe(0);
   release(); fixture.state.gate = null;
   await page.getByRole('alert').waitFor();
+  expect(await heading.isVisible()).toBe(true);
   expect(await page.getByRole('alert').innerText()).toBe('Չհաջողվեց բեռնել տվյալները։ Փորձեք կրկին։');
   expect(await columns().count()).toBe(0); expect(await refresh().isDisabled()).toBe(false);
   fixture.state.failPage = undefined; await reloadReport();
+  expect(await heading.isVisible()).toBe(true);
   expect(await page.getByRole('img', { name: '2՝ 510 AMD, 51 գործարք', exact: true }).count()).toBe(1);
   fixture.state.items = []; await reloadReport();
+  expect(await heading.isVisible()).toBe(true);
   expect(await page.getByText('Տվյալներ չկան', { exact: true }).isVisible()).toBe(true);
   expect(await columns().count()).toBe(0); expect(await problems().count()).toBe(0);
   await months().click(); expect(await columns().count()).toBe(12);

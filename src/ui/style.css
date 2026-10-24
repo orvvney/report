@@ -1,6 +1,13 @@
 @import 'tailwindcss';
 @theme { --font-sans: Arial, 'Noto Sans Armenian', sans-serif; }
 body { margin: 0; background: #f5f7fb; color: #18253d; }
+/* Account for the section's 1px top border and the filter panel's 12px margin. */
+.report-header { padding: 15px 0 16px; text-align: center; font-weight: 700; }
+.report-header p, .report-header h1 { padding: 0 12px; overflow-wrap: anywhere; }
+.report-header-label { font-size: 15px; }
+.report-header hr { margin: 16px 0; border: 0; border-top: 1px solid #dbe4ef; }
+.report-header-category { font-size: 10px; color: #8b98a8; }
+.report-header h1 { margin-top: 8px; font-size: 25px; }
 button, a { -webkit-tap-highlight-color: transparent; }
 button { cursor: pointer; }
 button:disabled { cursor: wait; }

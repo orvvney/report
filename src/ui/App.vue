@@ -85,13 +85,14 @@ onMounted(refresh);
 </script>
 
 <template>
-  <main class="mx-auto max-w-7xl px-3 py-8 sm:px-8 sm:py-14">
-    <header class="mb-7">
-      <p class="mb-2 text-xs font-semibold tracking-wider text-blue-700">ՎԱՃԱՌՔԻ ՎԵՐԼՈՒԾՈՒԹՅՈՒՆ</p>
-      <h1 class="text-2xl font-semibold tracking-tight sm:text-3xl">Կնքված գործարքներ</h1>
-      <p class="mt-3 text-sm text-slate-500">Գործարքների ընդհանուր արժեքը՝ ըստ սենյակների և ամսաթվի</p>
-    </header>
+  <main class="px-3 pb-8 sm:px-8 sm:pb-14">
     <section aria-label="Գործարքների հաշվետվություն" class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <header class="report-header">
+        <p class="report-header-label">Հաշվետվություններ</p>
+        <hr data-testid="header-divider" aria-hidden="true">
+        <p class="report-header-category">ԱՆՇԱՐԺ ԳՈՒՅՔԻ՝ ԲՆԱԿԱՐԱՆՆԵՐԻ ՎԵՐԼՈՒԾՈՒԹՅՈՒՆ</p>
+        <h1>Կնքված բնակարանների հաշվետվություն</h1>
+      </header>
       <form class="filter-panel" aria-label="Զտիչներ" @submit.prevent>
         <div aria-label="Զտիչների տարածք">
           <div class="filter-row">
