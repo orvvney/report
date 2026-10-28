@@ -24,7 +24,9 @@ async function createDevelopmentServer({ root = path.resolve(__dirname, '..'), .
   };
   // Keep development output separate from the build used by npm start and tests.
   const distPath = path.join(root, 'dist-dev');
-  const watcher = await build({ root, build: { outDir: distPath, watch: {} } });
+  // Loading the .mjs config directly avoids transient .vite-temp modules that
+  // node --watch treats as changes and would restart on every build.
+  const watcher = await build({ root, configLoader: 'native', build: { outDir: distPath, watch: {} } });
   let built = false;
   try {
     await new Promise((resolve, reject) => {
