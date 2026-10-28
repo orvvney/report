@@ -5,7 +5,7 @@ let fixture, server, url, release;
 const rooms = () => page.getByRole('button', { name: 'Սենյակների քանակ', exact: true });
 const months = () => page.getByRole('button', { name: 'Կնքման ամսաթիվ', exact: true });
 const problems = () => page.getByRole('button', { name: /^Խնդրահարույց գործարքներ/ });
-const refresh = () => page.getByRole('button', { name: /Թարմացնել/ });
+const refresh = () => page.getByRole('button', { name: 'Թարմացնել հաշվետվությունը', exact: true });
 const columns = () => page.locator('svg [role="img"]');
 const ready = async () => { await page.locator('footer time').waitFor(); };
 async function reloadReport() { await refresh().click(); await ready(); }
@@ -210,7 +210,7 @@ test('wide and narrow layout keeps controls outside graph scroll and long proble
   await page.screenshot({ path: 'test-results/report-modal.png', fullPage: true });
 });
 
-const input = (kind, side) => page.getByLabel(`${{ amount: 'Ընդհանուր արժեք', area: 'Մակերես (մ²)', date: 'Կնքման ամսաթիվ' }[kind]}՝ ${side === 'min' ? 'Սկսած' : 'Մինչև'}`, { exact: true });
+const input = (kind, side) => page.getByLabel(`${{ amount: 'Բնակարանի ընդհանուր արժեք', area: 'Մակերես (մ²)', date: 'Կնքման ամսաթիվ' }[kind]}՝ ${side === 'min' ? 'Սկսած' : 'Մինչև'}`, { exact: true });
 const room = (n) => page.getByRole('button', { name: `Սենյակների քանակ՝ ${n}`, exact: true });
 const clearRanges = async () => {
   for (const kind of ['amount', 'area', 'date']) {
@@ -399,7 +399,7 @@ test('room buttons retain their size and distinguish selected and unselected col
 test.each([1440, 375])('filter units stay at the right inside empty and filled numeric controls at %i px', async (width) => {
   await page.setViewportSize({ width, height: 1000 }); await baseFilters();
   expect(await filterPanel().locator('legend').allTextContents()).toEqual([
-    'Սենյակների քանակ', 'Ընդհանուր արժեք', 'Մակերես', 'Կնքման ամսաթիվ',
+    'Սենյակների քանակ', 'Բնակարանի ընդհանուր արժեք', 'Մակերես', 'Կնքման ամսաթիվ',
   ]);
   for (const [kind, unit] of [['amount', '֏'], ['area', '(մ²)']]) {
     for (const side of ['min', 'max']) {
@@ -458,6 +458,29 @@ test('filter inputs focus without an extra outline and keep their normal or erro
   expect(await room(2).evaluate((el) => getComputedStyle(el).outlineStyle)).not.toBe('none');
 });
 
+test('excluding five-room apartments survives repeated refreshes of all 14 CRM requests', async () => {
+  fixture.state.items = Array.from({ length: 501 }, (_, i) => deal(i + 1, { ufCrmRooms: i % 5 + 1 }));
+  const statuses = [];
+  const errors = [];
+  page.on('response', (response) => { if (response.url().endsWith('/api/report')) statuses.push(response.status()); });
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.goto(url); await ready();
+  expect(fixture.state.requests).toHaveLength(14);
+  const initialRequests = structuredClone(fixture.state.requests);
+  await room(5).click();
+  expect(await room(5).getAttribute('aria-pressed')).toBe('false');
+  expect(await columns().count()).toBe(4);
+  expect(fixture.state.requests).toHaveLength(14);
+  for (let run = 1; run <= 3; run++) {
+    await reloadReport();
+    expect(await room(5).getAttribute('aria-pressed')).toBe('false');
+    expect(await columns().count()).toBe(4);
+    expect(fixture.state.requests.slice(run * 14)).toEqual(initialRequests);
+  }
+  expect(statuses).toEqual([200, 200, 200, 200]);
+  expect(errors).toEqual([]);
+});
+
 test('filters intersect instantly, keep global problems, preserve mode and never fetch again', async () => {
   let requests = 0; page.on('request', (request) => { if (request.url().endsWith('/api/report')) requests++; });
   await baseFilters();
@@ -499,6 +522,28 @@ test.each([
   await input(kind, 'min').fill(kind === 'area' ? '80' : '300.3');
   expect(await columns().nth(1).getAttribute('aria-label')).toBe('2՝ 400.4 AMD, 1 գործարք');
   expect(fixture.state.reads).toBe(1);
+});
+
+test.each([['area', '90'], ['date', '2026-01-15']])('%s includes the exact lower and upper boundary, including equal endpoints', async (kind, boundary) => {
+  fixture.state.items = [
+    deal(1, { opportunity: '1', ufCrmArea: '89.9999', ufCrmDate: '2026-01-14T23:59:59+04:00' }),
+    deal(2, { opportunity: '2', ufCrmArea: '90', ufCrmDate: '2026-01-15T00:00:00+04:00' }),
+    deal(3, { opportunity: '4', ufCrmArea: '90.000', ufCrmDate: '2026-01-15T23:59:59+04:00' }),
+    deal(4, { opportunity: '8', ufCrmArea: '90.0001', ufCrmDate: '2026-01-16T00:00:00+04:00' }),
+  ];
+  await page.goto(url); await ready();
+  const reads = fixture.state.reads;
+  for (const mode of [rooms(), months()]) {
+    await clearRanges(); await mode.click();
+    const category = await rooms().getAttribute('aria-pressed') === 'true' ? '2' : 'Հունվար';
+    const included = (amount, count) => page.getByRole('img', { name: `${category}՝ ${amount} AMD, ${count} գործարք`, exact: true }).waitFor();
+    await input(kind, 'min').fill(boundary); await included('14', 3);
+    await input(kind, 'max').fill(boundary); await included('6', 2);
+    expect(await page.getByRole('alert').count()).toBe(0);
+    await input(kind, 'min').fill(''); await included('7', 3);
+    await input(kind, 'max').fill(''); await included('15', 4);
+  }
+  expect(fixture.state.reads).toBe(reads);
 });
 
 test('date endpoints include whole days, past years preserve twelve months and clearing removes bounds', async () => {
@@ -708,12 +753,17 @@ test.each([1440, 375])('new chart layout and long full labels remain readable at
     const display = await page.getByText('Ցուցադրություն', { exact: true }).boundingBox();
     const y = await page.getByRole('heading', { name: 'Y · Ընդհանուր արժեք (֏)', exact: true }).boundingBox();
     const button = await refresh().boundingBox();
-    expect(Math.abs(button.width - button.height)).toBeLessThan(1);
-    expect(await refresh().innerText()).toBe('↻');
-    expect(button.x).toBeGreaterThan(y.x + y.width);
+    expect(button.width).toBeGreaterThan(button.height);
+    expect(await refresh().innerText()).toBe('Թարմացնել հաշվետվությունը');
+    expect(await refresh().evaluate((el) => getComputedStyle(el).fontSize)).toBe(
+      await page.getByRole('heading', { name: 'Y · Ընդհանուր արժեք (֏)', exact: true }).evaluate((el) => getComputedStyle(el).fontSize));
     expect(button.y).toBeGreaterThan(group.y + group.height);
-    expect(y.y).toBeGreaterThanOrEqual(button.y);
-    expect(y.y + y.height).toBeLessThanOrEqual(button.y + button.height);
+    if (viewportWidth === 375) expect(button.y).toBeGreaterThanOrEqual(y.y + y.height);
+    else {
+      expect(button.x).toBeGreaterThan(y.x + y.width);
+      expect(y.y).toBeGreaterThanOrEqual(button.y);
+      expect(y.y + y.height).toBeLessThanOrEqual(button.y + button.height);
+    }
     expect(display.y + display.height).toBeLessThan(group.y);
     for (const b of [group, display]) expect(Math.abs(b.x + b.width / 2 - section.x - section.width / 2)).toBeLessThan(2);
     const info = await total().boundingBox(); const x = await xTitle().boundingBox(); const problem = await problems().boundingBox();

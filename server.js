@@ -3,9 +3,13 @@ const path = require('node:path');
 const { readFile, realpath } = require('node:fs/promises');
 const { loadReport } = require('./src/report/load.cjs');
 
-function createServer({ distPath = path.join(__dirname, 'dist'), ...reportOptions } = {}) {
+function createServer({ distPath = path.join(__dirname, 'dist'), liveReload, ...reportOptions } = {}) {
   return http.createServer(async (request, response) => {
     const pathname = request.url.split('?')[0];
+    if (liveReload && request.method === 'GET' && pathname === '/__dev/events') {
+      liveReload.connect(request, response);
+      return;
+    }
     if (request.method === 'GET' && pathname === '/api/report') {
       const { status, body } = await loadReport(reportOptions);
       response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
@@ -23,7 +27,8 @@ function createServer({ distPath = path.join(__dirname, 'dist'), ...reportOption
       const root = await realpath(distPath);
       const file = await realpath(path.join(root, isIndex ? 'index.html' : pathname));
       if (!file.startsWith(`${root}${path.sep}`)) throw new Error('Outside public build');
-      const contents = await readFile(file);
+      let contents = await readFile(file);
+      if (isIndex && liveReload) contents = Buffer.from(liveReload.inject(contents.toString('utf8')));
       response.writeHead(200, {
         'Content-Type': isIndex ? 'text/html; charset=utf-8'
           : pathname.endsWith('.js') ? 'text/javascript; charset=utf-8' : 'text/css; charset=utf-8',

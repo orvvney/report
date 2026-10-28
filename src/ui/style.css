@@ -15,7 +15,7 @@ button:disabled { cursor: wait; }
 dialog::backdrop { background: rgb(15 23 42 / 45%); }
 .chart-column:focus { outline: none; }
 .chart-column:focus-visible rect:last-of-type { stroke: #1e3a8a; stroke-width: 3; }
-.refresh-button { display: grid; place-items: center; flex-shrink: 0; width: 40px; height: 40px; border: 1px solid #e2e8f0; border-radius: 8px; background: white; font-size: 24px; }
+.refresh-button { display: grid; place-items: center; margin-left: auto; max-width: 100%; min-height: 40px; padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 8px; background: white; font-size: 14px; line-height: 20px; font-weight: 500; }
 .refresh-button:hover { background: #f8fafc; }
 .refresh-button:disabled { opacity: .5; }
 .chart-footer-info { display: flex; flex-direction: column; gap: 16px; }

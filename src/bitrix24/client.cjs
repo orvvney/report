@@ -14,10 +14,39 @@ const API_ERRORS = {
 };
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 
-function createClient({ webhookUrl, fetchImpl = globalThis.fetch, timeoutMs = 15000 }) {
+// One queue per portal, shared by successive reports and concurrent browser tabs.
+const portalQueues = new Map();
+function createRequestScheduler({ intervalMs = 710 } = {}) {
+  let tail = Promise.resolve();
+  let lastStart = -Infinity;
+  return function schedule(task) {
+    const result = tail.then(async () => {
+      let remaining;
+      while ((remaining = intervalMs - (performance.now() - lastStart)) > 0) {
+        await new Promise((resolve) => setTimeout(resolve, Math.ceil(remaining)));
+      }
+      lastStart = performance.now();
+      return task();
+    });
+    tail = result.catch(() => {});
+    return result;
+  };
+}
+
+function createClient({ webhookUrl, fetchImpl = globalThis.fetch, timeoutMs = 15000, scheduleRequest }) {
   const base = validateWebhook(webhookUrl);
+  if (!scheduleRequest) {
+    const portal = new URL(base).origin;
+    if (!portalQueues.has(portal)) portalQueues.set(portal, createRequestScheduler());
+    scheduleRequest = portalQueues.get(portal);
+  }
   return async function call(method, params) {
     if (!METHODS.has(method)) throw new CheckError('Разрешены только методы чтения интеграции.');
+    return scheduleRequest(() => request(method, params));
+  };
+
+  // Start the response timeout only when the request leaves the queue.
+  async function request(method, params) {
     const controller = new AbortController();
     let timer;
     const deadline = new Promise((_, reject) => {
@@ -61,7 +90,7 @@ function createClient({ webhookUrl, fetchImpl = globalThis.fetch, timeoutMs = 15
     } finally {
       clearTimeout(timer);
     }
-  };
+  }
 }
 
-module.exports = { createClient, isObject };
+module.exports = { createClient, createRequestScheduler, isObject };

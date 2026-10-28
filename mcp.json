@@ -8,14 +8,12 @@
         "--isolated",
         "--chromeArg=--guest",
         "--chromeArg=--new-window"
-      ]
+      ],
+      "directTools": true
     },
     "context7": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@upstash/context7-mcp@latest"
-      ]
+      "url": "https://mcp.context7.com/mcp",
+      "directTools": true
     }
   }
 }

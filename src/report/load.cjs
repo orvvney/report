@@ -6,13 +6,13 @@ const { aggregate } = require('./aggregate.cjs');
 const { PROPERTY_TYPE } = require('./apartments.cjs');
 
 async function loadReport({ env = process.env, envPath = path.resolve(__dirname, '../../.env'),
-  fetchImpl = globalThis.fetch, now = () => new Date() } = {}) {
+  fetchImpl = globalThis.fetch, now = () => new Date(), scheduleRequest } = {}) {
   let config;
   try { config = loadConfig({ env, envPath }); }
   catch { return { status: 500, body: { error: 'CONFIGURATION_ERROR' } }; }
   try {
     const snapshotTime = now();
-    const data = await getDeals(createClient({ ...config, fetchImpl }), { additionalFields: [PROPERTY_TYPE] });
+    const data = await getDeals(createClient({ ...config, fetchImpl, scheduleRequest }), { additionalFields: [PROPERTY_TYPE] });
     return { status: 200, body: aggregate(data, { portalOrigin: new URL(config.webhookUrl).origin, now: snapshotTime }) };
   } catch { return { status: 502, body: { error: 'CRM_READ_ERROR' } }; }
 }

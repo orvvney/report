@@ -8,6 +8,7 @@ const mode = ref('rooms'), report = ref(null), loading = ref(false), failed = re
 const updatedAt = ref(null), dialog = ref(null), problemButton = ref(null);
 const months = ['Հունվար', 'Փետրվար', 'Մարտ', 'Ապրիլ', 'Մայիս', 'Հունիս', 'Հուլիս', 'Օգոստոս', 'Սեպտեմբեր', 'Հոկտեմբեր', 'Նոյեմբեր', 'Դեկտեմբեր'];
 const fields = { rooms: 'Սենյակների քանակ', date: 'Կնքման ամսաթիվ', amount: 'Ընդհանուր արժեք', area: 'Մակերես (մ²)', currency: 'Արժույթ' };
+const filterFields = { ...fields, amount: 'Բնակարանի ընդհանուր արժեք' };
 const reasons = { missing: 'Լրացված չէ', invalid: 'Անվավեր արժեք', unsupported_currency: 'Աջակցվում է միայն AMD' };
 const availableRooms = ref([]), selectedRooms = ref([]);
 const ranges = reactive(Object.fromEntries(['amount', 'area', 'date'].map((kind) => [kind, {
@@ -105,14 +106,14 @@ onMounted(refresh);
               </div>
             </fieldset>
             <fieldset v-for="kind in ['amount', 'area', 'date']" :key="kind" :disabled="disabled" class="range-filter" :class="{ 'date-filter': kind === 'date' }">
-              <legend>{{ kind === 'area' ? 'Մակերես' : fields[kind] }}</legend>
+              <legend>{{ kind === 'area' ? 'Մակերես' : filterFields[kind] }}</legend>
               <div class="range-inputs">
                 <div v-for="side in ['min', 'max']" :key="side" class="range-control" :class="{ 'has-unit': kind !== 'date' }">
                   <input :id="`${kind}-${side}`" :type="kind === 'date' ? 'date' : 'text'"
                     :class="{ 'date-empty': kind === 'date' && emptyDate(side) }"
                     :placeholder="kind === 'date' ? undefined : side === 'min' ? 'Սկսած' : 'Մինչև'"
                     :inputmode="kind === 'date' ? undefined : 'decimal'"
-                    :aria-label="`${fields[kind]}՝ ${side === 'min' ? 'Սկսած' : 'Մինչև'}`"
+                    :aria-label="`${filterFields[kind]}՝ ${side === 'min' ? 'Սկսած' : 'Մինչև'}`"
                     :aria-invalid="!!ranges[kind].errors[side]"
                     :aria-describedby="ranges[kind].errors[side] ? `${kind}-error` : undefined"
                     @keyup="kind === 'date' && editRange(kind, side, $event)"
@@ -138,10 +139,10 @@ onMounted(refresh);
           </button>
         </div>
       </div>
-      <div class="flex items-center justify-between gap-3 px-5 pt-6 sm:px-8">
+      <div class="flex flex-wrap items-center justify-between gap-3 px-5 pt-6 sm:px-8">
         <h2 class="text-sm font-medium">Y · Ընդհանուր արժեք (֏)</h2>
-        <button type="button" aria-label="Թարմացնել" class="refresh-button"
-          :disabled="loading" @click="refresh"><span aria-hidden="true">↻</span></button>
+        <button type="button" class="refresh-button"
+          :disabled="loading" @click="refresh">Թարմացնել հաշվետվությունը</button>
       </div>
       <div v-if="loading" role="status" class="flex min-h-96 items-center justify-center p-8 text-center text-slate-500">Տվյալները բեռնվում են…</div>
       <div v-else-if="failed" role="alert" class="flex min-h-96 items-center justify-center p-8 text-center text-red-700">Չհաջողվեց բեռնել տվյալները։ Փորձեք կրկին։</div>

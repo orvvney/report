@@ -72,6 +72,7 @@ async function run(fetchImpl, options = {}) {
   let err = '';
   const code = await main({
     env: { BITRIX24_WEBHOOK_URL: URL }, fetchImpl,
+    scheduleRequest: (task) => task(),
     stdout: { write: (text) => { out += text; } },
     stderr: { write: (text) => { err += text; } },
     ...options,
@@ -173,7 +174,7 @@ describe('Bitrix24 complete check', () => {
       });
       expect(Object.keys(params.filter)).toHaveLength(2);
     }
-    const data = await getDeals(createClient({ webhookUrl: URL, fetchImpl: f.fetchImpl }));
+    const data = await getDeals(createClient({ webhookUrl: URL, fetchImpl: f.fetchImpl, scheduleRequest: (task) => task() }));
     expect(data.items).toHaveLength(51);
     expect(data.items.at(-1).id).toBe(51);
   });

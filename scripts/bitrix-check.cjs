@@ -8,13 +8,14 @@ async function main({
   envPath = path.resolve(__dirname, '../.env'),
   fetchImpl = globalThis.fetch,
   timeoutMs,
+  scheduleRequest,
   stdout = process.stdout,
   stderr = process.stderr,
 } = {}) {
   let webhookUrl;
   try {
     ({ webhookUrl } = loadConfig({ env, envPath }));
-    const call = createClient({ webhookUrl, fetchImpl, timeoutMs });
+    const call = createClient({ webhookUrl, fetchImpl, timeoutMs, scheduleRequest });
     const result = await getDeals(call);
     stdout.write(`${redact(formatResult(result), webhookUrl)}\n`);
     return 0;

@@ -41,7 +41,8 @@ function createFixture(state = {}) {
     }
     throw new Error('Unexpected CRM method');
   };
-  return { state, fetchImpl, env: { BITRIX24_WEBHOOK_URL: WEBHOOK }, now: () => new Date(state.time || '2026-06-01T10:00:00Z') };
+  return { state, fetchImpl, scheduleRequest: (task) => task(),
+    env: { BITRIX24_WEBHOOK_URL: WEBHOOK }, now: () => new Date(state.time || '2026-06-01T10:00:00Z') };
 }
 module.exports = { createFixture, deal, sampleItems, fields, WEBHOOK };
 
