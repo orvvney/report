@@ -94,8 +94,9 @@ onMounted(refresh);
         <p class="report-header-category">ԱՆՇԱՐԺ ԳՈՒՅՔԻ՝ ԲՆԱԿԱՐԱՆՆԵՐԻ ՎԵՐԼՈՒԾՈՒԹՅՈՒՆ</p>
         <h1>Կնքված բնակարանների հաշվետվություն</h1>
       </header>
-      <form class="filter-panel" aria-label="Զտիչներ" @submit.prevent>
-        <div aria-label="Զտիչների տարածք">
+      <form class="filter-panel" :class="{ 'filter-panel-unavailable': disabled }" aria-label="Զտիչներ" @submit.prevent>
+        <p v-if="disabled" class="filter-notice" role="status">Հաշվետվությունների թարմացման պատճառով զտիչների կարգավորումը ժամանակավորապես անհասանելի է։</p>
+        <div v-show="!disabled" aria-label="Զտիչների տարածք">
           <div class="filter-row">
             <fieldset class="room-filter" :disabled="disabled">
               <legend>{{ fields.rooms }}</legend>

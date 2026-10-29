@@ -18,11 +18,42 @@ function sampleItems() {
     deal(8, { ufCrmRooms: null, ufCrmDate: '2025-01-01' })];
 }
 function createFixture(state = {}) {
-  state.items ??= sampleItems(); state.reads ??= 0; state.requests ??= [];
+  state.items ??= sampleItems(); state.reads ??= 0; state.requests ??= []; state.httpRequests ??= [];
   state.fields ??= structuredClone(fields);
   const fetchImpl = async (url, options) => {
     const method = url.split('/').at(-1).replace(/\.json$/, '');
     const params = JSON.parse(options.body);
+    state.httpRequests.push({ method, params });
+    return execute(method, params);
+  };
+  async function execute(method, params) {
+    if (method === 'batch') {
+      const result = { result: {}, result_error: {}, result_total: {}, result_next: {} };
+      for (const [key, command] of Object.entries(params.cmd)) {
+        const [name, query] = command.split('?');
+        const decoded = {};
+        for (const [parameter, value] of new URLSearchParams(query)) {
+          const parts = parameter.match(/[^\[\]]+/g);
+          let parent = decoded;
+          for (let i = 0; i < parts.length - 1; i++) {
+            parent = parent[parts[i]] ??= /^\d+$/.test(parts[i + 1]) ? [] : {};
+          }
+          parent[parts.at(-1)] = value;
+        }
+        if (decoded.start !== undefined) decoded.start = Number(decoded.start);
+        if (decoded.filter?.categoryId !== undefined) decoded.filter.categoryId = Number(decoded.filter.categoryId);
+        const body = await (await execute(name, decoded)).json();
+        if (body.error) {
+          result.result_error[key] = body;
+          if (params.halt) break;
+        } else {
+          result.result[key] = body.result;
+          if (body.total !== undefined) result.result_total[key] = body.total;
+          if (body.next !== undefined) result.result_next[key] = body.next;
+        }
+      }
+      return { ok: true, status: 200, json: async () => ({ result }) };
+    }
     state.requests.push({ method, params });
     const reply = (body) => ({ ok: true, status: 200, json: async () => body });
     if (method === 'crm.category.list') {
@@ -37,10 +68,11 @@ function createFixture(state = {}) {
       const matching = state.items.filter((item) => item.categoryId === params.filter.categoryId && item.stageId === params.filter.stageId);
       const rows = matching.slice(params.start, params.start + 50).map((row) =>
         Object.fromEntries(Object.entries(row).filter(([key]) => params.select.includes(key))));
-      return reply({ result: { items: rows }, ...(matching.length > params.start + 50 ? { next: params.start + 50 } : {}) });
+      return reply({ result: { items: rows }, total: matching.length,
+        ...(matching.length > params.start + 50 ? { next: params.start + 50 } : {}) });
     }
     throw new Error('Unexpected CRM method');
-  };
+  }
   return { state, fetchImpl, scheduleRequest: (task) => task(),
     env: { BITRIX24_WEBHOOK_URL: WEBHOOK }, now: () => new Date(state.time || '2026-06-01T10:00:00Z') };
 }

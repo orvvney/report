@@ -458,7 +458,7 @@ test('filter inputs focus without an extra outline and keep their normal or erro
   expect(await room(2).evaluate((el) => getComputedStyle(el).outlineStyle)).not.toBe('none');
 });
 
-test('excluding five-room apartments survives repeated refreshes of all 14 CRM requests', async () => {
+test('excluding five-room apartments survives full batched refreshes using five HTTP requests', async () => {
   fixture.state.items = Array.from({ length: 501 }, (_, i) => deal(i + 1, { ufCrmRooms: i % 5 + 1 }));
   const statuses = [];
   const errors = [];
@@ -466,16 +466,19 @@ test('excluding five-room apartments survives repeated refreshes of all 14 CRM r
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto(url); await ready();
   expect(fixture.state.requests).toHaveLength(14);
+  expect(fixture.state.httpRequests).toHaveLength(5);
   const initialRequests = structuredClone(fixture.state.requests);
   await room(5).click();
   expect(await room(5).getAttribute('aria-pressed')).toBe('false');
   expect(await columns().count()).toBe(4);
   expect(fixture.state.requests).toHaveLength(14);
+  expect(fixture.state.httpRequests).toHaveLength(5);
   for (let run = 1; run <= 3; run++) {
     await reloadReport();
     expect(await room(5).getAttribute('aria-pressed')).toBe('false');
     expect(await columns().count()).toBe(4);
     expect(fixture.state.requests.slice(run * 14)).toEqual(initialRequests);
+    expect(fixture.state.httpRequests).toHaveLength((run + 1) * 5);
   }
   expect(statuses).toEqual([200, 200, 200, 200]);
   expect(errors).toEqual([]);
@@ -588,6 +591,10 @@ test('invalid drafts retain last valid pair while other filters work; correction
   expect(await input('date', 'min').evaluate((el) => el.validity.badInput)).toBe(true);
   expect(await input('date', 'min').getAttribute('aria-invalid')).toBe('true');
   expect(await columns().last().getAttribute('aria-label')).toBe('3՝ 0 AMD, 0 գործարք');
+  await reloadReport();
+  expect(await input('date', 'min').evaluate((el) => el.validity.badInput)).toBe(true);
+  expect(await input('date', 'min').getAttribute('aria-invalid')).toBe('true');
+  expect(await columns().last().getAttribute('aria-label')).toBe('3՝ 0 AMD, 0 գործարք');
   await input('date', 'min').fill('2026-01-01'); await clearRanges(); expect(await page.getByRole('alert').count()).toBe(0);
   expect(await input('date', 'min').evaluate((el) => el.validity.badInput)).toBe(false);
 });
@@ -610,21 +617,51 @@ test('room gaps, growth/shrink/empty reconciliation and page reload', async () =
   expect(await selected()).toEqual(['1', '2', '3']); expect(await input('area', 'min').inputValue()).toBe('');
 });
 
-test('filter panel disables on load/failure and retry restores saved filters', async () => {
+test.each([1440, 375])('filter panel shows only a centered notice on load/failure and restores saved filters at %i px', async (width) => {
+  await page.setViewportSize({ width, height: 1000 });
+  const panel = page.getByRole('form', { name: 'Զտիչներ', exact: true });
+  const notice = panel.getByRole('status');
+  const noticeText = 'Հաշվետվությունների թարմացման պատճառով զտիչների կարգավորումը ժամանակավորապես անհասանելի է։';
+  async function onlyNotice() {
+    expect(await panel.isVisible()).toBe(true);
+    expect((await panel.innerText()).trim()).toBe(noticeText);
+    expect(await panel.locator('fieldset:visible, input:visible, button:visible').count()).toBe(0);
+    expect(await panel.getByRole('group').count()).toBe(0);
+    expect(await panel.getByRole('button').count()).toBe(0);
+    expect(await panel.getByRole('alert').count()).toBe(0);
+    const panelBox = await panel.boundingBox(), noticeBox = await notice.boundingBox();
+    expect(Math.abs(noticeBox.x + noticeBox.width / 2 - panelBox.x - panelBox.width / 2)).toBeLessThan(1);
+    expect(Math.abs(noticeBox.y + noticeBox.height / 2 - panelBox.y - panelBox.height / 2)).toBeLessThan(1);
+    expect(await notice.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+  }
+  fixture.state.gate = new Promise((resolve) => { release = resolve; });
+  await page.goto(url); await notice.waitFor();
+  await onlyNotice();
+  release(); fixture.state.gate = null; await ready();
   await baseFilters(); await input('amount', 'min').fill('200.2'); await room(3).click();
+  await input('amount', 'max').fill('100');
+  expect(await panel.getByRole('alert').isVisible()).toBe(true);
+  expect(await notice.count()).toBe(0);
   fixture.state.items = Array.from({ length: 51 }, (_, i) => deal(i + 1, { opportunity: '300' })); fixture.state.failPage = 50;
   fixture.state.gate = new Promise((resolve) => { release = resolve; });
   await refresh().click(); await page.getByText('Տվյալները բեռնվում են…').waitFor();
-  expect(await page.getByRole('form', { name: 'Զտիչներ', exact: true }).isVisible()).toBe(true);
-  expect(await input('amount', 'min').isDisabled()).toBe(true); expect(await room(1).isDisabled()).toBe(true);
+  await onlyNotice();
   expect(await columns().count()).toBe(0);
+  await page.screenshot({ path: `test-results/filters-loading-${width}.png`, fullPage: true });
   release(); fixture.state.gate = null; await page.getByRole('alert').waitFor();
-  expect(await input('area', 'min').isDisabled()).toBe(true); expect(await room(3).getAttribute('aria-pressed')).toBe('false');
+  await onlyNotice();
+  await page.screenshot({ path: `test-results/filters-unavailable-${width}.png`, fullPage: true });
   fixture.state.failPage = undefined; await reloadReport(); expect(await input('amount', 'min').inputValue()).toBe('200.2');
+  expect(await input('amount', 'max').inputValue()).toBe('100');
+  expect(await input('amount', 'min').isVisible()).toBe(true);
+  expect(await panel.getByRole('alert').isVisible()).toBe(true);
+  expect(await panel.getByRole('group').count()).toBe(4);
+  expect(await notice.count()).toBe(0);
   expect(await columns().last().getAttribute('aria-label')).toBe('2՝ 15 300 AMD, 51 գործարք');
   for (const items of [[], [deal(1, { ufCrmProperty: '72' })], [deal(1, { ufCrmArea: null })]]) {
     fixture.state.items = items; await reloadReport(); expect(await page.locator('.room-buttons button').count()).toBe(0);
     expect(await input('area', 'min').isEnabled()).toBe(true);
+    expect(await notice.count()).toBe(0);
     expect(await page.getByText('Տվյալներ չկան', { exact: true }).isVisible()).toBe(true);
   }
   expect(await problems().innerText()).toMatch(/1/);

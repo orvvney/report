@@ -29,6 +29,8 @@ dialog::backdrop { background: rgb(15 23 42 / 45%); }
 /* Filters reflow within their panel; only the chart scrolls horizontally. */
 .filter-panel { --filter-control-size: 40px; container-type: inline-size; min-width: 0; margin: 12px; padding: 12px 0 8px; border: 1px solid #dbe4ef; border-radius: 12px; background: rgb(248 250 252 / 97%); box-shadow: 0 4px 16px #18253d0a; }
 .filter-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; padding: 8px 24px; align-items: start; }
+.filter-panel-unavailable { display: grid; place-items: center; min-height: 120px; padding: 24px; }
+.filter-notice { margin: 0; max-width: 100%; color: #475569; font-size: 13px; line-height: 1.6; text-align: center; overflow-wrap: anywhere; }
 .filter-row fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
 .filter-row legend { width: 100%; text-align: center; overflow-wrap: anywhere; font-size: 12px; font-weight: 600; margin-bottom: 10px; }
 .room-buttons { display: flex; flex-wrap: wrap; gap: 6px; }

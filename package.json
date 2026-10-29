@@ -9,6 +9,7 @@
     "dev": "node --watch scripts/dev.cjs",
     "start": "node server.js",
     "bitrix:check": "node scripts/bitrix-check.cjs",
+    "test:crm-performance": "node scripts/report-performance.cjs",
     "test": "jest --runInBand",
     "test:unit": "jest --selectProjects unit --runInBand",
     "test:unit:watch": "jest --selectProjects unit --watchAll",

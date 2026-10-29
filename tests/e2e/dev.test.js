@@ -75,6 +75,10 @@ test('a failed rebuild keeps the current page and a corrected file updates it', 
 });
 
 test('npm run dev stays running, reloads UI and restarts once after a server edit', async () => {
+  const diagnostics = [];
+  page.on('pageerror', (error) => diagnostics.push(error.message));
+  page.on('requestfailed', (request) => diagnostics.push([request.url(), request.failure()]));
+  page.on('response', (response) => diagnostics.push([response.url(), response.status()]));
   await stopChild();
   const portProbe = net.createServer();
   await new Promise((resolve) => portProbe.listen(0, '127.0.0.1', resolve));
@@ -109,7 +113,9 @@ test('npm run dev stays running, reloads UI and restarts once after a server edi
   const reloaded = page.waitForResponse((response) => response.url() === `http://127.0.0.1:${port}/`
     && (output.match(/Автообновление включено:/g) || []).length === 2);
   await fs.appendFile(path.join(root, 'server.js'), '\n// CLI restart regression\n');
-  await reloaded; await page.getByRole('alert').waitFor();
+  await reloaded;
+  try { await page.getByRole('alert').waitFor(); }
+  catch (error) { console.log({ output, diagnostics, html: await page.content() }); throw error; }
   await page.getByText('CLI ավտոմատ թարմացում', { exact: true }).waitFor();
   expect(output.match(/Автообновление включено:/g)).toHaveLength(2);
   expect(output).not.toContain('.vite-temp');

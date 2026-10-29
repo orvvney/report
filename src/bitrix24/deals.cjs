@@ -17,12 +17,44 @@ async function listAll(call, method, params, readRows) {
     const page = readRows(body.result);
     if (!Array.isArray(page) || page.some((row) => !isObject(row))) invalid(method);
     rows.push(...page);
+    if (method === 'crm.item.list' && start === 0 && call.batch && Object.hasOwn(body, 'total')) {
+      return listBatchedPages(call, params, body, rows);
+    }
     if (body.next === undefined) return rows;
     if (!Number.isSafeInteger(body.next) || body.next <= start || !page.length) {
       throw new CheckError(`${method}: некорректная пагинация; полная загрузка не подтверждена.`);
     }
     start = body.next;
   }
+}
+
+// CRM pages have a fixed size of 50. Fetch the remaining offsets in groups of
+// at most 50 commands, reducing network round trips without caching report data.
+async function listBatchedPages(call, params, first, rows) {
+  const total = first.total;
+  if (!Number.isSafeInteger(total) || total < 0) invalid('crm.item.list');
+  function checkPage(body, start) {
+    const page = body.result?.items;
+    const next = start + 50 < total ? start + 50 : undefined;
+    if (body.total !== total || !Array.isArray(page) || page.some((row) => !isObject(row))
+      || page.length !== Math.min(50, total - start) || body.next !== next) {
+      throw new CheckError('crm.item.list: некорректная пагинация; полная загрузка не подтверждена.');
+    }
+    return page;
+  }
+  checkPage(first, 0);
+  for (let start = 50; start < total; start += 2500) {
+    const commands = [];
+    for (let offset = start; offset < Math.min(total, start + 2500); offset += 50) {
+      commands.push({ method: 'crm.item.list', params: { ...params, start: offset } });
+    }
+    const pages = await call.batch(commands);
+    for (let index = 0; index < pages.length; index++) {
+      rows.push(...checkPage(pages[index], commands[index].params.start));
+    }
+  }
+  if (rows.length !== total) invalid('crm.item.list');
+  return rows;
 }
 
 function unique(rows, name, nameKey, idKey, kind) {

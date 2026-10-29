@@ -16,7 +16,7 @@ const isObject = (value) => value !== null && typeof value === 'object' && !Arra
 
 // One queue per portal, shared by successive reports and concurrent browser tabs.
 const portalQueues = new Map();
-function createRequestScheduler({ intervalMs = 710 } = {}) {
+function createRequestScheduler({ intervalMs = 200 } = {}) {
   let tail = Promise.resolve();
   let lastStart = -Infinity;
   return function schedule(task) {
@@ -40,10 +40,41 @@ function createClient({ webhookUrl, fetchImpl = globalThis.fetch, timeoutMs = 15
     if (!portalQueues.has(portal)) portalQueues.set(portal, createRequestScheduler());
     scheduleRequest = portalQueues.get(portal);
   }
-  return async function call(method, params) {
+  async function call(method, params) {
     if (!METHODS.has(method)) throw new CheckError('Разрешены только методы чтения интеграции.');
     return scheduleRequest(() => request(method, params));
+  }
+  // Only structured, allowlisted read commands may enter a batch.
+  call.batch = async (commands) => {
+    if (!Array.isArray(commands) || !commands.length || commands.length > 50
+      || commands.some((command) => !isObject(command) || !METHODS.has(command.method))) {
+      throw new CheckError('batch: разрешено от 1 до 50 методов чтения интеграции.');
+    }
+    const cmd = Object.fromEntries(commands.map(({ method, params }, index) => {
+      const query = new URLSearchParams();
+      function append(key, value) {
+        if (Array.isArray(value) || isObject(value)) {
+          for (const [child, entry] of Object.entries(value)) append(`${key}[${child}]`, entry);
+        } else query.append(key, String(value));
+      }
+      for (const [key, value] of Object.entries(params)) append(key, value);
+      return [`q${index}`, `${method}?${query}`];
+    }));
+    const { result } = await scheduleRequest(() => request('batch', { halt: 1, cmd }));
+    const map = (value) => isObject(value) || (Array.isArray(value) && value.length === 0);
+    if (!isObject(result) || !map(result.result_error) || Object.keys(result.result_error).length
+      || !isObject(result.result) || !map(result.result_total) || !map(result.result_next)) {
+      throw new CheckError('batch: ошибка или некорректный ответ пакета; полная загрузка не подтверждена.');
+    }
+    return commands.map((_, index) => {
+      const key = `q${index}`;
+      if (!Object.hasOwn(result.result, key)) throw new CheckError('batch: отсутствует результат запроса.');
+      return { result: result.result[key],
+        ...(Object.hasOwn(result.result_total, key) ? { total: result.result_total[key] } : {}),
+        ...(Object.hasOwn(result.result_next, key) ? { next: result.result_next[key] } : {}) };
+    });
   };
+  return call;
 
   // Start the response timeout only when the request leaves the queue.
   async function request(method, params) {
