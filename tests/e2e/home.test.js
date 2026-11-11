@@ -10,6 +10,15 @@ describe('home page', () => {
     await page.getByRole('heading', { name: reportTitle, level: 1, exact: true }).waitFor({ state: 'visible' });
     await page.getByTestId('statistics-count').waitFor();
     expect(await page.getByTestId('statistics-count').innerText()).toBe('1');
+    const favicon = page.locator('head link[rel="icon"]');
+    expect(await favicon.getAttribute('type')).toBe('image/png');
+    expect(await page.title()).toBe('Milon Mining — Հաշվետվություն');
+    const iconPath = await favicon.getAttribute('href');
+    expect(iconPath).toMatch(/^\/assets\/favicon-[\w-]+\.png$/);
+    const iconResponse = await page.request.get(iconPath);
+    expect(iconResponse.status()).toBe(200);
+    expect(iconResponse.headers()['content-type']).toBe('image/png');
+    expect(await iconResponse.body()).toEqual(fs.readFileSync(require('node:path').join(__dirname, '../../images/favicon.png')));
   });
 
   test('keeps header text in place inside the full-width report section with side gutters', async () => {

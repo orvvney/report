@@ -19,7 +19,7 @@ const failedStatus = () => page.locator('.statistics-status').filter({ hasText: 
 const emptyStatus = () => page.locator('.statistics-body').getByRole('status').filter({ hasText: 'Տվյալներ չկան' });
 const expectTotals = async (count, amount) => {
   expect(await page.getByTestId('statistics-count').innerText()).toBe(String(count));
-  if (amount !== undefined) expect(await page.getByTestId('statistics-amount').innerText()).toBe(amount);
+  if (amount !== undefined) expect(await page.getByTestId('statistics-amount').innerText()).toBe(`~${amount}`);
 };
 
 test('only valid apartments contribute to statistics and KPIs after refresh', async () => {
@@ -563,7 +563,7 @@ test('reload and a second tab use cached data, while header refresh gets fresh d
   const other = await page.context().newPage();
   try {
     await other.goto(url); await other.getByTestId('statistics-count').waitFor();
-    expect(await other.getByTestId('statistics-amount').innerText()).toBe('10 ֏');
+    expect(await other.getByTestId('statistics-amount').innerText()).toBe('~10 ֏');
     expect(fixture.state.httpRequests).toHaveLength(count);
   } finally { await other.close(); }
   await reloadReport(); await expectTotals(1, '90 ֏');

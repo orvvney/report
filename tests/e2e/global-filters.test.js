@@ -62,7 +62,7 @@ test('global defaults, all five intersecting filters, complex last selection and
   expect(await input('amount', 'max').inputValue()).toBe('11 999 999');
   await input('amount', 'max').fill('12000000'); await count(1);
   await count(1);
-  expect(await page.getByTestId('statistics-amount').innerText()).toBe('12 մլն ֏');
+  expect(await page.getByTestId('statistics-amount').innerText()).toBe('~12 մլն ֏');
   await selectPeriod('custom');
   await input('date', 'min').fill('2026-11-01'); await input('date', 'max').fill('2026-10-01');
   await input('amount', 'min').fill('13000000');

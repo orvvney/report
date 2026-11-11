@@ -43,7 +43,7 @@ test('nonadjacent months, last selection and year boundaries filter immediately 
   await selectPeriod('month'); await selected('Մայիս');
   await selectYear('2025');
   await button('Հունվար').click(); await button('Մարտ').click(); await button('Մայիս').click();
-  await count(2); expect(await page.getByTestId('statistics-amount').innerText()).toBe('40 ֏');
+  await count(2); expect(await page.getByTestId('statistics-amount').innerText()).toBe('~40 ֏');
   await button('Հունվար').click(); await count(1); await button('Մարտ').click(); await count(1); await selected('Մարտ');
   await button('Հունվար').click();
   await button('Թաուեր').click(); await count(0);

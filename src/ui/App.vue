@@ -24,7 +24,6 @@ function layoutPanels() {
     wideKpi.value = filterContainer.value.clientWidth >= 1100;
     const row = filterContainer.value.querySelector('.report-top-panels');
     const form = row.querySelector('form');
-    row.style.setProperty('--reset-width', `${form.querySelector('.filter-heading button').getBoundingClientRect().width || 130}px`);
     row.classList.toggle('panels-stacked', !wideKpi.value);
     row.classList.add('panels-joined');
     const title = form.querySelector('.filter-heading h2');
