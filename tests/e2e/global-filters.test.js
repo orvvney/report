@@ -211,7 +211,7 @@ test('filter icons load from bundled PNGs, controls share rounding and insets, a
   }
   await period().click(); await period().press('Escape');
   expect(await period().evaluate(el => getComputedStyle(el).outlineStyle)).toBe('none');
-  expect(await period().evaluate(el => getComputedStyle(el).borderTopColor)).toBe('rgb(203, 213, 225)');
+  expect(await period().evaluate(el => getComputedStyle(el).borderTopColor)).toBe('rgb(180, 201, 194)');
   const inset = await period().evaluate(el => parseFloat(getComputedStyle(el).paddingLeft) + parseFloat(getComputedStyle(el).borderLeftWidth));
   const selectBox = await period().boundingBox(), arrowBox = await panel.locator('.select-arrow').first().boundingBox();
   expect(Math.abs(selectBox.x + selectBox.width - arrowBox.x - arrowBox.width - inset)).toBeLessThan(1);

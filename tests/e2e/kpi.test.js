@@ -208,7 +208,7 @@ test('zero current value against a nonzero baseline shows a decrease rather than
   fixture.state.items = [deal(1, { ufCrmDate: '2026-10-15', opportunity: '1.2' })];
   await open(); await selectPeriod('month'); await expectValue('amount', '0 ֏');
   expect(await delta('amount').innerText()).toBe('-1,2 ֏\n-100%');
-  expect(await card('amount').getByTestId('kpi-percentage').evaluate(el => getComputedStyle(el).color)).toBe('rgb(185, 28, 28)');
+  expect(await card('amount').getByTestId('kpi-percentage').evaluate(el => getComputedStyle(el).color)).toBe('rgb(154, 63, 53)');
 });
 
 test.each([1440, 768, 375])('cards and long values fit at %i px; rankings work with the keyboard', async width => {
@@ -221,7 +221,7 @@ test.each([1440, 768, 375])('cards and long values fit at %i px; rankings work w
   else expect(amount.y).toBeGreaterThanOrEqual(count.y + count.height);
   const container = await page.getByTestId('kpi-container').boundingBox();
   const parent = await page.getByTestId('kpi-container').evaluate(el => el.parentElement.getBoundingClientRect().width - 2);
-  expect(container.width).toBeCloseTo(width >= 1124 ? parent - 64 : (parent - 24) * .7, 0);
+  expect(container.width).toBeCloseTo(width, 0);
   expect(Math.abs(container.x + container.width / 2 - width / 2)).toBeLessThan(2);
   expect(await page.getByTestId('kpi-axes').count()).toBe(2);
   const chartGeometry = await Promise.all(['count', 'amount'].map(metric => card(metric).evaluate(el => {
@@ -234,6 +234,7 @@ test.each([1440, 768, 375])('cards and long values fit at %i px; rankings work w
       const box = node.getBoundingClientRect(); return { x: box.x, right: box.right, text: node.textContent };
     });
     const bounds = svg.getBoundingClientRect();
+    const viewport = el.querySelector('.kpi-chart-scroll').getBoundingClientRect();
     const path = axis.getAttribute('d').match(/M([\d.]+) ([\d.]+)V([\d.]+)H([\d.]+)/);
     const ratio = bounds.width / svg.viewBox.baseVal.width;
     const left = Number(path[1]) * ratio, right = bounds.width - Number(path[4]) * ratio;
@@ -242,7 +243,7 @@ test.each([1440, 768, 375])('cards and long values fit at %i px; rankings work w
     const absolute = change?.firstElementChild?.getBoundingClientRect();
     const percentage = change?.lastElementChild?.getBoundingClientRect();
     const group = change?.getBoundingClientRect();
-    return { box: { x: bounds.x, y: bounds.y, width: bounds.width }, left, right,
+    return { box: { x: bounds.x, y: bounds.y, width: viewport.width }, left, right,
       top: bounds.y + Number(path[2]) * ratio, bottom: bounds.y + Number(path[3]) * ratio,
       xTicks, yTicks, font: parseFloat(getComputedStyle(number).fontSize),
       gap: percentage && absolute && Math.abs((percentage.y + percentage.height / 2) - (absolute.y + absolute.height / 2)) < 5 ? percentage.x - absolute.right : null,
@@ -251,12 +252,12 @@ test.each([1440, 768, 375])('cards and long values fit at %i px; rankings work w
       percentageRight: percentage?.right, contentRight: el.getBoundingClientRect().right - parseFloat(getComputedStyle(el).paddingRight),
       arrow: !!change?.querySelector('.kpi-percentage svg') };
   })));
-  const expectedFont = width >= 1124 ? 14 : Math.max(22, Math.min(width * .03, 28));
+  const expectedFont = width >= 1124 ? 22 : Math.max(22, Math.min(width * .03, 28));
   for (const geometry of chartGeometry) {
     expect(geometry.font).toBeCloseTo(expectedFont, 1);
     if (width < 1124) expect(Math.abs(geometry.left - geometry.right)).toBeLessThan(1);
     else expect(geometry.right).toBeCloseTo(geometry.left, 0);
-    expect(geometry.xTicks.length).toBe(width < 1024 ? 3 : 5);
+    expect(geometry.xTicks.length).toBe(width >= 1124 ? 12 : width < 1024 ? 3 : 5);
     for (let i = 1; i < geometry.xTicks.length; i++)
       expect(geometry.xTicks[i].x).toBeGreaterThanOrEqual(geometry.xTicks[i - 1].right - 1);
     for (const tick of geometry.yTicks) expect(tick.x).toBeGreaterThanOrEqual(geometry.box.x - 1);
@@ -412,10 +413,10 @@ test('compact amounts appear in every KPI surface, with local delta colors and k
   fixture.state.items = [deal(1, { ufCrmDate: '2026-11-15', opportunity: '6158173250.9' })];
   await open(); await selectPeriod('month'); await expectValue('amount', '6,16 մլրդ ֏');
   expect(await delta('amount').innerText()).toBe('+6,16 մլրդ ֏\n—');
-  expect(await delta('amount').evaluate(el => getComputedStyle(el).color)).toBe('rgb(24, 37, 61)');
-  expect(await card('amount').getByTestId('kpi-percentage').evaluate(el => getComputedStyle(el).color)).toBe('rgb(21, 128, 61)');
-  await value('amount').focus(); await card('amount').getByRole('tooltip').waitFor();
-  expect(await card('amount').getByRole('tooltip').innerText()).toBe('6,16 մլրդ ֏');
+  expect(await delta('amount').evaluate(el => getComputedStyle(el).color)).toBe('rgb(29, 40, 62)');
+  expect(await card('amount').getByTestId('kpi-percentage').evaluate(el => getComputedStyle(el).color)).toBe('rgb(0, 127, 105)');
+  await value('amount').hover();
+  expect(await card('amount').getByRole('tooltip').count()).toBe(0);
   const point = card('amount').getByRole('button', { name: 'Ընտրված՝ 15.11.2026 · 6,16 մլրդ ֏', exact: true });
   await point.focus(); expect(await card('amount').getByRole('status').innerText()).toBe('Ընտրված՝ 15.11.2026 · 6,16 մլրդ ֏');
   await page.keyboard.press('ArrowLeft'); expect(await card('amount').getByRole('status').innerText()).toBe('Ընտրված՝ 14.11.2026 · 0 ֏');
@@ -466,7 +467,7 @@ test('empty result opens an empty detail table and loading/error block stale det
   await openDetails('count'); expect(await detailLinks().first().getAttribute('href')).toContain('/77/');
 });
 
-test.each([1440, 1920])('desktop frame, legends, full tooltip and scrolling stay stable at %i', async width => {
+test.each([1440, 1920])('desktop frame, legends, full amount and scrolling stay stable at %i', async width => {
   await page.setViewportSize({ width, height: 1100 });
   fixture.state.items = history();
   fixture.state.items.push(deal(100, { ufCrmDate: '2026-11-15', opportunity: '6158173250.9' }));
@@ -474,7 +475,7 @@ test.each([1440, 1920])('desktop frame, legends, full tooltip and scrolling stay
   const frame = page.getByTestId('kpi-container');
   const baseline = await frame.boundingBox();
   const filter = await page.getByRole('form', { name: 'Զտիչներ' }).boundingBox();
-  expect(baseline.height).toBe(filter.height * 2);
+  expect(baseline.height).toBe(filter.height * 2 + 100);
   const topPanels = await page.locator('.report-top-panels').boundingBox();
   const section = await page.getByRole('region', { name: 'Գործարքների հաշվետվություն', exact: true }).boundingBox();
   const inset = topPanels.x - section.x;
@@ -487,8 +488,8 @@ test.each([1440, 1920])('desktop frame, legends, full tooltip and scrolling stay
     await value(metric).click();
     await card(metric).getByRole('heading').click();
     expect(await details().count()).toBe(0);
-    expect(await value(metric).evaluate(el => getComputedStyle(el).fontSize)).toBe('14px');
-    expect(await delta(metric).evaluate(el => getComputedStyle(el).fontSize)).toBe('12px');
+    expect(await value(metric).evaluate(el => getComputedStyle(el).fontSize)).toBe('22px');
+    expect(await delta(metric).evaluate(el => getComputedStyle(el).fontSize)).toBe('22px');
     const legend = card(metric).locator('.kpi-period-legend');
     expect(await legend.innerText()).toContain('Ընտրված՝ 01.01.2026 – 15.11.2026');
     expect(await legend.innerText()).toContain('Համեմատություն՝ 01.01.2025 – 15.11.2025');
@@ -498,8 +499,8 @@ test.each([1440, 1920])('desktop frame, legends, full tooltip and scrolling stay
     const heading = await card(metric).getByRole('heading').boundingBox();
     expect(baseline.y + baseline.height - second.y - second.height).toBeCloseTo(heading.y - baseline.y, 0);
     const arrow = await card(metric).getByTestId('kpi-percentage').locator('svg').boundingBox();
-    expect(arrow.width).toBeCloseTo(11.2, 1);
-    expect(arrow.height).toBeCloseTo(11.2, 1);
+    expect(arrow.width).toBeCloseTo(20.5, 1);
+    expect(arrow.height).toBeCloseTo(20.5, 1);
     const valueBox = await value(metric).boundingBox(), deltaBox = await delta(metric).boundingBox();
     expect(deltaBox.y - valueBox.y - valueBox.height).toBeCloseTo(second.y - first.y - first.height, 0);
     if (metric === 'amount') {
@@ -517,25 +518,44 @@ test.each([1440, 1920])('desktop frame, legends, full tooltip and scrolling stay
     const visibleBottom = Math.max(...boxes.map(box => box.y + box.height));
     const referenceGap = heading.y - region.y;
     expect(visibleTop - deltaBox.y - deltaBox.height).toBeCloseTo(referenceGap, 0);
-    expect(first.y - visibleBottom).toBeCloseTo(referenceGap, 0);
+    expect(first.y - visibleBottom).toBeCloseTo(referenceGap + 40, 0);
     const yLabels = await card(metric).getByTestId('kpi-y-tick').locator('text').all();
     const labelBoxes = await Promise.all(yLabels.map(label => label.boundingBox()));
     expect(Math.min(...labelBoxes.map(box => box.x)) - region.x).toBeCloseTo(iconInset, 0);
-    expect(region.x + region.width - svg.x - svg.width).toBeCloseTo(iconInset, 0);
+    const viewportBox = await card(metric).locator('.kpi-chart-scroll').boundingBox();
+    expect(region.x + region.width - viewportBox.x - viewportBox.width).toBeCloseTo(iconInset, 0);
     expect(await card(metric).getByTestId('kpi-x-tick').locator('line').count()).toBe(0);
-    const firstMonth = await card(metric).getByTestId('kpi-x-tick').first().locator('text').boundingBox();
-    const yAxisX = await card(metric).getByTestId('kpi-axes').locator('path').evaluate(el => {
-      const start = Number(el.getAttribute('d').match(/^M([\d.]+)/)[1]);
-      return new DOMPoint(start, 0).matrixTransform(el.getScreenCTM()).x;
+    const scroller = card(metric).locator('.kpi-month-scroll');
+    const scrollGeometry = await scroller.evaluate(el => ({ width: el.clientWidth, content: el.scrollWidth }));
+    expect(scrollGeometry.content).toBeGreaterThan(scrollGeometry.width * 2);
+    const monthTicks = card(metric).getByTestId('kpi-x-tick');
+    expect(await monthTicks.allTextContents()).toEqual(Array.from({ length: 12 }, (_, i) => `${String(i + 1).padStart(2, '0')}.26`));
+    const tickX = await monthTicks.locator('text').evaluateAll(nodes => nodes.map(node => node.getBoundingClientRect().x));
+    const monthGeometry = await scroller.evaluate(el => {
+      const svg = el.querySelector('svg'), axis = svg.querySelector('[data-testid="kpi-axes"] path');
+      const axisX = Number(axis.getAttribute('d').match(/^M([\d.]+)/)[1]);
+      const labels = [...svg.querySelectorAll('[data-testid="kpi-x-tick"] text')];
+      const x = labels.map(label => Number(label.getAttribute('x')));
+      const box = el.getBoundingClientRect();
+      return { firstGap: x[0] - axisX, step: x[1] - x[0],
+        expectedStep: (el.clientWidth - axisX * 2) * 3 * .7 / 10,
+        labelsBottom: Math.max(...labels.map(label => label.getBoundingClientRect().bottom)),
+        scrollbarTop: box.y + el.clientHeight, bottom: box.bottom };
     });
-    const axisEnd = await card(metric).getByTestId('kpi-axes').locator('path').evaluate(el => {
-      const end = Number(el.getAttribute('d').match(/H([\d.]+)$/)[1]);
-      return new DOMPoint(end, 0).matrixTransform(el.getScreenCTM()).x;
-    });
-    const lastMonth = await card(metric).getByTestId('kpi-x-tick').last().locator('text').boundingBox();
-    expect(lastMonth.x + lastMonth.width / 2).toBeCloseTo(axisEnd, 0);
-    expect(firstMonth.x - yAxisX).toBeCloseTo(region.x + region.width - lastMonth.x - lastMonth.width, 0);
-    expect(yAxisX - region.x).toBeCloseTo(region.x + region.width - axisEnd, 0);
+    expect(monthGeometry.firstGap).toBeCloseTo(monthGeometry.step / 2, 1);
+    expect(monthGeometry.step).toBeCloseTo(monthGeometry.expectedStep, 1);
+    expect(monthGeometry.labelsBottom + 10).toBeLessThanOrEqual(monthGeometry.scrollbarTop);
+    expect(monthGeometry.labelsBottom + 22).toBeLessThanOrEqual(monthGeometry.bottom);
+    for (let i = 2; i < tickX.length; i++) expect(tickX[i] - tickX[i - 1]).toBeCloseTo(tickX[1] - tickX[0], 0);
+    const current = card(metric).getByTestId('kpi-line-0'), previous = card(metric).getByTestId('kpi-line-1');
+    expect(Number(await current.getAttribute('stroke-width'))).toBeGreaterThan(Number(await previous.getAttribute('stroke-width')));
+    expect(await current.getAttribute('stroke')).toBe('#00a387');
+    expect(await previous.getAttribute('stroke-dasharray')).toBe('6 4');
+    expect(await current.getAttribute('stroke-dasharray')).toBeNull();
+    await scroller.evaluate(el => { el.scrollLeft = el.scrollWidth; });
+    const last = await monthTicks.last().boundingBox(), viewport = await scroller.boundingBox();
+    expect(last.x + last.width).toBeLessThanOrEqual(viewport.x + viewport.width);
+    await scroller.evaluate(el => { el.scrollLeft = 0; });
     const scrollBounds = await card(metric).getByTestId('kpi-scroll').boundingBox();
     for (const label of await card(metric).getByTestId('kpi-x-tick').locator('text').all()) {
       const bounds = await label.boundingBox();
@@ -555,10 +575,12 @@ test.each([1440, 1920])('desktop frame, legends, full tooltip and scrolling stay
 
     expect((await legend.boundingBox()).y).toBeGreaterThanOrEqual(svg.y + svg.height);
   }
-  await value('amount').focus();
-  await card('amount').getByRole('tooltip').waitFor();
-  expect(await card('amount').getByRole('tooltip').innerText()).toBe('6 158 173 910,90 ֏');
-  await value('amount').press('Enter'); expect(await details().count()).toBe(0);
+  expect(await value('amount').innerText()).toBe('6 158 173 910,90 ֏');
+  await value('amount').hover();
+  expect(await card('amount').getByRole('tooltip').count()).toBe(0);
+  expect(await value('amount').getAttribute('aria-describedby')).toBeNull();
+  await value('amount').click(); expect(await details().count()).toBe(0);
+  await card('amount').getByRole('heading').click();
   await frame.screenshot({ path: `test-results/kpi-desktop-${width}.png` });
   await selectPeriod('all');
   expect(await card('count').locator('.kpi-period-legend span').count()).toBe(1);
@@ -597,7 +619,7 @@ test('desktop frame survives loading, failure, recovery and empty selection', as
   }));
   await open(); await selectPeriod('custom');
   await input('date', 'min').fill('2026-11-13'); await input('date', 'max').fill('2026-11-15');
-  await expectValue('amount', '600 ֏');
+  await expectValue('amount', '600,00 ֏');
   const region = await card('amount').boundingBox(), heading = await card('amount').getByRole('heading').boundingBox();
   const change = await delta('amount').boundingBox();
   const selected = await card('amount').locator('.kpi-period-legend span').first().boundingBox();

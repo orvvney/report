@@ -8,22 +8,22 @@ test('turquoise shades follow filtered counts while labels and natural order sta
  const records=[1,3,2,1].flatMap((count,index)=>Array.from({length:count},()=>({...deals[0],rooms:index+1})));
  const rows=statistics(records,{},'rooms').rows;
  expect(rows.map(r=>r.label)).toEqual(['1 սենյակ','2 սենյակ','3 սենյակ','4 սենյակ']);
- expect(rows.map(r=>r.color)).toEqual(['hsl(174 65% 80%)','hsl(174 65% 28%)','hsl(174 65% 54%)','hsl(174 65% 80%)']);
+ expect(rows.map(r=>r.color)).toEqual(['hsl(170 100% 82%)','#00a387','hsl(170 100% 57%)','hsl(170 100% 82%)']);
  const filtered=statistics(records,{rooms:[1,3]},'rooms').rows;
- expect(filtered.map(r=>r.color)).toEqual(['hsl(174 65% 80%)','hsl(174 65% 28%)']);
+ expect(filtered.map(r=>r.color)).toEqual(['hsl(170 100% 82%)','#00a387']);
  expect(colorRows([])).toEqual([]);
- expect(colorRows([{count:0}])[0].color).toBe('hsl(174 65% 80%)');
- expect(colorRows([{count:1}])[0].color).toBe('hsl(174 65% 28%)');
+ expect(colorRows([{count:0}])[0].color).toBe('hsl(170 100% 82%)');
+ expect(colorRows([{count:1}])[0].color).toBe('#00a387');
 });
 test('Other is shaded by its combined share and expanded children are ranked individually',()=>{
  const records=[10,9,8,7,6,5,4].flatMap((count,index)=>Array.from({length:count},()=>({...deals[0],area:String(index*10+1)})));
  const raw=statistics(records,{},'area').rows,original=structuredClone(raw);
  const grouped=groupCategories(raw,'area');
- expect(grouped.at(-1)).toMatchObject({count:15,color:'hsl(174 65% 28%)'});
- expect(grouped[3].color).toBe('hsl(174 65% 80%)');
+ expect(grouped.at(-1)).toMatchObject({count:15,color:'#00a387'});
+ expect(grouped[3].color).toBe('hsl(170 100% 82%)');
  const expanded=colorRows(grouped.flatMap(row=>row.children||row));
- expect(expanded[0].color).toBe('hsl(174 65% 28%)');
- expect(expanded.at(-1).color).toBe('hsl(174 65% 80%)');
+ expect(expanded[0].color).toBe('#00a387');
+ expect(expanded.at(-1).color).toBe('hsl(170 100% 82%)');
  expect(raw).toEqual(original);
 });
 test('year statistics ignore date filters but retain missing years and other filters',()=>{

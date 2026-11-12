@@ -40,7 +40,7 @@ test.each([375, 1440])('all quick choices apply inclusive dates, filters, KPIs a
   ]) {
     await quick().selectOption(value); await count(n);
     expect(await (width >= 1124 ? page.getByTestId('kpi-count').locator('.kpi-period-legend') : page.getByTestId('kpi-dates')).getByText(`Ընտրված՝ ${label}`, { exact: true }).isVisible()).toBe(true);
-    expect(await page.getByTestId('kpi-amount').getByTestId('kpi-value').innerText()).toBe(`${n * 10} ֏`);
+    expect(await page.getByTestId('kpi-amount').getByTestId('kpi-value').innerText()).toBe(`${n * 10}${width >= 1124 ? ',00' : ''} ֏`);
     await page.getByTestId('kpi-count').getByTestId('kpi-value').click();
     const dialog = page.getByRole('dialog', { name: 'Կնքված բնակարանների քանակ', exact: true });
     if (width >= 1124) expect(await dialog.count()).toBe(0);

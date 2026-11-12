@@ -18,17 +18,25 @@ function createServer({ distPath = path.join(__dirname, 'dist'), liveReload, ...
       return;
     }
     const isIndex = ['/', '/index.html'].includes(pathname);
+    const isFavicon = ['/favicon.ico', '/favicon.png'].includes(pathname);
     const isAsset = /^\/assets\/[a-zA-Z0-9_-]+\.(?:js|css|png)$/.test(pathname);
-    if (!['GET', 'HEAD'].includes(request.method) || (!isIndex && !isAsset)) {
+    if (!['GET', 'HEAD'].includes(request.method) || (!isIndex && !isAsset && !isFavicon)) {
       response.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
       response.end('Not found');
       return;
     }
     try {
       const root = await realpath(distPath);
-      const file = await realpath(path.join(root, isIndex ? 'index.html' : pathname));
+      const file = await realpath(path.join(root, isIndex || isFavicon ? 'index.html' : pathname));
       if (!file.startsWith(`${root}${path.sep}`)) throw new Error('Outside public build');
       let contents = await readFile(file);
+      if (isFavicon) {
+        const icon = contents.toString('utf8').match(/href="(\/assets\/logo_milon-[\w-]+\.png)"/);
+        if (!icon) throw new Error('Favicon is not built');
+        response.writeHead(302, { Location: icon[1], 'Cache-Control': 'no-store' });
+        response.end();
+        return;
+      }
       if (isIndex && liveReload) contents = Buffer.from(liveReload.inject(contents.toString('utf8')));
       response.writeHead(200, {
         'Content-Type': isIndex ? 'text/html; charset=utf-8'

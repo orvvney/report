@@ -7,6 +7,7 @@ import RangeInputs from './RangeInputs.vue';
 import MonthPicker from './MonthPicker.vue';
 import KpiCard from './KpiCard.vue';
 import StatisticsPanel from './StatisticsPanel.vue';
+import DealsHistogram from './DealsHistogram.vue';
 import KpiDealsDialog from './KpiDealsDialog.vue';
 import kpi from '../report/kpi.cjs';
 import filterIcon from '../../images/filter.png';
@@ -17,11 +18,18 @@ const { formatAmountInput, ungroupAmount } = amountInput;
 const { roomOptions, reconcileRooms, toggleRoom, validateRange } = filters;
 const report = ref(null), loading = ref(false), failed = ref(false);
 const kpiDialog = ref(null);
+const propertyMenu = ref(null);
+function selectPropertyType() {
+  propertyMenu.value?.hidePopover();
+}
 const filterContainer = ref(null), wideKpi = ref(false);
 let kpiObserver;
 function layoutPanels() {
     if (!filterContainer.value) return;
     wideKpi.value = filterContainer.value.clientWidth >= 1100;
+    const page = filterContainer.value.closest('.report-page');
+    const logo = page.querySelector('.report-logo');
+    page.style.setProperty('--section-gap', `${logo.getBoundingClientRect().top + window.scrollY}px`);
     const row = filterContainer.value.querySelector('.report-top-panels');
     const form = row.querySelector('form');
     row.classList.toggle('panels-stacked', !wideKpi.value);
@@ -166,18 +174,29 @@ onMounted(() => refresh(false));
 </script>
 
 <template>
-  <main class="px-3 pb-8 sm:px-8 sm:pb-14">
-    <section aria-label="Գործարքների հաշվետվություն" class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+  <main class="report-page">
+    <section aria-label="Գործարքների հաշվետվություն" class="report-shell">
       <header class="report-header" :class="{ 'header-wide': wideKpi }">
         <div class="report-header-row">
-          <img :src="milonLogo" alt="Milon Mining" class="report-logo">
+          <div class="report-brand">
+            <img :src="milonLogo" alt="Milon Mining" class="report-logo">
+            <span class="report-brand-name">MILON MINING</span>
+          </div>
           <div class="report-header-copy">
             <h1>Հաշվետվություն</h1>
           </div>
-          <button type="button" class="refresh-button"
-            :disabled="loading" @click="refresh">Թարմացնել հաշվետվությունը</button>
+          <div class="header-actions">
+            <button type="button" class="refresh-button header-icon-button" aria-label="Թարմացնել հաշվետվությունը" title="Թարմացնել հաշվետվությունը"
+              :disabled="loading" @click="refresh"><span class="filter-icon reset-icon" :style="{ maskImage: `url(${resetIcon})` }" aria-hidden="true"></span></button>
+            <button type="button" class="header-icon-button property-menu-trigger" aria-label="Անշարժ գույքի տեսակ" title="Անշարժ գույքի տեսակ" popovertarget="property-menu" aria-haspopup="menu">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
+            </button>
+            <div ref="propertyMenu" id="property-menu" class="property-menu" popover role="menu" aria-label="Անշարժ գույքի տեսակ">
+              <button type="button" role="menuitem" @click="selectPropertyType('apartments')">Բնակարաններ</button>
+              <button type="button" role="menuitem" @click="selectPropertyType('parking')">Ավտոկայանատեղիներ</button>
+            </div>
+          </div>
         </div>
-        <hr data-testid="header-divider" aria-hidden="true">
       </header>
       <div ref="filterContainer" class="filter-container">
       <div class="report-top-panels" :class="{ 'top-wide': wideKpi }">
@@ -281,6 +300,10 @@ onMounted(() => refresh(false));
         <p v-if="kpiData.ranges.previous">Համեմատություն՝ {{ kpi.rangeText(kpiData.ranges.previous) }}</p>
       </div>
       </div>
+      <DealsHistogram :wide="wideKpi" :deals="report?.deals || []" :filters="appliedFilters" :months="months"
+        :data="kpiData" :period="effectivePeriod.period"
+        :year="effectivePeriod.selection?.year || report?.year || periodContext.year"
+        :loading="loading || (!report && !failed)" :failed="failed" />
     </section>
     <KpiDealsDialog ref="kpiDialog" :data="kpiData" :unavailable="disabled" />
   </main>

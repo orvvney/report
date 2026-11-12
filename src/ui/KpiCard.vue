@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { ArrowUp, ArrowDown } from '@lucide/vue';
 import kpi from '../report/kpi.cjs';
 import KpiChart from './KpiChart.vue';
@@ -11,10 +11,7 @@ const props = defineProps({
   loading: Boolean, failed: Boolean, resetRevision: Number,
 });
 const emit = defineEmits(['open']);
-const openButton = ref(null), touched = ref(false), valueWrap = ref(null);
-function outside(event) { if (!valueWrap.value?.contains(event.target)) touched.value = false; }
-onMounted(() => document.addEventListener('pointerdown', outside));
-onUnmounted(() => document.removeEventListener('pointerdown', outside));
+const openButton = ref(null);
 function open() { if (!props.wide && !unavailable.value) { openButton.value?.focus(); emit('open', props.title, openButton.value); } }
 function cardClick(event) {
   if (!event.target.closest('button, a, .kpi-chart')) open();
@@ -40,16 +37,15 @@ function selectType(value) { type.value = value; expanded.value = false; }
       <p v-if="loading || (!data && !failed)" class="kpi-notice">Տվյալները բեռնվում են…</p>
       <p v-else-if="failed" class="kpi-notice">Տվյալներն անհասանելի են։</p>
       <template v-else>
-        <div ref="valueWrap" class="kpi-value-wrap" :class="{ 'kpi-touched': touched }">
-          <span v-if="wide" class="kpi-value" data-testid="kpi-value" :tabindex="metric === 'amount' ? 0 : undefined" :aria-describedby="metric === 'amount' ? 'kpi-amount-tooltip' : undefined" @click.stop="touched = true" @blur="touched = false">{{ valueText(data.current[metric], metric) }}</span>
+        <div class="kpi-value-wrap">
+          <span v-if="wide" class="kpi-value" data-testid="kpi-value">{{ metric === 'amount' ? kpi.fullKpiAmount(data.current[metric]) : valueText(data.current[metric], metric) }}</span>
           <button v-else ref="openButton" type="button" class="kpi-value" data-testid="kpi-value"
-            :aria-label="`${title}՝ բացել գործարքները`" :aria-describedby="metric === 'amount' ? 'kpi-amount-tooltip' : undefined"
+            :aria-label="`${title}՝ բացել գործարքները`"
             @click.stop="open">{{ valueText(data.current[metric], metric) }}</button>
-          <span v-if="metric === 'amount'" id="kpi-amount-tooltip" class="kpi-value-tooltip" role="tooltip">{{ wide ? kpi.fullKpiAmount(data.current[metric]) : valueText(data.current[metric], metric) }}</span>
         </div>
         <p v-if="change" class="kpi-change" data-testid="kpi-change">
           <span>{{ change.direction === 'up' ? '+' : '' }}{{ valueText(change.delta, metric) }}</span>
-          <span :class="`kpi-${change.direction}`" class="kpi-percentage" data-testid="kpi-percentage"><component :is="change.direction === 'up' ? ArrowUp : ArrowDown" v-if="change.direction !== 'flat'" :size="wide ? 11.2 : 16" aria-hidden="true" />{{ change.percentage ?? '—' }}</span>
+          <span :class="`kpi-${change.direction}`" class="kpi-percentage" data-testid="kpi-percentage"><component :is="change.direction === 'up' ? ArrowUp : ArrowDown" v-if="change.direction !== 'flat'" :size="wide ? 20.5 : 16" aria-hidden="true" />{{ change.percentage ?? '—' }}</span>
         </p>
         <p v-else-if="period === 'custom'" class="kpi-notice">Համեմատության համար նշեք երկու ամսաթվերը։</p>
       </template>

@@ -60,7 +60,7 @@ test('joined frame, spacing, centered 12px labels and ranked turquoise room colo
  expect(Math.abs(geometry.left-geometry.right)).toBeLessThan(1);expect(geometry.divider).toBe('1px');expect(geometry.font).toBe('12px');expect(geometry.align).toBe('center');
  const panel=page.getByRole('region',{name:'Վիճակագրություն',exact:true});await panel.locator('.statistics-trigger').click();await page.getByRole('dialog',{name:'Վիճակագրության խմբավորում'}).getByRole('button',{name:'Սենյակ',exact:true}).click();
  const legend=await panel.locator('.statistics-legend').innerText();for(const n of [1,2,3])expect(legend).toContain(`${n} սենյակ`);
- const colors=await panel.locator('svg path').evaluateAll(elements=>elements.map(e=>e.getAttribute('fill')));expect(colors).toEqual(['hsl(174 65% 80%)','hsl(174 65% 28%)','hsl(174 65% 80%)']);
+ const colors=await panel.locator('svg path').evaluateAll(elements=>elements.map(e=>e.getAttribute('fill')));expect(colors).toEqual(['hsl(170 100% 82%)','#00a387','hsl(170 100% 82%)']);
  await page.screenshot({path:'test-results/statistics-joined-wide.png',fullPage:true});
 });
 test('adaptive equal input widths, equal cards, matching pie extent and shared legend tracks',async()=>{
@@ -252,9 +252,9 @@ async function expectLegendSpacing(panel,withScrollbarGap){
 async function expectTurquoiseOrder(panel){
  const slices=await panel.locator('svg g').evaluateAll(groups=>groups.map(g=>({count:Number(g.getAttribute('aria-label').match(/՝ (\d+),/)[1]),color:g.querySelector('path,circle').getAttribute('fill')})));
  const sorted=slices.sort((a,b)=>b.count-a.count);
- for(const slice of sorted)expect(slice.color).toMatch(/^hsl\(174 65% [\d.]+%\)$/);
- const lightness=slice=>Number(slice.color.match(/ ([\d.]+)%\)$/)[1]);
- expect(lightness(sorted[0])).toBe(28);expect(lightness(sorted.at(-1))).toBe(80);
+ for(const slice of sorted)expect(slice.color).toMatch(/^(?:#00a387|hsl\(170 100% [\d.]+%\))$/);
+ const lightness=slice=>slice.color==='#00a387'?32:Number(slice.color.match(/ ([\d.]+)%\)$/)[1]);
+ expect(lightness(sorted[0])).toBe(32);expect(lightness(sorted.at(-1))).toBe(82);
  for(let i=1;i<sorted.length;i++)expect(lightness(sorted[i])).toBeGreaterThanOrEqual(lightness(sorted[i-1]));
  for(const slice of await panel.locator('svg g').all()){
   const key=await slice.getAttribute('data-key');

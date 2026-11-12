@@ -48,7 +48,7 @@ test('header refresh hides old data, disables during loading, recovers from last
   expect(await page.getByTestId('statistics-count').count()).toBe(0);
   release(); fixture.state.gate = null; await failedStatus().waitFor();
   expect(await heading.isVisible()).toBe(true); expect(await refresh().isEnabled()).toBe(true);
-  expect(await page.locator('svg').count()).toBe(0);
+  expect(await page.locator('.statistics-panel svg, .kpi-container svg, .deals-histogram svg').count()).toBe(0);
   fixture.state.failPage = undefined; await reloadReport(); await expectTotals(51, '510 ֏');
   fixture.state.items = []; await reloadReport(); await expectTotals(0, '0 ֏');
   expect(await emptyStatus().isVisible()).toBe(true); expect(await heading.isVisible()).toBe(true);
@@ -261,9 +261,9 @@ test('room buttons retain their size and distinguish selected and unselected col
   expect(await allRoomsButton().getAttribute('aria-pressed')).toBe('true');
   expect(await room(1).getAttribute('aria-pressed')).toBe('false');
   await room(1).click();
-  expect(await appearance()).toEqual({ background: 'rgb(102, 133, 235)', border: 'rgb(102, 133, 235)', color: 'rgb(255, 255, 255)', fontSize: '12px', width: 28, height: 32 });
+  expect(await appearance()).toEqual({ background: 'rgb(0, 127, 105)', border: 'rgb(0, 127, 105)', color: 'rgb(255, 255, 255)', fontSize: '12px', width: 28, height: 32 });
   await allRoomsButton().click();
-  expect(await appearance()).toEqual({ background: 'rgb(255, 255, 255)', border: 'rgb(203, 213, 225)', color: 'rgb(24, 37, 61)', fontSize: '12px', width: 28, height: 32 });
+  expect(await appearance()).toEqual({ background: 'rgb(255, 255, 255)', border: 'rgb(180, 201, 194)', color: 'rgb(29, 40, 62)', fontSize: '12px', width: 28, height: 32 });
   await room(1).press('Space'); expect(await room(1).getAttribute('aria-pressed')).toBe('true');
   await room(2).click(); await room(2).click(); await room(1).click();
   expect(await room(1).getAttribute('aria-pressed')).toBe('true');
@@ -310,11 +310,11 @@ test('filter inputs focus without an extra outline and keep their normal or erro
       expect(await control.evaluate((el) => {
         const style = getComputedStyle(el);
         return { outline: style.outlineStyle, border: style.borderTopWidth, color: style.borderTopColor, height: el.getBoundingClientRect().height };
-      })).toEqual({ outline: 'none', border: '1px', color: 'rgb(203, 213, 225)', height: 32 });
+      })).toEqual({ outline: 'none', border: '1px', color: 'rgb(180, 201, 194)', height: 32 });
     }
   }
   await input('amount', 'min').fill('200'); await input('amount', 'max').fill('100');
-  expect(await input('amount', 'max').evaluate((el) => getComputedStyle(el).borderTopColor)).toBe('rgb(185, 28, 28)');
+  expect(await input('amount', 'max').evaluate((el) => getComputedStyle(el).borderTopColor)).toBe('rgb(154, 63, 53)');
   expect(await input('amount', 'max').evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('none');
   await room(1).focus(); await page.keyboard.press('Tab');
   expect(await room(2).evaluate((el) => getComputedStyle(el).outlineStyle)).not.toBe('none');
@@ -540,9 +540,9 @@ test.each([1440, 375])('filters precede KPIs with reset and without panel scroll
     expect(await statStops.nth(index).evaluate(el => el === document.activeElement)).toBe(true);
   }
   for (const metric of ['count', 'amount']) {
-    if (width < 1124 || metric === 'amount') await page.keyboard.press('Tab');
+    if (width < 1124) await page.keyboard.press('Tab');
     const card = page.getByTestId(`kpi-${metric}`);
-    if (width < 1124 || metric === 'amount') expect(await card.getByTestId('kpi-value').evaluate(el => el === document.activeElement)).toBe(true);
+    if (width < 1124) expect(await card.getByTestId('kpi-value').evaluate(el => el === document.activeElement)).toBe(true);
     const seriesStops = card.locator('svg circle[tabindex="0"]');
     for (let index = 0; index < await seriesStops.count(); index++) {
       await page.keyboard.press('Tab');
@@ -550,8 +550,10 @@ test.each([1440, 375])('filters precede KPIs with reset and without panel scroll
     }
   }
   await page.keyboard.press('Tab');
-  // The header refresh precedes the filters in keyboard order.
+  // Header actions precede the filters in keyboard order.
   await refresh().focus(); await page.keyboard.press('Tab');
+  expect(await page.getByRole('button', { name: 'Անշարժ գույքի տեսակ', exact: true }).evaluate(el => el === document.activeElement)).toBe(true);
+  await page.keyboard.press('Tab');
   expect(await page.getByRole('button', { name: 'Վերականգնել', exact: true }).evaluate(el => el === document.activeElement)).toBe(true);
 });
 

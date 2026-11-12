@@ -145,7 +145,7 @@ test('loading and failed refresh hide controls, recovery keeps month selection',
   expect(await year().count()).toBe(0); expect(await button('Հունվար').count()).toBe(0);
   release(); fixture.state.gate = null;
   await page.locator('.statistics-status').filter({ hasText: 'Տվյալներն անհասանելի են։' }).waitFor();
-  expect(await page.locator('svg').count()).toBe(0); expect(await year().count()).toBe(0);
+  expect(await page.locator('.statistics-panel svg, .kpi-container svg, .deals-histogram svg').count()).toBe(0); expect(await year().count()).toBe(0);
   fixture.state.failPage = undefined; await refresh(); await count(1); expect(await year().inputValue()).toBe('2025'); await selected('Հունվար');
 });
 

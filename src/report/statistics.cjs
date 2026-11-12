@@ -6,8 +6,8 @@ const grouped = value => String(value).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 // Larger visible shares get darker turquoise; equal shares use the same shade.
 function colorRows(rows) {
  const counts = [...new Set(rows.filter(row=>row.count>0).map(row=>row.count))].sort((a,b)=>b-a);
- const colors = new Map(counts.map((count,index)=>[count, `hsl(174 65% ${28 + (counts.length>1 ? index/(counts.length-1)*52 : 0)}%)`]));
- return rows.map(row=>({...row,color:colors.get(row.count)||'hsl(174 65% 80%)'}));
+ const colors = new Map(counts.map((count,index)=>[count, index === 0 ? '#00a387' : `hsl(170 100% ${32 + index/(counts.length-1)*50}%)`]));
+ return rows.map(row=>({...row,color:colors.get(row.count)||'hsl(170 100% 82%)'}));
 }
 const orderRows = (a,b) => a.order < b.order ? -1 : a.order > b.order ? 1 : 0;
 function category(deal, type) {
