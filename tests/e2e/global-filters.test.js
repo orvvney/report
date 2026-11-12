@@ -22,7 +22,10 @@ const room = n => page.getByRole('button', { name: `Սենյակների քան�
 const tower = () => page.getByRole('button', { name: 'Թաուեր', exact: true });
 const hills = () => page.getByRole('button', { name: 'Հիլլս', exact: true });
 const input = (kind, side) => page.getByLabel(`${{ amount: 'Բնակարանի արժեք (֏)', area: 'Մակերես (մ²)', date: 'Կնքման ժամանակահատված' }[kind]}՝ ${side === 'min' ? 'Սկսած' : 'Մինչև'}`, { exact: true });
-const count = async value => expect(await page.getByTestId('statistics-count').innerText()).toBe(String(value));
+const count = async value => {
+  expect(await page.getByTestId('statistics-count').innerText()).toBe(String(value));
+  expect(await page.getByTestId('deals-list-count').innerText()).toBe(String(value));
+};
 const ready = async () => page.getByTestId('statistics-count').waitFor();
 beforeEach(async () => {
   await page.clock.setFixedTime(new Date('2026-11-15T10:00:00Z'));
@@ -132,7 +135,7 @@ test.each([1440, 1920])('wide panel has two rows and retains geometry with custo
   const box = await panel.boundingBox();
   const sectionWidth = await page.getByRole('region', { name: 'Գործարքների հաշվետվություն' }).evaluate(el => el.clientWidth);
   expect(box.width).toBeLessThan((sectionWidth - 24) * .7);
-  expect(Math.abs((await page.locator('.report-top-panels').boundingBox()).x - (await page.getByTestId('kpi-container').boundingBox()).x)).toBeLessThan(1);
+  expect(Math.abs((await page.locator('.report-top-panels').boundingBox()).x - (await page.locator('.deals-histogram').boundingBox()).x)).toBeLessThan(1);
   const headings = await panel.locator('legend').allTextContents();
   expect(headings).toEqual(['Կնքման ժամանակահատված', 'Համալիր', 'Սենյակների քանակ', 'Մակերես (մ²)', 'Բնակարանի արժեք (֏)']);
   for (const value of ['year', 'custom']) {

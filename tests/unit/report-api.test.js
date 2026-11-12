@@ -69,7 +69,7 @@ test('HTTP contract includes every CRM page, exact totals, safe links, no browse
   expect(report.rooms[1]).toEqual({ category: 2, amount: '500', count: 50 });
   expect(report.problems.at(-1)).toEqual({ id: 51, url: 'https://portal.example/crm/deal/details/51/', reasons: [{ field: 'area', code: 'missing' }] });
   expect(report.deals).toHaveLength(50);
-  expect(report.deals[0]).toEqual({ id: 1, url: 'https://portal.example/crm/deal/details/1/', rooms: 2, amount: '10', area: '65.5', date: '2026-01-15', complex: 'tower' });
+  expect(report.deals[0]).toEqual({ id: 1, url: 'https://portal.example/crm/deal/details/1/', rooms: 2, amount: '10', area: '65.5', date: '2026-01-15', complex: 'tower', customerName: null, entrance: null, floor: null, number: null });
   expect(require('../../src/report/filter.cjs').calculate(report.deals, report.year)).toEqual({ rooms: report.rooms, months: report.months });
   expect(fixture.state.requests.filter((r) => r.method === 'crm.item.list').map((r) => r.params.start)).toEqual([-1, -1]);
   fixture.state.items = []; fixture.state.time = '2026-12-31T20:00:00Z';
@@ -113,7 +113,7 @@ test('area metadata is dynamic and decimal normalization preserves exact duplica
   expect(status).toBe(200); expect(body.rooms[1]).toEqual({ category: 2, amount: '0.5', count: 3 });
   expect(body.deals).toHaveLength(3); expect(body.deals[1]).toEqual({ ...body.deals[2], id: 2, url: 'https://portal.example/crm/deal/details/2/' });
   expect(body.deals[2].id).toBe(3); expect(body.deals[2].url).toBe('https://portal.example/crm/deal/details/3/');
-  expect(body.deals[0]).toEqual({ id: 1, url: 'https://portal.example/crm/deal/details/1/', rooms: 2, amount: '0.1', area: '65.5', date: '2026-01-15', complex: 'tower' });
+  expect(body.deals[0]).toEqual({ id: 1, url: 'https://portal.example/crm/deal/details/1/', rooms: 2, amount: '0.1', area: '65.5', date: '2026-01-15', complex: 'tower', customerName: null, entrance: null, floor: null, number: null });
 });
 test.each(['missing', 'ambiguous'])('area metadata %s fails safely', async (kind) => {
   const fixture = createFixture();

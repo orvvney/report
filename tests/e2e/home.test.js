@@ -14,11 +14,11 @@ describe('home page', () => {
     expect(await favicon.getAttribute('type')).toBe('image/png');
     expect(await page.title()).toBe('Milon Mining — Հաշվետվություն');
     const iconPath = await favicon.getAttribute('href');
-    expect(iconPath).toMatch(/^\/assets\/logo_milon-[\w-]+\.png$/);
+    expect(iconPath).toMatch(/^\/assets\/(?:favicon|logo_milon)-[\w-]+\.png$/);
     const iconResponse = await page.request.get(iconPath);
     expect(iconResponse.status()).toBe(200);
     expect(iconResponse.headers()['content-type']).toBe('image/png');
-    expect(await iconResponse.body()).toEqual(fs.readFileSync(require('node:path').join(__dirname, '../../images/logo_milon.png')));
+    expect(await iconResponse.body()).toEqual(fs.readFileSync(require('node:path').join(__dirname, '../../images/favicon.png')));
     for (const fallback of ['/favicon.ico', '/favicon.png']) {
       const redirect = await page.request.get(fallback, { maxRedirects: 0 });
       expect(redirect.status()).toBe(302);
@@ -70,7 +70,7 @@ describe('home page', () => {
     expect(filters.y).toBeGreaterThan(headerBox.y + headerBox.height);
     expect(section).toMatchObject({ x: 0, y: 0, width: 1440 });
     expect(filters.width).toBeLessThan(1350 * .7);
-    expect((await page.locator('.report-top-panels').boundingBox()).x).toBeCloseTo((await page.getByTestId('kpi-container').boundingBox()).x, 0);
+    expect((await page.locator('.report-top-panels').boundingBox()).x).toBeCloseTo((await page.locator('.deals-histogram').boundingBox()).x, 0);
     expect(await region.evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
     fs.mkdirSync('test-results', { recursive: true });
     await page.screenshot({ path: 'test-results/header-1440.png', fullPage: true, animations: 'disabled' });
@@ -121,7 +121,7 @@ describe('home page', () => {
     const headerBox = await header.boundingBox();
     expect(headerBox.x).toBe(0);
     expect(headerBox.width).toBe(width);
-    for (const selector of ['.report-top-panels', '.kpi-container', '.deals-histogram']) {
+    for (const selector of ['.report-top-panels', '.deals-histogram', '.deals-list']) {
       const box = await page.locator(selector).boundingBox();
       expect(box.x).toBe(0); expect(box.width).toBe(width);
     }
@@ -146,23 +146,22 @@ describe('home page', () => {
     const histogram = await page.getByRole('region', { name: 'Գործարքների հիստոգրամ', exact: true }).boundingBox();
     const pageGaps = await page.evaluate(() => {
       const header = document.querySelector('.report-header').getBoundingClientRect();
-      const chart = document.querySelector('.deals-histogram').getBoundingClientRect();
-      return { top: header.top + scrollY, bottom: document.documentElement.scrollHeight - chart.bottom - scrollY };
+      const lastBlock = document.querySelector('.deals-list').getBoundingClientRect();
+      return { top: header.top + scrollY, bottom: document.documentElement.scrollHeight - lastBlock.bottom - scrollY };
     });
     const expectedGap = image.y;
     expect(pageGaps.top).toBe(0);
-    const kpiFrame = await page.getByTestId('kpi-container').boundingBox();
+    const kpiFrame = await page.locator('.deals-histogram').boundingBox();
     const aboveLogo = image.y;
     expect(frame.y - image.y - image.height).toBeCloseTo(aboveLogo, 0);
     expect(kpiFrame.y - frame.y - frame.height).toBeCloseTo(aboveLogo, 0);
     expect(Math.abs(pageGaps.bottom - expectedGap)).toBeLessThan(1);
 
-    const kpis = await page.getByTestId('kpi-container').boundingBox();
-    expect(histogram.y).toBeGreaterThanOrEqual(kpis.y + kpis.height);
-    expect(await page.getByTestId('kpi-container').isVisible()).toBe(true);
+    expect(histogram.y).toBeGreaterThanOrEqual(frame.y + frame.height);
+    expect(await page.locator('.deals-histogram').isVisible()).toBe(true);
     expect(await page.getByRole('region', { name: 'Վիճակագրություն', exact: true }).isVisible()).toBe(true);
-    for (const surface of [page.locator('.report-top-panels'), page.getByTestId('kpi-container'),
-      page.getByRole('region', { name: 'Գործարքների հիստոգրամ', exact: true })]) {
+    for (const surface of [page.locator('.report-top-panels'),
+      page.getByRole('region', { name: 'Գործարքների հիստոգրամ', exact: true }), page.locator('.deals-list')]) {
       expect(await surface.evaluate(el => {
         const style = getComputedStyle(el);
         return { background: style.backgroundColor, border: style.borderTopColor, shadow: style.boxShadow !== 'none' };

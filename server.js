@@ -31,7 +31,7 @@ function createServer({ distPath = path.join(__dirname, 'dist'), liveReload, ...
       if (!file.startsWith(`${root}${path.sep}`)) throw new Error('Outside public build');
       let contents = await readFile(file);
       if (isFavicon) {
-        const icon = contents.toString('utf8').match(/href="(\/assets\/logo_milon-[\w-]+\.png)"/);
+        const icon = contents.toString('utf8').match(/href="(\/assets\/[\w-]+\.png)"/);
         if (!icon) throw new Error('Favicon is not built');
         response.writeHead(302, { Location: icon[1], 'Cache-Control': 'no-store' });
         response.end();

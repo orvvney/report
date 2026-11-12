@@ -1,5 +1,6 @@
 const { CheckError } = require('./config.cjs');
 const { isObject } = require('./client.cjs');
+const { fieldKey } = require('./details.cjs');
 
 const PIPELINE = 'Վաճառք';
 const STAGE = 'Կնքված';
@@ -111,7 +112,7 @@ function unique(rows, name, nameKey, idKey, kind) {
   return matches[0];
 }
 
-async function getMetadata(call, { additionalFields = [] } = {}) {
+async function getMetadata(call, { additionalFields = [], optionalFields = [] } = {}) {
   const fieldParams = { entityTypeId: 2, useOriginalUfNames: 'N' };
   const initial = call.batch ? await call.batch([
     { method: 'crm.category.list', params: { entityTypeId: 2, start: 0 } },
@@ -138,24 +139,30 @@ async function getMetadata(call, { additionalFields = [] } = {}) {
     .map(([code, field]) => {
       if (!isObject(field)) invalid('crm.item.fields');
       return { code, title: field.title, type: field.type,
-        ...(additionalFields.includes(field.title) ? { items: field.items, isMultiple: field.isMultiple } : {}) };
+        ...(additionalFields.includes(field.title) || optionalFields.some(original => fieldKey(original) === fieldKey(code))
+          ? { items: field.items, isMultiple: field.isMultiple } : {}) };
     });
   const selectedFields = [...FIELD_NAMES, ...additionalFields].map((name) => {
     const field = unique(fields, name, 'title', 'code', 'Поле');
     if (typeof field.type !== 'string' || !field.type) invalid('crm.item.fields');
     return field;
   });
+  for (const original of optionalFields) {
+    const matches = fields.filter(field => fieldKey(field.code) === fieldKey(original));
+    if (matches.length > 1) invalid('crm.item.fields');
+    if (matches.length && !selectedFields.some(field => field.code === matches[0].code)) selectedFields.push(matches[0]);
+  }
   return { category, stage, fields: selectedFields };
 }
 
-async function getDeals(call, { additionalFields = [], metadata } = {}) {
+async function getDeals(call, { additionalFields = [], metadata, extraSelect = [] } = {}) {
   const resolved = metadata || await getMetadata(call, { additionalFields });
   const { category, stage, fields } = resolved;
   const items = await listDeals(call, {
     entityTypeId: 2,
     useOriginalUfNames: 'N',
     filter: { categoryId: Number(category.id), stageId: stage.STATUS_ID },
-    select: ['id', 'categoryId', 'stageId', 'opportunity', 'currencyId', ...fields.map((f) => f.code)],
+    select: [...new Set(['id', 'categoryId', 'stageId', 'opportunity', 'currencyId', ...fields.map((f) => f.code), ...extraSelect])],
     order: { id: 'ASC' },
   });
   return { ...resolved, items };

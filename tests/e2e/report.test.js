@@ -26,7 +26,7 @@ test('only valid apartments contribute to statistics and KPIs after refresh', as
   fixture.state.items = [deal(1, { opportunity: '100' }), deal(2, { ufCrmProperty: '72', opportunity: '999' }),
     deal(3, { ufCrmDate: null }), deal(4, { ufCrmArea: null })];
   await page.goto(url); await ready(); await expectTotals(1, '100 ֏');
-  expect(await page.getByTestId('kpi-count').getByTestId('kpi-value').innerText()).toBe('1');
+  expect(await page.getByTestId('histogram-kpi-value').innerText()).toBe('1');
   fixture.state.items[0].ufCrmProperty = '72'; await reloadReport(); await expectTotals(0, '0 ֏');
   expect(await emptyStatus().isVisible()).toBe(true);
   fixture.state.items = [deal(1, { ufCrmRooms: 6, opportunity: 0 })];
@@ -109,7 +109,7 @@ test.each([1440, 1920, 1024, 375, 320])('filter layout reflows without scrolling
       const firstRoom = await room(1).boundingBox();
       expect(firstRoom.y).toBeGreaterThanOrEqual(all.y + all.height);
       expectEqualPixels(all.x + all.width / 2, boxes[2].x + boxes[2].width / 2);
-      expectEqualPixels((await page.locator('.report-top-panels').boundingBox()).x, (await page.getByTestId('kpi-container').boundingBox()).x);
+      expectEqualPixels((await page.locator('.report-top-panels').boundingBox()).x, (await page.locator('.deals-histogram').boundingBox()).x);
     } else boxes.forEach((box) => expectEqualPixels(box.width, boxes[0].width));
     const rows = [...new Set(boxes.map((box) => box.y))];
     if (width < 1440) expect(rows).toHaveLength(width === 1024 ? 3 : 5);
@@ -493,12 +493,12 @@ test.each([1440, 375])('filter panel shows only a centered notice on load/failur
   }
 });
 
-test.each([1440, 375])('filters precede KPIs with reset and without panel scroll and retain keyboard access at %i px', async (width) => {
+test.each([1440, 375])('filters precede charts with reset and without panel scroll and retain keyboard access at %i px', async (width) => {
   await page.setViewportSize({ width, height: 1000 }); await baseFilters();
   const panel = page.getByRole('form', { name: 'Զտիչներ', exact: true });
   const panelScroll = page.getByLabel('Զտիչների տարածք', { exact: true });
   const panelBox = await panel.boundingBox();
-  const groupBox = await page.getByTestId('kpi-container').boundingBox();
+  const groupBox = await page.locator('.deals-histogram').boundingBox();
   expect(panelBox.y + panelBox.height).toBeLessThan(groupBox.y);
   expect(await page.getByRole('button', { name: 'Վերականգնել', exact: true }).count()).toBe(1);
   const boxes = await panel.locator('fieldset').evaluateAll((els) => els.map((el) => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y }; }));
@@ -533,23 +533,14 @@ test.each([1440, 375])('filters precede KPIs with reset and without panel scroll
   await page.keyboard.press('Enter');
   expect(await input('date', 'min').inputValue()).toBe('2026-06-16');
   await input('amount', 'max').focus();
-  // Statistics follows the filters and precedes the existing KPI block.
+  // Statistics follows the filters and precedes the chart modes.
   const statStops = page.locator('.statistics-trigger, .statistics-body [tabindex="0"]');
   for (let index = 0; index < await statStops.count(); index++) {
     await page.keyboard.press('Tab');
     expect(await statStops.nth(index).evaluate(el => el === document.activeElement)).toBe(true);
   }
-  for (const metric of ['count', 'amount']) {
-    if (width < 1124) await page.keyboard.press('Tab');
-    const card = page.getByTestId(`kpi-${metric}`);
-    if (width < 1124) expect(await card.getByTestId('kpi-value').evaluate(el => el === document.activeElement)).toBe(true);
-    const seriesStops = card.locator('svg circle[tabindex="0"]');
-    for (let index = 0; index < await seriesStops.count(); index++) {
-      await page.keyboard.press('Tab');
-      expect(await seriesStops.nth(index).evaluate(el => el === document.activeElement)).toBe(true);
-    }
-  }
   await page.keyboard.press('Tab');
+  expect(await page.getByRole('button', { name: 'Բն. քանակ', exact: true }).evaluate(el => el === document.activeElement)).toBe(true);
   // Header actions precede the filters in keyboard order.
   await refresh().focus(); await page.keyboard.press('Tab');
   expect(await page.getByRole('button', { name: 'Անշարժ գույքի տեսակ', exact: true }).evaluate(el => el === document.activeElement)).toBe(true);

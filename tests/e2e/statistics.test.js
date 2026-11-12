@@ -5,7 +5,7 @@ beforeEach(async()=>{await page.clock.setFixedTime(new Date('2026-11-15T10:00:00
 afterEach(async()=>{server.closeAllConnections();await new Promise(resolve=>server.close(resolve));});
 test('statistics selection, counts, filtering, reset and responsive layout',async()=>{await page.setViewportSize({width:1920,height:1200});let requests=0;page.on('request',r=>{if(r.url().includes('/api/report'))requests++;});await page.goto(url);await page.getByTestId('statistics-count').waitFor();const panel=page.getByRole('region',{name:'Վիճակագրություն',exact:true});await expectValue('4');
 const filter=page.getByRole('form',{name:'Զտիչներ',exact:true});
-const boxes=await Promise.all([filter.boundingBox(),panel.boundingBox(),page.getByTestId('kpi-container').boundingBox()]);
+const boxes=await Promise.all([filter.boundingBox(),panel.boundingBox(),page.locator('.deals-histogram').boundingBox()]);
 expect(Math.abs((await page.locator('.report-top-panels').boundingBox()).x-boxes[2].x)).toBeLessThan(1);
 const frame=await page.locator('.report-top-panels').boundingBox();expect(Math.abs(frame.x+frame.width-boxes[2].x-boxes[2].width)).toBeLessThan(1);
 expect(Math.abs(boxes[0].width-boxes[1].width)).toBeLessThan(1);

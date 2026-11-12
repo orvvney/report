@@ -67,6 +67,28 @@ body { margin: 0; background: var(--page-bg); color: var(--ink); }
 .kpi-pagination { display: flex; justify-content: center; align-items: center; gap: 16px; margin-top: 20px; font-size: 12px; }
 .kpi-pagination button { padding: 8px 12px; border: 1px solid var(--control-border); }
 .kpi-pagination button:disabled { opacity: .45; cursor: default; }
+.deals-list { width: 100%; min-width: 0; margin-top: 24px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); box-shadow: var(--card-shadow); overflow: hidden; font-size: 14px; }
+.deals-list h2 { margin: 0; font-size: 14px; font-weight: 600; }
+.deals-list-toggle { width: 100%; display: flex; align-items: center; gap: 12px; padding: 20px 24px; text-align: left; cursor: pointer; }
+.deals-list-count { border-radius: 20px; padding: 2px 10px; background: var(--brand-tint); color: var(--brand-strong); font-variant-numeric: tabular-nums; }
+.deals-list-chevron { margin-left: auto; width: 16px; height: 16px; flex-shrink: 0; }
+.deals-list-chevron.is-expanded { transform: rotate(180deg); }
+.deals-list-content { min-width: 0; padding: 0 24px 20px; }
+.deals-list-scroll { width: 100%; max-width: 100%; overflow-x: auto; }
+.deals-list table { width: 100%; border-collapse: collapse; font-size: inherit; }
+.deals-list .kpi-notice, .deals-list-pagination { font-size: 14px; }
+.deals-list th, .deals-list td { padding: 12px 10px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.deals-list th { font-weight: 600; background: var(--brand-tint); }
+.deals-list th button { cursor: pointer; padding-block: 4px; }
+.deals-list th[aria-sort=ascending], .deals-list th[aria-sort=descending] { color: var(--brand-strong); }
+.deals-list td { font-variant-numeric: tabular-nums; }
+.deals-list td:first-child { white-space: normal; min-width: 160px; max-width: 280px; overflow-wrap: anywhere; }
+.deals-list a { color: var(--brand-strong); text-decoration: none; }
+.deals-list button:focus-visible, .deals-list-scroll:focus-visible { outline: 2px solid var(--brand-strong); outline-offset: -3px; }
+@media (max-width: 600px) {
+  .deals-list-toggle { padding: 16px; }
+  .deals-list-content { padding: 0 12px 16px; }
+}
 @media (min-width: 768px) {
   .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .kpi-card + .kpi-card::before { top: 24px; bottom: 24px; left: 0; right: auto; width: 1px; height: auto; }

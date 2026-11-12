@@ -5,10 +5,9 @@ import calendar from '../report/period.cjs';
 import amountInput from '../report/amount-input.cjs';
 import RangeInputs from './RangeInputs.vue';
 import MonthPicker from './MonthPicker.vue';
-import KpiCard from './KpiCard.vue';
 import StatisticsPanel from './StatisticsPanel.vue';
 import DealsHistogram from './DealsHistogram.vue';
-import KpiDealsDialog from './KpiDealsDialog.vue';
+import DealsTable from './DealsTable.vue';
 import kpi from '../report/kpi.cjs';
 import filterIcon from '../../images/filter.png';
 import resetIcon from '../../images/reset.png';
@@ -17,7 +16,6 @@ const { periods, quickPeriods, quickSelection, calendarContext, defaultSelection
 const { formatAmountInput, ungroupAmount } = amountInput;
 const { roomOptions, reconcileRooms, toggleRoom, validateRange } = filters;
 const report = ref(null), loading = ref(false), failed = ref(false);
-const kpiDialog = ref(null);
 const propertyMenu = ref(null);
 function selectPropertyType() {
   propertyMenu.value?.hidePopover();
@@ -156,7 +154,7 @@ function editRange(kind, side, event) {
 }
 async function refresh(force = true) {
   if (loading.value) return;
-  monthPicker.value?.close(); kpiDialog.value?.close(); report.value = null; failed.value = false; loading.value = true;
+  monthPicker.value?.close(); report.value = null; failed.value = false; loading.value = true;
   try {
     const response = await fetch(force ? '/api/report?refresh=1' : '/api/report', { cache: 'no-store' });
     if (!response.ok) throw new Error();
@@ -288,23 +286,12 @@ onMounted(() => refresh(false));
       <StatisticsPanel :deals="report?.deals || []" :filters="appliedFilters" :period="selectedPeriod" :loading="loading || (!report && !failed)" :failed="failed" :reset-revision="kpiResetRevision" />
       </div>
       </div>
-      <div class="kpi-container" :class="{ 'kpi-wide': wideKpi }" data-testid="kpi-container">
-      <div class="kpi-grid">
-        <KpiCard :wide="wideKpi" metric="count" title="Կնքված բնակարանների քանակ" :data="kpiData" :period="effectivePeriod.period"
-          :loading="loading" :failed="failed" :reset-revision="kpiResetRevision" @open="(title, element) => kpiDialog.open(title, element)" />
-        <KpiCard :wide="wideKpi" metric="amount" title="Վաճառքի ընդհանուր արժեք" :data="kpiData" :period="effectivePeriod.period"
-          :loading="loading" :failed="failed" :reset-revision="kpiResetRevision" @open="(title, element) => kpiDialog.open(title, element)" />
-      </div>
-      <div v-if="!wideKpi && !disabled && kpiData" class="kpi-dates" data-testid="kpi-dates">
-        <p>Ընտրված՝ {{ kpi.rangeText(kpiData.ranges.current) || 'Տվյալներ չկան' }}</p>
-        <p v-if="kpiData.ranges.previous">Համեմատություն՝ {{ kpi.rangeText(kpiData.ranges.previous) }}</p>
-      </div>
-      </div>
       <DealsHistogram :wide="wideKpi" :deals="report?.deals || []" :filters="appliedFilters" :months="months"
         :data="kpiData" :period="effectivePeriod.period"
         :year="effectivePeriod.selection?.year || report?.year || periodContext.year"
         :loading="loading || (!report && !failed)" :failed="failed" />
+      <DealsTable :deals="kpiData?.selected.current || []" :filters="appliedFilters"
+        :loading="loading || (!report && !failed)" :failed="failed" />
     </section>
-    <KpiDealsDialog ref="kpiDialog" :data="kpiData" :unavailable="disabled" />
   </main>
 </template>

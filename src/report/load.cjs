@@ -6,6 +6,7 @@ const { aggregate, currentYear } = require('./aggregate.cjs');
 const { calculate } = require('./filter.cjs');
 const { PROPERTY_TYPE, apartmentItems } = require('./apartments.cjs');
 const { COMPLEX, complexField } = require('./complex.cjs');
+const { DETAIL_FIELDS, addDetails } = require('../bitrix24/details.cjs');
 
 const REPORT_TTL = 5 * 60 * 1000;
 const METADATA_TTL = 24 * 60 * 60 * 1000;
@@ -46,19 +47,24 @@ function createReportLoader({ env = process.env, envPath = path.resolve(__dirnam
       const call = createClient({ ...config, fetchImpl, scheduleRequest, waitRetry, timeoutMs });
       if (!state.metadata || now().getTime() - state.metadataAt >= METADATA_TTL) {
         state.metadata = null;
-        const metadata = await getMetadata(call, { additionalFields: [PROPERTY_TYPE, COMPLEX] });
+        const metadata = await getMetadata(call, { additionalFields: [PROPERTY_TYPE, COMPLEX], optionalFields: Object.values(DETAIL_FIELDS) });
         // Validate enumeration before publishing metadata, even with no deals.
         apartmentItems({ ...metadata, items: [] });
         complexField(metadata.fields);
         state.metadata = metadata;
         state.metadataAt = now().getTime();
       }
-      const data = await getDeals(call, { metadata: state.metadata });
+      const data = await getDeals(call, { metadata: state.metadata, extraSelect: ['contactId'] });
       const snapshotTime = now();
       const body = { ...aggregate(data, { portalOrigin: new URL(config.webhookUrl).origin, now: snapshotTime }),
         updatedAt: snapshotTime.toISOString() };
+      await addDetails(call, body.deals, data.items, data.fields);
+      const completed = now();
+      const year = currentYear(completed);
+      if (body.year !== year) Object.assign(body, { year }, calculate(body.deals, year));
+      body.updatedAt = completed.toISOString();
       state.report = body;
-      state.reportAt = snapshotTime.getTime();
+      state.reportAt = completed.getTime();
       return { status: 200, body };
     } catch { return { status: 502, body: { error: 'CRM_READ_ERROR' } }; }
   }

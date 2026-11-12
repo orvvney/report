@@ -1,5 +1,9 @@
 const WEBHOOK = 'https://portal.example/rest/7/synthetic-test-secret/';
 const fields = {
+  ufCrm_1776430614152: { title: 'Մուտք', type: 'enumeration', isMultiple: false,
+    items: Array.from({ length: 51 }, (_, i) => ({ ID: String(1001 + i), VALUE: String(i + 1) })) },
+  ufCrm_1686473759: { title: 'Հարկ', type: 'integer', isMultiple: false },
+  ufCrm_1776254518: { title: 'Համար checked', type: 'string', isMultiple: false },
   ufCrmRooms: { title: 'Սենյակների քանակ', type: 'integer' },
   ufCrmArea: { title: 'Մակերես (մ²)', type: 'double' },
   ufCrmDate: { title: 'Կնքման ամսաթիվ', type: 'date' },
@@ -60,6 +64,14 @@ function createFixture(state = {}) {
     }
     if (method === 'crm.status.list') return reply({ result: [{ ENTITY_ID: 'DEAL_STAGE_3', STATUS_ID: 'C3:WON', NAME: 'Կնքված' }] });
     if (method === 'crm.item.fields') return reply({ result: { fields: state.fields } });
+    if (method === 'crm.item.list' && params.entityTypeId === 3) {
+      if (state.contactGate) await state.contactGate;
+      if (state.failContacts) return reply({ error: 'ACCESS_DENIED' });
+      const matching = (state.contacts || []).filter(contact => params.filter['@id'].includes(String(contact.id)))
+        .sort((a, b) => Number(a.id) - Number(b.id));
+      return reply({ result: { items: matching.slice(0, 50).map(contact =>
+        Object.fromEntries(Object.entries(contact).filter(([key]) => params.select.includes(key)))) } });
+    }
     if (method === 'crm.item.list') {
       if (params.order.id === 'ASC' && params.filter['>id'] === undefined) {
         state.reads++;

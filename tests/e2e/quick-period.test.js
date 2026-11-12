@@ -8,7 +8,7 @@ const button = name => page.getByRole('button', { name, exact: true });
 const ready = () => page.getByTestId('statistics-count').waitFor();
 const count = async n => {
   expect(await page.getByTestId('statistics-count').innerText()).toBe(String(n));
-  expect(await page.getByTestId('kpi-count').getByTestId('kpi-value').innerText()).toBe(String(n));
+  expect(await page.getByTestId('histogram-kpi-value').innerText()).toBe(String(n));
 };
 beforeEach(async () => {
   await page.setViewportSize({ width: 1024, height: 1100 });
@@ -22,7 +22,7 @@ beforeEach(async () => {
 });
 afterEach(async () => { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); });
 
-test.each([375, 1440])('all quick choices apply inclusive dates, filters, KPIs and details without requests at %i', async width => {
+test.each([375, 1440])('all quick choices apply inclusive dates, filters and chart KPIs without requests at %i', async width => {
   await page.setViewportSize({ width, height: 1200 });
   fixture.state.items.push(deal(20, { ufCrmDate: '2026-11-10', opportunity: '1000', ufCrmArea: '90', ufCrmRooms: 3, ufCrmComplex: '82' }));
   let requests = 0; page.on('request', request => { if (new URL(request.url()).pathname === '/api/report') requests++; });
@@ -39,16 +39,10 @@ test.each([375, 1440])('all quick choices apply inclusive dates, filters, KPIs a
     ['last-12', 8, '01.12.2025 – 15.11.2026'], ['all', 12, '10.07.2023 – 15.11.2026'],
   ]) {
     await quick().selectOption(value); await count(n);
-    expect(await (width >= 1124 ? page.getByTestId('kpi-count').locator('.kpi-period-legend') : page.getByTestId('kpi-dates')).getByText(`Ընտրված՝ ${label}`, { exact: true }).isVisible()).toBe(true);
-    expect(await page.getByTestId('kpi-amount').getByTestId('kpi-value').innerText()).toBe(`${n * 10}${width >= 1124 ? ',00' : ''} ֏`);
-    await page.getByTestId('kpi-count').getByTestId('kpi-value').click();
-    const dialog = page.getByRole('dialog', { name: 'Կնքված բնակարանների քանակ', exact: true });
-    if (width >= 1124) expect(await dialog.count()).toBe(0);
-    else {
-      expect(await dialog.locator('tbody tr').count()).toBe(n);
-      await dialog.getByRole('button', { name: 'Փակել', exact: true }).click();
-    }
-    expect(await page.getByTestId('kpi-count').locator('.kpi-ranking').count()).toBe(['last-12', 'all'].includes(value) ? 1 : 0);
+    expect(await page.locator('.histogram-year-legend').getByText(`Ընտրված՝ ${label}`, { exact: true }).isVisible()).toBe(true);
+    await button('Վաճառքի գումար').click();
+    expect(await page.getByTestId('histogram-kpi-value').innerText()).toBe(`${n * 10},00 ֏`);
+    await button('Բն. քանակ').click();
   }
   expect(requests).toBe(1); expect(fixture.state.reads).toBe(1);
 });
@@ -66,7 +60,7 @@ test('quick memory is independent of manual choices, updates its relative date a
   fixture.state.time = '2027-01-15T10:00:00Z'; await page.clock.setFixedTime(new Date(fixture.state.time));
   await button('Թարմացնել հաշվետվությունը').click(); await ready();
   expect(await quick().inputValue()).toBe('previous-month');
-  expect(await page.getByTestId('kpi-dates').getByText('Ընտրված՝ 01.12.2026 – 31.12.2026', { exact: true }).isVisible()).toBe(true); await count(0);
+  expect(await page.locator('.histogram-year-legend').getByText('Ընտրված՝ 01.12.2026 – 31.12.2026', { exact: true }).isVisible()).toBe(true); await count(0);
   await button('Վերականգնել').click(); expect(await period().inputValue()).toBe('year'); expect(await year().inputValue()).toBe('2027');
   await period().selectOption('quick'); expect(await quick().inputValue()).toBe('current-month');
   await quick().selectOption('all'); await page.reload(); await ready(); expect(await period().inputValue()).toBe('year');

@@ -27,14 +27,15 @@ afterEach(async () => {
   server.closeAllConnections(); await new Promise(resolve => server.close(resolve));
 });
 
-test.each([1920, 1440, 1024, 375, 320])('restored histogram matches KPI width, follows KPIs, switches modes and filters locally at %i px', async width => {
+test.each([1920, 1440, 1024, 375, 320])('histogram matches filter width, follows filters, switches modes and filters locally at %i px', async width => {
   await page.setViewportSize({ width, height: 1000 });
   await page.goto(url); await ready();
-  const box = await histogram().boundingBox(), kpi = await page.getByTestId('kpi-container').boundingBox();
+  const box = await histogram().boundingBox(), kpi = await page.locator('.report-top-panels').boundingBox();
   expect(Math.abs(box.x - kpi.x)).toBeLessThan(1);
   expect(Math.abs(box.width - kpi.width)).toBeLessThan(1);
   expect(box.y).toBeGreaterThanOrEqual(kpi.y + kpi.height);
-  expect(await histogram().evaluate(el => el === el.parentElement.lastElementChild)).toBe(true);
+  expect(await histogram().evaluate(el => el.nextElementSibling?.classList.contains('deals-list')
+    && el.nextElementSibling === el.parentElement.lastElementChild)).toBe(true);
   expect(await counts().getAttribute('aria-pressed')).toBe('true');
   await rooms().click();
   const heading = histogram().getByRole('heading', { name: 'Ցուցադրություն', exact: true });
@@ -171,11 +172,45 @@ test('Y scale uses monthly stack totals, round marks and updates with filters', 
   await histogram().screenshot({ path: 'test-results/histogram-stacked-375.png', animations: 'disabled' });
 });
 
+test.each([1440, 375, 320])('chart modes keep the count layout and sales KPI at %i px', async width => {
+  await page.setViewportSize({ width, height: 1000 });
+  await page.goto(url); await ready();
+  const layout = () => histogram().evaluate(el => {
+    const plot = el.querySelector('.histogram-plot').getBoundingClientRect();
+    const box = el.getBoundingClientRect();
+    return { height: box.height, plotTop: plot.y - box.y, plotHeight: plot.height };
+  });
+  const baseline = await layout();
+  for (const select of [months, rooms, counts]) {
+    await select().click();
+    expect(await layout()).toEqual(baseline);
+    const titleBox = await histogram().locator('.histogram-axis').boundingBox();
+    const tickBoxes = await histogram().getByTestId('y-tick').locator('text').evaluateAll(els => els.map(el => el.getBoundingClientRect().x));
+    expect(Math.min(...tickBoxes)).toBeCloseTo(titleBox.x + 21, 0);
+    expect(await histogram().getByTestId('bar-month').evaluateAll(els => els.map(el => getComputedStyle(el).fontSize)))
+      .toEqual(Array(12).fill('12px'));
+    expect(await histogram().locator('.histogram-modes button').evaluateAll(els => els.map(el => getComputedStyle(el).color)))
+      .toEqual(Array(3).fill('rgb(0, 0, 0)'));
+  }
+  await months().click();
+  expect(await histogram().getByRole('heading', { name: 'ընդհանուր արժեք', exact: true }).isVisible()).toBe(true);
+  const data = '+276,5 ֏';
+  expect(await histogram().getByTestId('histogram-kpi-value').innerText()).toBe('326,50 ֏');
+  expect(await histogram().getByTestId('histogram-kpi-change').locator('span').first().innerText()).toBe(data);
+  const percentage = '+553%';
+  expect(await histogram().getByTestId('histogram-kpi-change').innerText()).toContain(percentage);
+  await page.getByRole('button', { name: 'Սենյակների քանակ՝ 3', exact: true }).click();
+  expect(await histogram().getByTestId('histogram-kpi-value').innerText()).toBe('226,25 ֏');
+});
+
 test.each([1440, 375])('count mode shares KPI totals and changes, shows 12 months and responds to filters at %i px', async width => {
   await page.setViewportSize({ width, height: 1000 });
   await page.goto(url); await ready();
   const requests = fixture.state.httpRequests.length;
   await counts().click();
+  expect(await histogram().getByTestId('bar-count').count()).toBe(0);
+  expect(await histogram().getByTestId('bar-month').evaluateAll(els => els.map(el => getComputedStyle(el).fontSize)))
+    .toEqual(Array(12).fill('12px'));
   expect(await histogram().getByTestId('bar-amount').first().evaluate(el => getComputedStyle(el).fontSize)).toBe('14px');
   const axisTitleBox = await histogram().locator('.histogram-axis').boundingBox();
   const tickBoxes = await Promise.all((await histogram().getByTestId('y-tick').locator('text').all()).map(tick => tick.boundingBox()));
@@ -221,11 +256,8 @@ test.each([1440, 375])('count mode shares KPI totals and changes, shows 12 month
   const referenceGap = statisticsLabel.y - statisticsValue.y - statisticsValue.height;
   expect(labelBox.y - valueBox.y - valueBox.height).toBeCloseTo(referenceGap, 1);
   expect(changeBox.y - labelBox.y - labelBox.height).toBeCloseTo(referenceGap + 8, 1);
-  const card = page.getByTestId('kpi-count');
   const expectKpi = async () => {
-    expect(await value.innerText()).toBe(await card.getByTestId('kpi-value').innerText());
-    const expected = await card.getByTestId('kpi-change').innerText();
-    expect((await change.innerText()).replace(/[↑↓\s]/g, '')).toBe(expected.replace(/\s/g, ''));
+    expect(await value.innerText()).toBe(await page.getByTestId('statistics-count').innerText());
   };
   await expectKpi();
   expect(await value.innerText()).toBe('3');
