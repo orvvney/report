@@ -43,7 +43,7 @@ test('saving UI and shared calculation code rebuilds and refreshes the open repo
   const errors = []; page.on('pageerror', (error) => errors.push(error.message));
   const appPath = path.join(root, 'src/ui/App.vue');
   const app = await fs.readFile(appPath, 'utf8');
-  await fs.writeFile(appPath, app.replace('Հաշվետվություններ</p>', 'Ավտոմատ թարմացում</p>'));
+  await fs.writeFile(appPath, app.replace('Հաշվետվություն</h1>', 'Ավտոմատ թարմացում</h1>'));
   await page.getByText('Ավտոմատ թարմացում', { exact: true }).waitFor();
   await page.getByTestId('statistics-count').waitFor();
   const filterPath = path.join(root, 'src/report/statistics.cjs');
@@ -105,7 +105,7 @@ test('npm run dev stays running, reloads UI and restarts once after a server edi
   await page.locator('.statistics-status').filter({ hasText: 'Տվյալներն անհասանելի են։' }).waitFor();
   const appPath = path.join(root, 'src/ui/App.vue');
   const app = await fs.readFile(appPath, 'utf8');
-  await fs.writeFile(appPath, app.replace('Հաշվետվություններ</p>', 'CLI ավտոմատ թարմացում</p>'));
+  await fs.writeFile(appPath, app.replace('Հաշվետվություն</h1>', 'CLI ավտոմատ թարմացում</h1>'));
   await page.getByText('CLI ավտոմատ թարմացում', { exact: true }).waitFor();
   await page.locator('.statistics-status').filter({ hasText: 'Տվյալներն անհասանելի են։' }).waitFor();
   expect(output.match(/Автообновление включено:/g)).toHaveLength(1);

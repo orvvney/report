@@ -1,6 +1,6 @@
 const fs = require('node:fs');
 beforeEach(async () => { await page.clock.setFixedTime(new Date('2026-11-15T10:00:00Z')); });
-const reportTitle = 'Կնքված բնակարանների հաշվետվություն';
+const reportTitle = 'Հաշվետվություն';
 
 describe('home page', () => {
   test('loads the built report over HTTP', async () => {
@@ -28,10 +28,9 @@ describe('home page', () => {
     const region = page.getByRole('region', { name: 'Գործարքների հաշվետվություն' });
     const header = region.locator('header');
     const labels = [
-      header.getByText('Հաշվետվություններ', { exact: true }),
       header.getByRole('heading', { name: reportTitle, level: 1, exact: true }),
     ];
-    const sizes = ['15px', '25px'];
+    const sizes = ['25px'];
     const colors = ['rgb(24, 37, 61)', 'rgb(24, 37, 61)'];
     for (let i = 0; i < labels.length; i++) {
       expect(await labels[i].isVisible()).toBe(true);
@@ -44,18 +43,18 @@ describe('home page', () => {
       expect(await page.getByText(text, { exact: true }).count()).toBe(0);
     }
     expect(await page.locator('body').evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgb(245, 247, 251)');
-    const [label, title] = await Promise.all(labels.map(locator => locator.boundingBox()));
+    expect(await header.getByText('Հաշվետվություններ', { exact: true }).count()).toBe(0);
+    const title = await labels[0].boundingBox();
     const divider = await page.getByTestId('header-divider').boundingBox();
     const section = await region.boundingBox();
     const filters = await page.getByRole('form', { name: 'Զտիչներ' }).boundingBox();
-    for (const box of [label, title]) expect(box.x + box.width / 2).toBeCloseTo(720, 1);
-    expect(label.y).toBeGreaterThanOrEqual(16);
+    for (const box of [title]) expect(box.x + box.width / 2).toBeCloseTo(720, 1);
+    expect(title.y).toBeGreaterThanOrEqual(16);
     expect(divider).toMatchObject({ x: 33, width: 1374, height: 1 });
     expect(await page.getByTestId('header-divider').evaluate(el => {
       const style = getComputedStyle(el);
       return [style.borderTopStyle, style.borderTopColor];
     })).toEqual(['solid', 'rgb(219, 228, 239)']);
-    expect(title.y - label.y - label.height).toBeCloseTo(8);
     expect(divider.y - title.y - title.height).toBeGreaterThanOrEqual(16);
     expect(filters.y).toBeGreaterThan(divider.y + divider.height);
     expect(section).toMatchObject({ x: 32, y: 0, width: 1376 });
@@ -67,11 +66,11 @@ describe('home page', () => {
     await page.evaluate(() => window.scrollTo(0, 100));
     const scrollY = await page.evaluate(() => window.scrollY);
     expect(scrollY).toBeGreaterThan(0);
-    expect((await labels[0].boundingBox()).y).toBeCloseTo(label.y - scrollY);
+    expect((await labels[0].boundingBox()).y).toBeCloseTo(title.y - scrollY);
     await page.evaluate(() => window.scrollTo(0, 0));
     await page.setViewportSize({ width: 1920, height: 1000 });
     expect(await region.boundingBox()).toMatchObject({ x: 32, width: 1856 });
-    const wideTitle = await labels[1].boundingBox();
+    const wideTitle = await labels[0].boundingBox();
     expect(wideTitle.x + wideTitle.width / 2).toBeCloseTo(960, 1);
     expect(wideTitle.y).toBe(title.y);
   });
@@ -83,17 +82,13 @@ describe('home page', () => {
     const logo = header.getByRole('img', { name: 'Milon Mining', exact: true });
     const refresh = header.getByRole('button', { name: 'Թարմացնել հաշվետվությունը', exact: true });
     const frame = await page.locator('.report-top-panels').boundingBox();
-    const label = await header.getByText('Հաշվետվություններ', { exact: true }).boundingBox();
     const title = await header.getByRole('heading', { name: reportTitle, exact: true }).boundingBox();
     const image = await logo.boundingBox(), button = await refresh.boundingBox();
     expect(await logo.evaluate(img => img.complete && img.naturalWidth === 375 && img.naturalHeight === 300)).toBe(true);
     expect(Math.abs(image.x - frame.x)).toBeLessThan(1);
     expect(Math.abs(button.x + button.width - frame.x - frame.width)).toBeLessThan(1);
-    expect(image.y).toBeGreaterThanOrEqual(label.y);
-    expect(image.y + image.height).toBeLessThanOrEqual(title.y + title.height);
     if (await header.evaluate(el => el.classList.contains('header-wide'))) {
-      expect(Math.abs(image.y - label.y)).toBeLessThan(1);
-      expect(Math.abs(image.y + image.height - title.y - title.height)).toBeLessThan(1);
+      expect(Math.abs(image.y + image.height / 2 - title.y - title.height / 2)).toBeLessThan(1);
       expect(Math.abs(image.y + image.height / 2 - button.y - button.height / 2)).toBeLessThan(1);
     } else expect(button.y).toBeGreaterThanOrEqual(title.y + title.height);
     expect(await page.getByRole('button', { name: 'Թարմացնել հաշվետվությունը', exact: true }).count()).toBe(1);

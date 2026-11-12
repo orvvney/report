@@ -1,10 +1,31 @@
-const {statistics,interval,timeType,groupCategories}=require('../../src/report/statistics.cjs');
+const {statistics,interval,timeType,groupCategories,colorRows}=require('../../src/report/statistics.cjs');
 const deals=[1,2,3,4].map((id,i)=>({id,complex:i===3?'hills':'tower',rooms:[1,2,2,3][i],date:`2026-0${Math.min(id,3)}-10`,area:String([15,20,30,40][i]),amount:String(i===3?110000000:30000000)}));
 test('counts, totals and natural ordering use the filtered records',()=>{const s=statistics(deals,{},'complex');expect(s.count).toBe(4);expect(s.amount).toBe('200000000');expect(s.rows.map(r=>r.percent)).toEqual(['75%','25%']);expect(statistics(deals,{rooms:[2]},'rooms').rows.map(r=>r.count)).toEqual([2]);expect(statistics([...deals,deals[0]],{},'complex').count).toBe(5);});
 test('interval boundaries retain decimal precision and large coefficients',()=>{expect(interval('19.999',10)).toEqual([10n,20n]);expect(interval('20',10)).toEqual([20n,30n]);expect(interval('9007199259999999.99',10000000)[1]).toBe(9007199260000000n);expect(interval('9007199260000000',10000000)[0]).toBe(9007199260000000n);const s=statistics(['0.5','9.999','10','19.999','20','30'].map(area=>({...deals[0],area})),{},'area');expect(s.rows.map(r=>r.count)).toEqual([2,2,1,1]);});
 test('calendar keys distinguish years and quarters; periods select the agreed type',()=>{expect(['year','quarter','month','quick','custom'].map(timeType)).toEqual(['year','quarter','month','month','month']);const s=statistics([deals[0],{...deals[0],date:'2025-01-10'}],{},'month');expect(s.rows.map(r=>r.key)).toEqual(['2025-01','2026-01']);expect(statistics(deals,{},'year').rows[0].percent).toBe('100%');});
-test('empty results, exact sums, percentage rounding and category colors',()=>{expect(statistics([],{},'amount')).toEqual({count:0,amount:'0',rows:[]});expect(statistics(deals,{rooms:[9]},'rooms').rows).toEqual([]);const rows=statistics(deals.slice(0,3),{},'area').rows;expect(rows.map(r=>r.percent)).toEqual(['33,3%','33,3%','33,3%']);expect(statistics(deals,{complexes:['tower']},'complex').rows[0].color).toBe(statistics(deals,{},'complex').rows[0].color);expect(statistics([{...deals[0],amount:'1.005'},{...deals[0],amount:'2.005'}],{},'area').amount).toBe('3.01');});
-test('room labels include the unit and adjacent categories have visibly separated hues',()=>{const rows=statistics([1,2,3,4].map(rooms=>({...deals[0],rooms})),{},'rooms').rows;expect(rows.map(r=>r.label)).toEqual(['1 սենյակ','2 սենյակ','3 սենյակ','4 սենյակ']);for(let i=1;i<rows.length;i++){const a=Number(rows[i-1].color.match(/hsl\(([^ ]+)/)[1]),b=Number(rows[i].color.match(/hsl\(([^ ]+)/)[1]);const distance=Math.abs(a-b);expect(Math.min(distance,360-distance)).toBeGreaterThan(30);}});
+test('empty results, exact sums, percentage rounding and category colors',()=>{expect(statistics([],{},'amount')).toEqual({count:0,amount:'0',rows:[]});expect(statistics(deals,{rooms:[9]},'rooms').rows).toEqual([]);const rows=statistics(deals.slice(0,3),{},'area').rows;expect(rows.map(r=>r.percent)).toEqual(['33,3%','33,3%','33,3%']);expect(statistics([{...deals[0],amount:'1.005'},{...deals[0],amount:'2.005'}],{},'area').amount).toBe('3.01');});
+test('turquoise shades follow filtered counts while labels and natural order stay intact',()=>{
+ const records=[1,3,2,1].flatMap((count,index)=>Array.from({length:count},()=>({...deals[0],rooms:index+1})));
+ const rows=statistics(records,{},'rooms').rows;
+ expect(rows.map(r=>r.label)).toEqual(['1 սենյակ','2 սենյակ','3 սենյակ','4 սենյակ']);
+ expect(rows.map(r=>r.color)).toEqual(['hsl(174 65% 80%)','hsl(174 65% 28%)','hsl(174 65% 54%)','hsl(174 65% 80%)']);
+ const filtered=statistics(records,{rooms:[1,3]},'rooms').rows;
+ expect(filtered.map(r=>r.color)).toEqual(['hsl(174 65% 80%)','hsl(174 65% 28%)']);
+ expect(colorRows([])).toEqual([]);
+ expect(colorRows([{count:0}])[0].color).toBe('hsl(174 65% 80%)');
+ expect(colorRows([{count:1}])[0].color).toBe('hsl(174 65% 28%)');
+});
+test('Other is shaded by its combined share and expanded children are ranked individually',()=>{
+ const records=[10,9,8,7,6,5,4].flatMap((count,index)=>Array.from({length:count},()=>({...deals[0],area:String(index*10+1)})));
+ const raw=statistics(records,{},'area').rows,original=structuredClone(raw);
+ const grouped=groupCategories(raw,'area');
+ expect(grouped.at(-1)).toMatchObject({count:15,color:'hsl(174 65% 28%)'});
+ expect(grouped[3].color).toBe('hsl(174 65% 80%)');
+ const expanded=colorRows(grouped.flatMap(row=>row.children||row));
+ expect(expanded[0].color).toBe('hsl(174 65% 28%)');
+ expect(expanded.at(-1).color).toBe('hsl(174 65% 80%)');
+ expect(raw).toEqual(original);
+});
 test('year statistics ignore date filters but retain missing years and other filters',()=>{
  const history=[2023,2025,2026].map(year=>({...deals[0],date:`${year}-01-10`}));
  const result=statistics(history,{date:{min:'2026-01-01',max:'2026-12-31'}},'year');

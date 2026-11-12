@@ -34,7 +34,7 @@ test('only valid apartments contribute to statistics and KPIs after refresh', as
 });
 
 test('header refresh hides old data, disables during loading, recovers from last-page failure and handles empty results', async () => {
-  const heading = page.getByRole('heading', { name: 'Կնքված բնակարանների հաշվետվություն', level: 1, exact: true });
+  const heading = page.getByRole('heading', { name: 'Հաշվետվություն', level: 1, exact: true });
   fixture.state.gate = new Promise(resolve => { release = resolve; });
   await page.goto(url); await loadingStatus().waitFor();
   expect(await heading.isVisible()).toBe(true);

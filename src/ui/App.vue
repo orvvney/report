@@ -172,8 +172,7 @@ onMounted(() => refresh(false));
         <div class="report-header-row">
           <img :src="milonLogo" alt="Milon Mining" class="report-logo">
           <div class="report-header-copy">
-            <p class="report-header-label">Հաշվետվություններ</p>
-            <h1>Կնքված բնակարանների հաշվետվություն</h1>
+            <h1>Հաշվետվություն</h1>
           </div>
           <button type="button" class="refresh-button"
             :disabled="loading" @click="refresh">Թարմացնել հաշվետվությունը</button>

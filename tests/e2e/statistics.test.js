@@ -54,13 +54,13 @@ test('loading, failure, recovery, empty result and refresh preserve selected gro
  expect(await panel.locator('.statistics-trigger').isEnabled()).toBe(true);
 });
 
-test('joined frame, spacing, centered 12px labels and distinct room colors',async()=>{
+test('joined frame, spacing, centered 12px labels and ranked turquoise room colors',async()=>{
  await page.setViewportSize({width:1920,height:1200});await page.goto(url);await page.getByTestId('statistics-count').waitFor();
  const geometry=await page.evaluate(()=>{const form=document.querySelector('.filter-panel'),stats=document.querySelector('.statistics-panel');const a=form.querySelector('h2').getBoundingClientRect(),b=form.querySelector('legend').getBoundingClientRect(),c=stats.querySelector('h2').getBoundingClientRect(),d=stats.querySelector('article').getBoundingClientRect();return {left:b.top-a.bottom,right:d.top-c.bottom,divider:getComputedStyle(document.querySelector('.report-top-panels'),'::after').width,font:getComputedStyle(stats.querySelector('h3')).fontSize,align:getComputedStyle(stats.querySelector('article')).textAlign};});
  expect(Math.abs(geometry.left-geometry.right)).toBeLessThan(1);expect(geometry.divider).toBe('1px');expect(geometry.font).toBe('12px');expect(geometry.align).toBe('center');
  const panel=page.getByRole('region',{name:'Վիճակագրություն',exact:true});await panel.locator('.statistics-trigger').click();await page.getByRole('dialog',{name:'Վիճակագրության խմբավորում'}).getByRole('button',{name:'Սենյակ',exact:true}).click();
  const legend=await panel.locator('.statistics-legend').innerText();for(const n of [1,2,3])expect(legend).toContain(`${n} սենյակ`);
- const colors=await panel.locator('svg path').evaluateAll(elements=>elements.map(e=>e.getAttribute('fill')));expect(new Set(colors).size).toBe(3);
+ const colors=await panel.locator('svg path').evaluateAll(elements=>elements.map(e=>e.getAttribute('fill')));expect(colors).toEqual(['hsl(174 65% 80%)','hsl(174 65% 28%)','hsl(174 65% 80%)']);
  await page.screenshot({path:'test-results/statistics-joined-wide.png',fullPage:true});
 });
 test('adaptive equal input widths, equal cards, matching pie extent and shared legend tracks',async()=>{
@@ -130,8 +130,25 @@ test('short card labels, approximate total and horizontal full amount tooltip',a
   await page.setViewportSize({width,height:1200});await page.goto(url);await page.getByTestId('statistics-count').waitFor();
   const panel=page.getByRole('region',{name:'Վիճակագրություն',exact:true});
   await expectGroupingSize(panel);
-  expect(await panel.getByRole('heading',{name:'Բն. քանակ',exact:true}).isVisible()).toBe(true);
-  expect(await panel.getByRole('heading',{name:'Ընդհանուր արժեք',exact:true}).isVisible()).toBe(true);
+  expect(await panel.getByRole('heading',{name:'բնակարան',exact:true}).isVisible()).toBe(true);
+  expect(await panel.getByRole('heading',{name:'ընդհանուր արժեք',exact:true}).isVisible()).toBe(true);
+  for(const id of ['statistics-count','statistics-amount']){
+   const value=await panel.getByTestId(id).boundingBox();
+   const label=await panel.locator('article').filter({has:page.getByTestId(id)}).locator('h3').boundingBox();
+   expect(value.y+value.height).toBeLessThanOrEqual(label.y);
+  }
+  const sizing=await panel.locator('.statistics-totals').evaluate(element=>{
+   const values=[...element.querySelectorAll('[data-testid]')];
+   const context=document.createElement('canvas').getContext('2d'),family=getComputedStyle(element).fontFamily;
+   context.font=`600 12px ${family}`;const label=context.measureText('Ընդհանուր արժեք').width;
+   context.font=`700 14px ${family}`;
+   const originalWidth=Math.ceil(Math.max(label,...values.map(e=>context.measureText(e.textContent).width)))+18;
+   return {width:element.getBoundingClientRect().width,originalWidth,sizes:values.map(e=>parseFloat(getComputedStyle(e).fontSize)),fits:values.every(e=>{
+    const range=document.createRange();range.selectNodeContents(e);const text=range.getBoundingClientRect(),card=e.closest('article').getBoundingClientRect();
+    return text.left>=card.left+8&&text.right<=card.right-8;
+   })};
+  });
+  expect(sizing.width).toBe(sizing.originalWidth);expect(sizing.sizes[0]).toBe(sizing.sizes[1]);expect(sizing.sizes[0]).toBeGreaterThan(14);expect(sizing.fits).toBe(true);
   for(const heading of await panel.locator('article h3').all()){
    expect(await heading.evaluate(e=>e.getBoundingClientRect().height/parseFloat(getComputedStyle(e).lineHeight))).toBeCloseTo(1,0);
   }
@@ -189,11 +206,13 @@ test.each([1440,1920])('four largest intervals, expandable Other and equal legen
   expect(await table.getByRole('row').count()).toBe(6);
   expect(await table.locator('[data-key=other]').getByRole('cell').allTextContents()).toEqual(['Այլ▾','3','8,1%']);
   expect(await panel.locator('svg g').count()).toBe(5);
+  await expectTurquoiseOrder(panel);
   const amount=await panel.getByTestId('statistics-amount').innerText();
   await expectLegendSpacing(panel,true);
   await other.click();
   expect(await other.getAttribute('aria-expanded')).toBe('true');
   expect(await table.getByRole('row').count()).toBe(8);expect(await panel.locator('svg g').count()).toBe(6);
+  await expectTurquoiseOrder(panel);
   expect(await table.evaluate(e=>e.scrollHeight>e.clientHeight)).toBe(true);
   await expectLegendSpacing(panel,true);
   const child=table.locator('.statistics-other-child').first();const key=await child.getAttribute('data-key');
@@ -228,4 +247,17 @@ async function expectLegendSpacing(panel,withScrollbarGap){
  expect(Math.abs(geometry.firstColumns-10)).toBeLessThan(1);
  expect(Math.abs(geometry.columns-geometry.gap)).toBeLessThan(1);
  if(withScrollbarGap)expect(Math.abs(geometry.right-geometry.gap)).toBeLessThan(1);
+}
+
+async function expectTurquoiseOrder(panel){
+ const slices=await panel.locator('svg g').evaluateAll(groups=>groups.map(g=>({count:Number(g.getAttribute('aria-label').match(/՝ (\d+),/)[1]),color:g.querySelector('path,circle').getAttribute('fill')})));
+ const sorted=slices.sort((a,b)=>b.count-a.count);
+ for(const slice of sorted)expect(slice.color).toMatch(/^hsl\(174 65% [\d.]+%\)$/);
+ const lightness=slice=>Number(slice.color.match(/ ([\d.]+)%\)$/)[1]);
+ expect(lightness(sorted[0])).toBe(28);expect(lightness(sorted.at(-1))).toBe(80);
+ for(let i=1;i<sorted.length;i++)expect(lightness(sorted[i])).toBeGreaterThanOrEqual(lightness(sorted[i-1]));
+ for(const slice of await panel.locator('svg g').all()){
+  const key=await slice.getAttribute('data-key');
+  expect(await slice.locator('path,circle').evaluate(e=>getComputedStyle(e).fill)).toBe(await panel.locator(`.statistics-legend [data-key="${key}"] i`).evaluate(e=>getComputedStyle(e).backgroundColor));
+ }
 }
