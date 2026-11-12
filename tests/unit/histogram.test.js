@@ -98,6 +98,19 @@ test('intersects room, complex, numeric and disjoint date filters and preserves 
   expect(result.months.reduce((sum, entry) => sum + entry.count, 0)).toBe(2);
   expect(roomColor(result.rooms[0])).toBe(roomColor(monthlyRoomTotals(deals, 2026).rooms[1]));
   expect(roomColor(12)).toBeTruthy();
-  expect(Array.from({ length: 12 }, (_, index) => roomColor(index + 1)).every(color => color === '#00a387' || /^hsl\(170 100%/.test(color))).toBe(true);
+  expect(Array.from({ length: 12 }, (_, index) => roomColor(index + 1)).every(color => /^hsl\(170 100%/.test(color))).toBe(true);
   expect(monthlyRoomTotals([], 2026).months.every(entry => entry.amount === '0' && !entry.segments.length)).toBe(true);
+});
+
+test('room colors progress from light to dark with distinct shades for common room counts', () => {
+  const lightness = Array.from({ length: 12 }, (_, index) => {
+    const match = roomColor(index + 1).match(/^hsl\(170 100% ([\d.]+)%\)$/);
+    expect(match).not.toBeNull();
+    return Number(match[1]);
+  });
+  for (let index = 1; index < lightness.length; index++) {
+    expect(lightness[index]).toBeGreaterThan(0);
+    expect(lightness[index]).toBeLessThan(lightness[index - 1]);
+    if (index < 5) expect(lightness[index - 1] - lightness[index]).toBeGreaterThanOrEqual(14);
+  }
 });

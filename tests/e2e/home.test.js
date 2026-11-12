@@ -140,7 +140,7 @@ describe('home page', () => {
     expect(response.status()).toBe(200); expect(response.headers()['content-type']).toBe('image/png');
     expect(await page.getByRole('heading', { name: 'Ցուցադրություն', exact: true }).count()).toBe(1);
     expect(await page.getByRole('group', { name: 'Խմբավորում', exact: true }).count()).toBe(1);
-    expect(await page.getByRole('button', { name: 'Սենյակների քանակ', exact: true }).count()).toBe(1);
+    expect(await page.getByRole('button', { name: 'Սենյակներ', exact: true }).count()).toBe(1);
     expect(await page.getByRole('button', { name: 'Վաճառքի գումար', exact: true }).count()).toBe(1);
     expect(await page.getByLabel('Գծապատկերի տարածք', { exact: true }).count()).toBe(1);
     const histogram = await page.getByRole('region', { name: 'Գործարքների հիստոգրամ', exact: true }).boundingBox();

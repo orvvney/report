@@ -4,8 +4,8 @@ const { createFixture, deal } = require('../support/crm-fixture.cjs');
 let fixture, server, url, release;
 const histogram = () => page.getByRole('region', { name: 'Գործարքների հիստոգրամ', exact: true });
 const months = () => histogram().getByRole('button', { name: 'Վաճառքի գումար', exact: true });
-const rooms = () => histogram().getByRole('button', { name: 'Սենյակների քանակ', exact: true });
-const counts = () => histogram().getByRole('button', { name: 'Բնակարանների քանակ', exact: true });
+const rooms = () => histogram().getByRole('button', { name: 'Սենյակներ', exact: true });
+const counts = () => histogram().getByRole('button', { name: 'Բն. քանակ', exact: true });
 const ready = () => page.getByTestId('statistics-count').waitFor();
 const refresh = () => page.getByRole('button', { name: 'Թարմացնել հաշվետվությունը', exact: true }).click();
 
@@ -35,9 +35,27 @@ test.each([1920, 1440, 1024, 375, 320])('restored histogram matches KPI width, f
   expect(Math.abs(box.width - kpi.width)).toBeLessThan(1);
   expect(box.y).toBeGreaterThanOrEqual(kpi.y + kpi.height);
   expect(await histogram().evaluate(el => el === el.parentElement.lastElementChild)).toBe(true);
-  expect(await rooms().getAttribute('aria-pressed')).toBe('true');
+  expect(await counts().getAttribute('aria-pressed')).toBe('true');
+  await rooms().click();
   const heading = histogram().getByRole('heading', { name: 'Ցուցադրություն', exact: true });
   const modes = histogram().getByRole('group', { name: 'Խմբավորում', exact: true });
+  expect(await modes.getByRole('button').allTextContents()).toEqual(['Բն. քանակ', 'Վաճառքի գումար', 'Սենյակներ']);
+  const icons = await modes.locator('button').evaluateAll(buttons => buttons.map(button => {
+    const icon = button.querySelector('img');
+    const label = button.querySelector('span');
+    return { src: icon.getAttribute('src'), loaded: icon.complete && icon.naturalWidth > 0,
+      decorative: icon.alt === '', right: icon.getBoundingClientRect().x >= label.getBoundingClientRect().right };
+  }));
+  expect(icons.map(icon => icon.src)).toEqual([
+    expect.stringMatching(/\/assets\/building-.*\.png$/),
+    expect.stringMatching(/\/assets\/wallet-.*\.png$/),
+    expect.stringMatching(/\/assets\/rooms-.*\.png$/),
+  ]);
+  expect(icons.every(icon => icon.loaded && icon.decorative && icon.right)).toBe(true);
+  const fontSizes = await histogram().locator('.histogram-axis, .histogram-comparison-toggle, .histogram-summary p')
+    .evaluateAll(els => els.map(el => getComputedStyle(el).fontSize));
+  expect(fontSizes).toEqual(Array(4).fill('14px'));
+  expect(await histogram().locator('.histogram-summary').evaluate(el => getComputedStyle(el).borderTopWidth)).toBe('0px');
   const headingBox = await heading.boundingBox(), modesBox = await modes.boundingBox();
   expect(headingBox.y + headingBox.height).toBeLessThan(modesBox.y);
   expect(Math.abs(headingBox.x + headingBox.width / 2 - box.x - box.width / 2)).toBeLessThan(1);
@@ -70,7 +88,7 @@ test.each([1920, 1440, 1024, 375, 320])('restored histogram matches KPI width, f
   expect(rectangles[0].color).not.toBe(rectangles[1].color);
   expect(rectangles.every(rect => /^hsl\(170 100%/.test(rect.color))).toBe(true);
   const lightness = rectangles.map(rect => Number(rect.color.match(/([\d.]+)%\)$/)[1]));
-  expect(Math.abs(lightness[0] - lightness[1])).toBeGreaterThanOrEqual(40);
+  expect(lightness[0] - lightness[1]).toBeGreaterThanOrEqual(30);
   const requests = fixture.state.httpRequests.length;
   const stackedTicks = await histogram().getByTestId('y-tick').allTextContents();
   await months().click();
@@ -139,6 +157,7 @@ test('Y scale uses monthly stack totals, round marks and updates with filters', 
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto(url); await ready();
   const ticks = () => histogram().getByTestId('y-tick').allTextContents();
+  await rooms().click();
   expect(await ticks()).toEqual(['0', '100 մլն', '200 մլն', '300 մլն', '400 մլն']);
   expect((await histogram().getByTestId('bar-amount').allTextContents())[0]).toBe('326 մլն ֏');
   fs.mkdirSync('test-results', { recursive: true });
@@ -157,8 +176,51 @@ test.each([1440, 375])('count mode shares KPI totals and changes, shows 12 month
   await page.goto(url); await ready();
   const requests = fixture.state.httpRequests.length;
   await counts().click();
+  expect(await histogram().getByTestId('bar-amount').first().evaluate(el => getComputedStyle(el).fontSize)).toBe('14px');
+  const axisTitleBox = await histogram().locator('.histogram-axis').boundingBox();
+  const tickBoxes = await Promise.all((await histogram().getByTestId('y-tick').locator('text').all()).map(tick => tick.boundingBox()));
+  const leftInset = Math.min(...tickBoxes.map(box => box.x));
+  expect(leftInset).toBeCloseTo(axisTitleBox.x + 21, 0);
+  const axisLine = await histogram().getByTestId('histogram-y-axis').locator('line').boundingBox();
+  for (const box of tickBoxes) expect(axisLine.x - box.x - box.width).toBeCloseTo(21, 0);
+  const plotViewport = histogram().getByLabel('Գծապատկերի տարածք', { exact: true });
+  await plotViewport.evaluate(el => { el.scrollLeft = el.scrollWidth; });
+  const rightGap = await plotViewport.locator('svg > line').first().evaluate(el =>
+    innerWidth - el.getBoundingClientRect().right);
+  expect(rightGap).toBeCloseTo(leftInset, 0);
+  await plotViewport.evaluate(el => { el.scrollLeft = 0; });
+  const legend = histogram().getByLabel('Համեմատվող ժամանակահատվածներ', { exact: true });
+  expect(await legend.evaluate(el => getComputedStyle(el).fontSize)).toBe('14px');
+  expect(await histogram().locator('.histogram-kpi').evaluate(el => getComputedStyle(el).textAlign)).toBe('center');
+  expect(await histogram().getByTestId('histogram-kpi-change').evaluate(el => getComputedStyle(el).justifyContent)).toBe('center');
+  expect(await legend.locator('span').count()).toBe(1);
+  expect(await legend.innerText()).toContain('Ընտրված՝');
+  expect(await histogram().locator('.histogram-kpi').innerText()).not.toMatch(/Ընտրված՝|Համեմատություն՝/);
+  const selectedRange = await legend.locator('span').first().innerText();
+  const compareToggle = histogram().getByRole('checkbox', { name: 'Ցուցադրել համեմատական հիստոգրամը', exact: true });
+  await compareToggle.check();
+  expect(await histogram().getByTestId('bar-amount').first().evaluate(el => getComputedStyle(el).fontSize)).toBe('12px');
+  expect(await histogram().getByTestId('comparison-amount').first().evaluate(el => getComputedStyle(el).fontSize)).toBe('12px');
+  expect(await legend.locator('span').count()).toBe(2);
+  expect(await legend.locator('span').first().innerText()).toBe(selectedRange);
+  expect(await legend.locator('span').last().innerText()).toContain('Համեմատություն՝');
+  expect(await histogram().locator('.histogram-kpi').innerText()).not.toMatch(/Ընտրված՝|Համեմատություն՝/);
+  await compareToggle.uncheck();
+  expect(await histogram().getByTestId('bar-amount').first().evaluate(el => getComputedStyle(el).fontSize)).toBe('14px');
+  expect(await legend.locator('span').count()).toBe(1);
+  expect(await legend.locator('span').first().innerText()).toBe(selectedRange);
   const value = histogram().getByTestId('histogram-kpi-value');
+  const apartmentLabel = histogram().getByRole('heading', { name: 'բնակարան', exact: true });
+  expect(await apartmentLabel.isVisible()).toBe(true);
+  const valueBox = await value.boundingBox(), labelBox = await apartmentLabel.boundingBox();
+  expect(valueBox.y + valueBox.height).toBeLessThanOrEqual(labelBox.y);
   const change = histogram().getByTestId('histogram-kpi-change');
+  const changeBox = await change.boundingBox();
+  const statisticsValue = await page.getByTestId('statistics-count').boundingBox();
+  const statisticsLabel = await page.locator('.statistics-totals article').first().locator('h3').boundingBox();
+  const referenceGap = statisticsLabel.y - statisticsValue.y - statisticsValue.height;
+  expect(labelBox.y - valueBox.y - valueBox.height).toBeCloseTo(referenceGap, 1);
+  expect(changeBox.y - labelBox.y - labelBox.height).toBeCloseTo(referenceGap + 8, 1);
   const card = page.getByTestId('kpi-count');
   const expectKpi = async () => {
     expect(await value.innerText()).toBe(await card.getByTestId('kpi-value').innerText());
@@ -245,6 +307,7 @@ test.each([1440, 375])('comparison checkbox shows paired KPI-period histograms i
   await page.setViewportSize({ width, height: 1100 }); await page.goto(url); await ready();
   const checkbox = histogram().getByRole('checkbox', { name: 'Ցուցադրել համեմատական հիստոգրամը', exact: true });
   expect(await checkbox.isChecked()).toBe(false);
+  await rooms().click();
   expect(await histogram().locator('.comparison-column').count()).toBe(0);
   const requests = fixture.state.httpRequests.length;
   const originalTicks = await histogram().getByTestId('y-tick').allTextContents();

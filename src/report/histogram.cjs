@@ -63,9 +63,9 @@ function monthlyRoomTotals(deals, year, options = {}) {
 }
 
 function roomColor(room) {
-  if (room === 2) return '#00a387';
-  const lightness = [18, 32, 80, 26, 62, 90, 22, 52, 72, 36, 84, 58][room - 1]
-    ?? 22 + (room * 25.97) % 68;
+  // Ascending room counts use progressively darker turquoise, stable under filtering.
+  const lightness = [84, 66, 46, 30, 16][room - 1]
+    ?? Number((16 / (room - 4)).toFixed(2));
   return `hsl(170 100% ${lightness}%)`;
 }
 

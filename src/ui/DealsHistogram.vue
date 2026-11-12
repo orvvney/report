@@ -4,6 +4,9 @@ import filters from '../report/filter.cjs';
 import chart from '../report/chart.cjs';
 import histogram from '../report/histogram.cjs';
 import kpi from '../report/kpi.cjs';
+import buildingIcon from '../../images/building.png';
+import walletIcon from '../../images/wallet.png';
+import roomsIcon from '../../images/rooms.png';
 
 const props = defineProps({
   deals: { type: Array, required: true }, filters: { type: Object, required: true },
@@ -12,10 +15,12 @@ const props = defineProps({
 });
 const { fullAmount, shortAmount } = chart;
 const { monthlyRoomTotals, roomColor, histogramScale, comparisonMonths } = histogram;
-const mode = ref('rooms');
+const mode = ref('count');
 const compare = ref(false);
-const modes = [['rooms', 'Սենյակների քանակ'], ['months', 'Վաճառքի գումար'], ['count', 'Բնակարանների քանակ']];
+const modes = [['count', 'Բն. քանակ', buildingIcon], ['months', 'Վաճառքի գումար', walletIcon], ['rooms', 'Սենյակներ', roomsIcon]];
 const isCount = computed(() => mode.value === 'count');
+const plotStyle = computed(() => isCount.value
+  ? { paddingLeft: '0px', paddingRight: '21px' } : undefined);
 const change = computed(() => props.data?.changes?.count);
 const grouped = computed(() => filters.calculate(props.deals, props.year, props.filters));
 const counted = computed(() => filters.calculate(props.data?.selected.current || [], props.year).months);
@@ -32,15 +37,28 @@ const scale = computed(() => histogramScale([
 ].map(entry => isCount.value ? entry.count : entry.amount), { integer: isCount.value }));
 const yTitle = computed(() => isCount.value ? 'Բնակարանների քանակ' : 'Ընդհանուր արժեք (֏)');
 const tickY = index => 310 - index * 260 / (scale.value.ticks.length - 1);
-const viewportWidth = ref(0);
+const yAxis = ref(null);
+const countLabelWidth = computed(() => {
+  const context = document.createElement('canvas').getContext('2d');
+  context.font = `12px ${yAxis.value ? getComputedStyle(yAxis.value).fontFamily : 'Arial'}`;
+  return Math.max(...scale.value.ticks.map(tick => context.measureText(fullAmount(tick)).width));
+});
+const yAxisWidth = computed(() => isCount.value ? 41 + countLabelWidth.value + 21 + 1 : 100);
+const histogramWidth = ref(0);
+const viewportWidth = computed(() => Math.max(0, histogramWidth.value - yAxisWidth.value - (isCount.value ? 21 : 16)));
 const fitMonths = computed(() => viewportWidth.value >= 520);
 const shortMonths = ['Հնվ', 'Փտր', 'Մրտ', 'Ապր', 'Մյս', 'Հնս', 'Հլս', 'Օգս', 'Սպտ', 'Հկտ', 'Նյմ', 'Դկտ'];
 let observer;
+let observedContainer;
 function observeViewport(element) {
+  const container = element?.closest('.deals-histogram');
+  if (container === observedContainer) return;
   observer?.disconnect();
-  if (!element) return;
-  observer = new ResizeObserver(([entry]) => { viewportWidth.value = entry.contentRect.width; });
-  observer.observe(element);
+  observedContainer = container;
+  if (!container) return;
+  histogramWidth.value = container.clientWidth;
+  observer = new ResizeObserver(([entry]) => { histogramWidth.value = entry.contentRect.width; });
+  observer.observe(container);
 }
 onBeforeUnmount(() => observer?.disconnect());
 const moneyText = entry => `${fitMonths.value ? shortAmount(entry.amount) : fullAmount(entry.amount)} ֏`;
@@ -118,9 +136,9 @@ watch([() => JSON.stringify(categories.value), () => comparing.value ? JSON.stri
     <div class="histogram-controls">
       <h2>Ցուցադրություն</h2>
       <div role="group" aria-label="Խմբավորում" class="histogram-modes">
-        <button v-for="[item, title] in modes" :key="item" type="button"
+        <button v-for="[item, title, icon] in modes" :key="item" type="button"
           :aria-pressed="mode === item" :disabled="loading || failed" @click="mode = item">
-          {{ title }}
+          <span>{{ title }}</span><img :src="icon" alt="" width="40" height="40" />
         </button>
       </div>
     </div>
@@ -134,27 +152,25 @@ watch([() => JSON.stringify(categories.value), () => comparing.value ? JSON.stri
     <p v-else-if="failed" role="status" class="histogram-status">Տվյալներն անհասանելի են։</p>
     <template v-else>
       <div v-if="isCount && data" class="histogram-kpi" aria-live="polite">
-        <h3>Կնքված բնակարանների քանակ</h3>
         <p class="histogram-kpi-value" data-testid="histogram-kpi-value">{{ kpi.valueText(data.current.count, 'count') }}</p>
+        <h3>բնակարան</h3>
         <p v-if="change" class="histogram-kpi-change" data-testid="histogram-kpi-change">
           <span>{{ change.direction === 'up' ? '+' : '' }}{{ kpi.valueText(change.delta, 'count') }}</span>
-          <span :class="`kpi-${change.direction}`">{{ change.direction === 'up' ? '↑' : change.direction === 'down' ? '↓' : '' }} {{ change.percentage ?? '—' }}</span>
+          <span :class="`kpi-${change.direction}`"><span v-if="change.direction !== 'flat'" class="histogram-change-arrow">{{ change.direction === 'up' ? '↑' : change.direction === 'down' ? '↓' : '' }}</span> {{ change.percentage ?? '—' }}</span>
         </p>
         <p v-else-if="period === 'custom'">Համեմատության համար նշեք երկու ամսաթվերը։</p>
-        <p>Ընտրված՝ {{ kpi.rangeText(data.ranges.current) || 'Տվյալներ չկան' }}</p>
-        <p v-if="data.ranges.previous">Համեմատություն՝ {{ kpi.rangeText(data.ranges.previous) }}</p>
       </div>
       <p v-if="!totalCount && (!comparing || previous.every(entry => !entry.count))" role="status" class="histogram-empty">Տվյալներ չկան</p>
-      <div v-if="comparing" class="histogram-year-legend" aria-label="Համեմատվող ժամանակահատվածներ">
-        <span><i></i>Ընտրված՝ {{ kpi.rangeText(data.ranges.current) }}</span>
-        <span><i class="previous-year-marker"></i>Համեմատություն՝ {{ kpi.rangeText(data.ranges.previous) }}</span>
+      <div v-if="data" class="histogram-year-legend" aria-label="Համեմատվող ժամանակահատվածներ">
+        <span><i></i>Ընտրված՝ {{ kpi.rangeText(data.ranges.current) || 'Տվյալներ չկան' }}</span>
+        <span v-if="comparing"><i class="previous-year-marker"></i>Համեմատություն՝ {{ kpi.rangeText(data.ranges.previous) }}</span>
       </div>
-      <div class="histogram-plot">
-        <svg class="histogram-y-axis" data-testid="histogram-y-axis" viewBox="0 0 100 380" width="100" height="380" role="img" :aria-label="yTitle">
+      <div class="histogram-plot" :style="plotStyle">
+        <svg ref="yAxis" class="histogram-y-axis" data-testid="histogram-y-axis" :viewBox="`0 0 ${yAxisWidth} 380`" :width="yAxisWidth" :style="{ flexBasis: `${yAxisWidth}px` }" height="380" role="img" :aria-label="yTitle">
           <g v-for="(tick, index) in scale.ticks" :key="index" data-testid="y-tick">
-            <text x="86" :y="tickY(index) + 5" text-anchor="end" font-size="12" fill="var(--muted)">{{ isCount ? fullAmount(tick) : shortAmount(tick) }}</text>
+            <text :x="isCount ? 41 + countLabelWidth : 86" :y="tickY(index) + 5" text-anchor="end" font-size="12" fill="var(--muted)">{{ isCount ? fullAmount(tick) : shortAmount(tick) }}</text>
           </g>
-          <line x1="99.5" x2="99.5" y1="310" y2="50" stroke="var(--control-border)" />
+          <line :x1="yAxisWidth - .5" :x2="yAxisWidth - .5" y1="310" y2="50" stroke="var(--control-border)" />
         </svg>
         <div :ref="observeViewport" class="histogram-scroll" aria-label="Գծապատկերի տարածք" tabindex="0">
         <svg :viewBox="`0 0 ${width} 380`" :style="{ minWidth: `${width}px` }" role="group" :aria-label="axisTitle">
@@ -179,7 +195,7 @@ watch([() => JSON.stringify(categories.value), () => comparing.value ? JSON.stri
                 @keydown.space.prevent="showSegment($event, entry, segment)" @keydown.esc="tooltip = null" />
             </template>
             <rect v-else :x="currentCenter(index) - barWidth / 2" :y="310 - barHeight(entry)" :width="barWidth" :height="barHeight(entry)" rx="4" fill="var(--brand)" />
-            <text :x="currentCenter(index)" :y="(barParts(entry).length > 1 ? 284 : 298) - barHeight(entry)" text-anchor="middle" :font-size="fitMonths ? 10 : 12" fill="var(--brand-strong)" data-testid="bar-amount"><tspan v-for="(part, row) in barParts(entry)" :key="row" :x="currentCenter(index)" :dy="row ? 14 : 0" :textLength="fitMonths && part.length * 6 > amountWidth ? amountWidth : undefined" lengthAdjust="spacingAndGlyphs">{{ part }}</tspan></text>
+            <text :x="currentCenter(index)" :y="(barParts(entry).length > 1 ? 284 : 298) - barHeight(entry)" text-anchor="middle" :font-size="comparing ? 12 : 14" fill="var(--brand-strong)" data-testid="bar-amount"><tspan v-for="(part, row) in barParts(entry)" :key="row" :x="currentCenter(index)" :dy="row ? 14 : 0" :textLength="fitMonths && part.length * 7 > amountWidth ? amountWidth : undefined" lengthAdjust="spacingAndGlyphs">{{ part }}</tspan></text>
             <text :x="barCenter(index)" y="338" text-anchor="middle" :font-size="fitMonths ? 11 : 12" fill="var(--muted)" data-testid="bar-month">{{ fitMonths ? shortMonths[entry.category - 1] : label(entry) }}</text>
             <text :x="barCenter(index)" y="358" text-anchor="middle" :font-size="fitMonths ? 10 : 12" fill="var(--muted)" data-testid="bar-count"><tspan v-for="(part, row) in footerParts(entry)" :key="row" :x="barCenter(index)" :dy="row ? 14 : 0" :textLength="fitMonths && part.length * 6 > step - 8 ? step - 8 : undefined" lengthAdjust="spacingAndGlyphs">{{ part }}</tspan></text>
           </g>
@@ -199,7 +215,7 @@ watch([() => JSON.stringify(categories.value), () => comparing.value ? JSON.stri
             </template>
             <rect v-else :x="previousCenter(index) - barWidth / 2" :y="310 - barHeight(entry)" :width="barWidth" :height="barHeight(entry)" rx="4"
               fill="var(--ink)" fill-opacity=".35" stroke="var(--ink)" stroke-dasharray="3 2" />
-            <text :x="previousCenter(index)" :y="(barParts(entry).length > 1 ? 284 : 298) - barHeight(entry)" text-anchor="middle" :font-size="fitMonths ? 10 : 12"
+            <text :x="previousCenter(index)" :y="(barParts(entry).length > 1 ? 284 : 298) - barHeight(entry)" text-anchor="middle" font-size="12"
               fill="var(--muted)" data-testid="comparison-amount"><tspan v-for="(part, row) in barParts(entry)" :key="row" :x="previousCenter(index)" :dy="row ? 14 : 0"
                 :textLength="fitMonths && part.length * 6 > amountWidth ? amountWidth : undefined" lengthAdjust="spacingAndGlyphs">{{ part }}</tspan></text>
           </g>
@@ -226,21 +242,24 @@ watch([() => JSON.stringify(categories.value), () => comparing.value ? JSON.stri
 .histogram-controls h2, .histogram-axis { font-size: 14px; font-weight: 500; color: var(--muted); }
 .histogram-controls h2 { text-align: center; }
 .histogram-graph-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 24px 20px 0; }
-.histogram-comparison-toggle { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: var(--muted); font-size: 12px; cursor: pointer; }
+.histogram-comparison-toggle { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: var(--muted); font-size: 14px; cursor: pointer; }
 .histogram-comparison-toggle input { width: 16px; height: 16px; accent-color: var(--brand-strong); }
-.histogram-year-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; padding: 16px 20px 0; font-size: 12px; color: var(--muted); }
+.histogram-year-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; padding: 16px 20px 0; font-size: 14px; color: var(--muted); }
 .histogram-year-legend span { display: flex; align-items: center; gap: 6px; }
 .histogram-year-legend i { display: inline-block; width: 14px; height: 10px; border-radius: 2px; background: var(--brand); }
 .histogram-year-legend .previous-year-marker { background: #1d283e59; border: 1px dashed var(--ink); }
 .histogram-modes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: min(100%, 720px); padding: 4px; border-radius: 12px; background: var(--brand-tint); }
-.histogram-modes button { width: 100%; min-width: 0; padding: 10px 12px; border-radius: 8px; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.histogram-modes button { display: flex; align-items: center; justify-content: center; gap: 4px; width: 100%; min-width: 0; padding: 6px 12px; border-radius: 8px; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.histogram-modes button img { flex: 0 0 40px; width: 40px; height: 40px; object-fit: contain; filter: brightness(0); opacity: .55; }
 .histogram-modes button[aria-pressed="true"] { background: white; color: var(--brand-strong); box-shadow: 0 1px 3px #1d283e1a; }
 .histogram-modes button:disabled { opacity: .5; }
 .histogram-axis { min-width: 0; }
-.histogram-kpi { padding: 20px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.histogram-kpi { display: flex; flex-direction: column; align-items: center; gap: 0; padding: 20px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; text-align: center; }
+.histogram-kpi > p, .histogram-kpi h3 { line-height: 1.5; }
 .histogram-kpi h3 { color: var(--ink); font-size: 14px; font-weight: 600; }
-.histogram-kpi .histogram-kpi-value { color: var(--ink); font-size: 28px; font-weight: 700; margin-block: 8px; }
-.histogram-kpi-change { display: flex; flex-wrap: wrap; gap: 16px; font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+.histogram-kpi .histogram-kpi-value { color: var(--ink); font-size: 28px; font-weight: 700; margin: 0; }
+.histogram-kpi-change { display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; font-size: 16px; font-weight: 600; margin: 8px 0 0; }
+.histogram-change-arrow { display: inline-block; transform: scaleY(.85); transform-origin: center; }
 .histogram-plot { display: flex; align-items: flex-start; padding: 16px 8px 0; }
 .histogram-y-axis { flex: 0 0 100px; background: white; }
 .histogram-scroll { flex: 1; min-width: 0; overflow-x: auto; }
@@ -258,7 +277,7 @@ watch([() => JSON.stringify(categories.value), () => comparing.value ? JSON.stri
 .histogram-tooltip { position: fixed; z-index: 20; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: white; box-shadow: 0 4px 16px #1d283e26; color: var(--ink); font-size: 12px; pointer-events: none; }
 .histogram-status { display: grid; min-height: 380px; place-items: center; padding: 24px; color: var(--muted); text-align: center; }
 .histogram-empty { padding-top: 24px; text-align: center; color: var(--muted); }
-.histogram-summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 20px; border-top: 1px solid var(--brand-tint); font-size: 12px; color: var(--muted); }
+.histogram-summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 20px; font-size: 14px; color: var(--muted); }
 @media (min-width: 640px) { .histogram-modes button { font-size: 14px; } }
 @media (max-width: 639px) { .histogram-modes { grid-template-columns: minmax(0, 1fr); width: min(100%, 360px); } }
 </style>
