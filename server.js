@@ -1,3 +1,4 @@
+const { createExpoLoader } = require('./src/report/expo-load.cjs');
 const http = require('node:http');
 const path = require('node:path');
 const { readFile, realpath } = require('node:fs/promises');
@@ -5,14 +6,15 @@ const { createReportLoader } = require('./src/report/load.cjs');
 
 function createServer({ distPath = path.join(__dirname, 'dist'), liveReload, ...reportOptions } = {}) {
   const loadReport = createReportLoader(reportOptions);
+  const loadExpo = createExpoLoader(reportOptions);
   return http.createServer(async (request, response) => {
     const pathname = request.url.split('?')[0];
     if (liveReload && request.method === 'GET' && pathname === '/__dev/events') {
       liveReload.connect(request, response);
       return;
     }
-    if (request.method === 'GET' && pathname === '/api/report') {
-      const { status, body } = await loadReport({ refresh: new URL(request.url, 'http://localhost').searchParams.get('refresh') === '1' });
+    if (request.method === 'GET' && ['/api/report', '/api/toon-expo'].includes(pathname)) {
+      const { status, body } = await (pathname === '/api/toon-expo' ? loadExpo : loadReport)({ refresh: new URL(request.url, 'http://localhost').searchParams.get('refresh') === '1' });
       response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
       response.end(JSON.stringify(body));
       return;

@@ -45,9 +45,10 @@ describe('home page', () => {
     const header = region.locator('header');
     const labels = [
       header.getByRole('heading', { name: reportTitle, level: 1, exact: true }),
+      header.getByText('Կնքված բնակարաններ', { exact: true }),
     ];
-    const sizes = ['25px'];
-    const colors = ['rgb(255, 255, 255)'];
+    const sizes = ['25px', '15px'];
+    const colors = ['rgb(255, 255, 255)', 'rgb(255, 255, 255)'];
     for (let i = 0; i < labels.length; i++) {
       expect(await labels[i].isVisible()).toBe(true);
       expect(await labels[i].evaluate(el => {
@@ -66,6 +67,10 @@ describe('home page', () => {
     for (const box of [title]) expect(box.x + box.width / 2).toBeCloseTo(720, 1);
     expect(title.y).toBeGreaterThanOrEqual(16);
     const headerBox = await header.boundingBox();
+    const subtitle = await labels[1].boundingBox();
+    expect(subtitle.y).toBeGreaterThanOrEqual(title.y + title.height);
+    expect(Math.abs((title.y + subtitle.y + subtitle.height) / 2 - headerBox.y - headerBox.height / 2)).toBeLessThan(1);
+    expect(headerBox.height).toBeGreaterThanOrEqual(132);
     expect(await header.locator('hr').count()).toBe(0);
     expect(filters.y).toBeGreaterThan(headerBox.y + headerBox.height);
     expect(section).toMatchObject({ x: 0, y: 0, width: 1440 });
@@ -130,7 +135,8 @@ describe('home page', () => {
     expect(Math.abs(image.x - frame.x - 16)).toBeLessThan(1);
     expect(Math.abs(menuBox.x + menuBox.width - frame.x - frame.width + 16)).toBeLessThan(1);
     if (await header.evaluate(el => el.classList.contains('header-wide'))) {
-      expect(Math.abs(image.y + image.height / 2 - title.y - title.height / 2)).toBeLessThan(1);
+      const copy = await header.locator('.report-header-copy').boundingBox();
+      expect(Math.abs(image.y + image.height / 2 - copy.y - copy.height / 2)).toBeLessThan(1);
       expect(Math.abs(image.y + image.height / 2 - button.y - button.height / 2)).toBeLessThan(1);
     } else expect(button.y).toBeGreaterThanOrEqual(title.y + title.height);
     expect(await page.getByRole('button', { name: 'Թարմացնել հաշվետվությունը', exact: true }).count()).toBe(1);
@@ -138,7 +144,7 @@ describe('home page', () => {
     expect(source).toMatch(/^\/assets\/logo_milon-[\w-]+\.png$/);
     const response = await page.request.get(source);
     expect(response.status()).toBe(200); expect(response.headers()['content-type']).toBe('image/png');
-    expect(await page.getByRole('heading', { name: 'Ցուցադրություն', exact: true }).count()).toBe(1);
+    expect(await page.getByRole('heading', { name: 'Ընդհանուր տեղեկություն', exact: true }).count()).toBe(1);
     expect(await page.getByRole('group', { name: 'Խմբավորում', exact: true }).count()).toBe(1);
     expect(await page.getByRole('button', { name: 'Սենյակներ', exact: true }).count()).toBe(1);
     expect(await page.getByRole('button', { name: 'Վաճառքի գումար', exact: true }).count()).toBe(1);

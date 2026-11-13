@@ -534,16 +534,20 @@ test.each([1440, 375])('filters precede charts with reset and without panel scro
   expect(await input('date', 'min').inputValue()).toBe('2026-06-16');
   await input('amount', 'max').focus();
   // Statistics follows the filters and precedes the chart modes.
-  const statStops = page.locator('.statistics-trigger, .statistics-body [tabindex="0"]');
+  const statStops = page.locator('.statistics-heading .filter-help, .statistics-trigger, .statistics-body [tabindex="0"]');
   for (let index = 0; index < await statStops.count(); index++) {
     await page.keyboard.press('Tab');
     expect(await statStops.nth(index).evaluate(el => el === document.activeElement)).toBe(true);
   }
   await page.keyboard.press('Tab');
+  expect(await page.getByRole('button', { name: 'Ընդհանուր տեղեկության մասին', exact: true }).evaluate(el => el === document.activeElement)).toBe(true);
+  await page.keyboard.press('Tab');
   expect(await page.getByRole('button', { name: 'Բն. քանակ', exact: true }).evaluate(el => el === document.activeElement)).toBe(true);
   // Header actions precede the filters in keyboard order.
   await refresh().focus(); await page.keyboard.press('Tab');
   expect(await page.getByRole('button', { name: 'Անշարժ գույքի տեսակ', exact: true }).evaluate(el => el === document.activeElement)).toBe(true);
+  await page.keyboard.press('Tab');
+  expect(await page.getByRole('button', { name: 'Զտիչների մասին', exact: true }).evaluate(el => el === document.activeElement)).toBe(true);
   await page.keyboard.press('Tab');
   expect(await page.getByRole('button', { name: 'Վերականգնել', exact: true }).evaluate(el => el === document.activeElement)).toBe(true);
 });

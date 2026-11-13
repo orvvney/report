@@ -1,6 +1,7 @@
 <script setup>
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue';
 const props = defineProps({ months: Array, values: Array, limit: Number, disabled: Boolean });
+const popupId = `month-popup-${useId()}`;
 const emit = defineEmits(['select', 'all', 'clear']);
 const trigger = ref(null), popup = ref(null), open = ref(false);
 function position() {
@@ -8,7 +9,7 @@ function position() {
   const button = trigger.value.getBoundingClientRect();
   const width = Math.min(400, window.innerWidth - 24);
   popup.value.style.width = `${width}px`;
-  popup.value.style.left = `${Math.max(12, Math.min(button.right - width, window.innerWidth - width - 12))}px`;
+  popup.value.style.left = `${Math.max(12, Math.min(button.left + (button.width - width) / 2, window.innerWidth - width - 12))}px`;
   const height = popup.value.getBoundingClientRect().height;
   popup.value.style.top = `${Math.max(12, button.bottom + height + 8 <= window.innerHeight
     ? button.bottom : button.top - height)}px`;
@@ -55,11 +56,11 @@ defineExpose({ close });
 <template>
   <div class="month-picker">
     <button ref="trigger" class="month-trigger" type="button" :disabled="disabled"
-      aria-controls="month-popup" :aria-expanded="open" aria-haspopup="dialog"
+      :aria-controls="popupId" :aria-expanded="open" aria-haspopup="dialog"
       @pointerenter="event => { if (event.pointerType === 'mouse') show(); }" @pointerleave="leave" @click="show">
       Ամիսներ<span class="select-arrow" aria-hidden="true"></span>
     </button>
-    <div id="month-popup" ref="popup" popover="manual" role="dialog" aria-label="Ամիսների ընտրություն"
+    <div :id="popupId" ref="popup" popover="manual" role="dialog" aria-label="Ամիսների ընտրություն"
       class="month-popup" @pointerleave="leave">
       <div class="period-buttons month-grid" role="group" aria-label="Ամիսներ">
         <button v-for="(month, index) in months" :key="month" type="button" :disabled="disabled || index + 1 > limit"

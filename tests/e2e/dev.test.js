@@ -41,7 +41,7 @@ afterEach(async () => {
 
 test('saving UI and shared calculation code rebuilds and refreshes the open report automatically', async () => {
   const errors = []; page.on('pageerror', (error) => errors.push(error.message));
-  const appPath = path.join(root, 'src/ui/App.vue');
+  const appPath = path.join(root, 'src/ui/ReportHeader.vue');
   const app = await fs.readFile(appPath, 'utf8');
   await fs.writeFile(appPath, app.replace('Հաշվետվություն</h1>', 'Ավտոմատ թարմացում</h1>'));
   await page.getByText('Ավտոմատ թարմացում', { exact: true }).waitFor();
@@ -103,7 +103,7 @@ test('npm run dev stays running, reloads UI and restarts once after a server edi
   await started;
   await page.goto(`http://127.0.0.1:${port}`);
   await page.locator('.statistics-status').filter({ hasText: 'Տվյալներն անհասանելի են։' }).waitFor();
-  const appPath = path.join(root, 'src/ui/App.vue');
+  const appPath = path.join(root, 'src/ui/ReportHeader.vue');
   const app = await fs.readFile(appPath, 'utf8');
   await fs.writeFile(appPath, app.replace('Հաշվետվություն</h1>', 'CLI ավտոմատ թարմացում</h1>'));
   await page.getByText('CLI ավտոմատ թարմացում', { exact: true }).waitFor();

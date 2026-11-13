@@ -27,6 +27,47 @@ afterEach(async () => {
   server.closeAllConnections(); await new Promise(resolve => server.close(resolve));
 });
 
+test.each([1024, 1440, 1920])('initial count chart fits without scrolling before any interaction at %i px', async width => {
+  await page.setViewportSize({ width, height: 1100 });
+  await page.goto(url); await ready();
+  const viewport = histogram().getByLabel('Գծապատկերի տարածք', { exact: true });
+  await viewport.waitFor();
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const dimensions = () => viewport.evaluate(el => ({
+    visible: el.clientWidth, content: el.scrollWidth,
+    visibleHeight: el.clientHeight, contentHeight: el.scrollHeight,
+    width: el.getBoundingClientRect().width,
+    svgWidth: el.querySelector('svg').getBoundingClientRect().width,
+    label: el.querySelector('[data-testid="bar-month"]').textContent,
+  }));
+  const initial = await dimensions();
+  expect(initial.label).toBe('Հնվ');
+  expect(initial.content).toBeLessThanOrEqual(initial.visible);
+  expect(initial.contentHeight).toBeLessThanOrEqual(initial.visibleHeight);
+  await page.reload(); await ready(); await viewport.waitFor();
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const reloaded = await dimensions();
+  expect(reloaded.content).toBeLessThanOrEqual(reloaded.visible);
+  expect(reloaded.label).toBe('Հնվ');
+});
+
+test.each([320, 1440])('general information help explains detailed statistics and comparison at %i', async width => {
+  await page.setViewportSize({ width, height: 1200 }); await page.goto(url); await ready();
+  const help = histogram().getByRole('button', { name: 'Ընդհանուր տեղեկության մասին', exact: true });
+  const tooltip = histogram().locator('#histogram-help-text');
+  expect(await tooltip.isVisible()).toBe(false);
+  await help.hover(); await tooltip.waitFor();
+  expect(await tooltip.innerText()).toBe('Այս բաժինը նախատեսված է վիճակագրությունը մանրամասն դիտելու համար՝ տարբեր բաժինների միջոցով, ինչպես նաև այն նախորդ ժամանակահատվածների հետ համեմատելու համար:');
+  expect(await tooltip.evaluate(el => getComputedStyle(el).fontSize)).toBe('12px');
+  const box = await tooltip.boundingBox();
+  expect(box.x).toBeGreaterThanOrEqual(0); expect(box.x + box.width).toBeLessThanOrEqual(width);
+  await page.mouse.move(0, 0); await tooltip.waitFor({ state: 'hidden' });
+  await help.focus(); await tooltip.waitFor();
+  await page.keyboard.press('Escape'); await tooltip.waitFor({ state: 'hidden' });
+  await page.keyboard.press('Enter'); await tooltip.waitFor();
+  await page.keyboard.press('Tab'); await tooltip.waitFor({ state: 'hidden' });
+});
+
 test.each([1920, 1440, 1024, 375, 320])('histogram matches filter width, follows filters, switches modes and filters locally at %i px', async width => {
   await page.setViewportSize({ width, height: 1000 });
   await page.goto(url); await ready();
@@ -38,7 +79,7 @@ test.each([1920, 1440, 1024, 375, 320])('histogram matches filter width, follows
     && el.nextElementSibling === el.parentElement.lastElementChild)).toBe(true);
   expect(await counts().getAttribute('aria-pressed')).toBe('true');
   await rooms().click();
-  const heading = histogram().getByRole('heading', { name: 'Ցուցադրություն', exact: true });
+  const heading = histogram().getByRole('heading', { name: 'Ընդհանուր տեղեկություն', exact: true });
   const modes = histogram().getByRole('group', { name: 'Խմբավորում', exact: true });
   expect(await modes.getByRole('button').allTextContents()).toEqual(['Բն. քանակ', 'Վաճառքի գումար', 'Սենյակներ']);
   const icons = await modes.locator('button').evaluateAll(buttons => buttons.map(button => {
@@ -59,7 +100,9 @@ test.each([1920, 1440, 1024, 375, 320])('histogram matches filter width, follows
   expect(await histogram().locator('.histogram-summary').evaluate(el => getComputedStyle(el).borderTopWidth)).toBe('0px');
   const headingBox = await heading.boundingBox(), modesBox = await modes.boundingBox();
   expect(headingBox.y + headingBox.height).toBeLessThan(modesBox.y);
-  expect(Math.abs(headingBox.x + headingBox.width / 2 - box.x - box.width / 2)).toBeLessThan(1);
+  const helpBox = await histogram().getByRole('button', { name: 'Ընդհանուր տեղեկության մասին', exact: true }).boundingBox();
+  expect(helpBox.x).toBeGreaterThan(headingBox.x + headingBox.width);
+  expect(Math.abs((headingBox.x + helpBox.x + helpBox.width) / 2 - box.x - box.width / 2)).toBeLessThan(1);
   const modeBoxes = await Promise.all((await modes.getByRole('button').all()).map(button => button.boundingBox()));
   for (const buttonBox of modeBoxes) expect(Math.abs(buttonBox.width - modeBoxes[0].width)).toBeLessThan(1);
   expect(await histogram().locator('.histogram-controls').getByRole('checkbox').count()).toBe(0);

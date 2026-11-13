@@ -4,27 +4,41 @@ import filters from '../report/filter.cjs';
 import calendar from '../report/period.cjs';
 import amountInput from '../report/amount-input.cjs';
 import RangeInputs from './RangeInputs.vue';
-import MonthPicker from './MonthPicker.vue';
+import PeriodFilter from './PeriodFilter.vue';
 import StatisticsPanel from './StatisticsPanel.vue';
 import DealsHistogram from './DealsHistogram.vue';
 import DealsTable from './DealsTable.vue';
+import ToonExpo from './ToonExpo.vue';
 import kpi from '../report/kpi.cjs';
 import filterIcon from '../../images/filter.png';
 import resetIcon from '../../images/reset.png';
-import milonLogo from '../../images/logo_milon.png';
+import ReportHeader from './ReportHeader.vue';
 const { periods, quickPeriods, quickSelection, calendarContext, defaultSelection, initialSelections, reconcileSelections, togglePeriodValue, periodRanges } = calendar;
 const { formatAmountInput, ungroupAmount } = amountInput;
 const { roomOptions, reconcileRooms, toggleRoom, validateRange } = filters;
 const report = ref(null), loading = ref(false), failed = ref(false);
-const propertyMenu = ref(null);
-function selectPropertyType() {
-  propertyMenu.value?.hidePopover();
+const filterHelpOpen = ref(false);
+const activeSection = ref(window.location.hash === '#toon-expo' ? 'expo' : 'apartments');
+const expoVisited = ref(activeSection.value === 'expo'), expoPanel = ref(null), expoLoading = ref(false);
+function syncSection() {
+  activeSection.value = window.location.hash === '#toon-expo' ? 'expo' : 'apartments';
+  if (activeSection.value === 'expo') expoVisited.value = true;
+  nextTick(layoutPanels);
+}
+onMounted(() => window.addEventListener('hashchange', syncSection));
+onBeforeUnmount(() => window.removeEventListener('hashchange', syncSection));
+function selectPropertyType(type) {
+  if (type !== 'parking') {
+    window.location.hash = type === 'expo' ? 'toon-expo' : '';
+    syncSection();
+  }
 }
 const filterContainer = ref(null), wideKpi = ref(false);
 let kpiObserver;
 function layoutPanels() {
     if (!filterContainer.value) return;
-    wideKpi.value = filterContainer.value.clientWidth >= 1100;
+    wideKpi.value = filterContainer.value.closest('.report-shell').clientWidth >= 1100;
+    if (!filterContainer.value.clientWidth) return;
     const page = filterContainer.value.closest('.report-page');
     const logo = page.querySelector('.report-logo');
     page.style.setProperty('--section-gap', `${logo.getBoundingClientRect().top + window.scrollY}px`);
@@ -47,6 +61,7 @@ function layoutPanels() {
 }
 onMounted(() => {
   kpiObserver = new ResizeObserver(layoutPanels);
+  kpiObserver.observe(filterContainer.value.closest('.report-shell'));
   kpiObserver.observe(filterContainer.value);
 });
 onBeforeUnmount(() => kpiObserver?.disconnect());
@@ -174,76 +189,33 @@ onMounted(() => refresh(false));
 <template>
   <main class="report-page">
     <section aria-label="Գործարքների հաշվետվություն" class="report-shell">
-      <header class="report-header" :class="{ 'header-wide': wideKpi }">
-        <div class="report-header-row">
-          <div class="report-brand">
-            <img :src="milonLogo" alt="Milon Mining" class="report-logo">
-            <span class="report-brand-name">MILON MINING</span>
-          </div>
-          <div class="report-header-copy">
-            <h1>Հաշվետվություն</h1>
-          </div>
-          <div class="header-actions">
-            <button type="button" class="refresh-button header-icon-button" aria-label="Թարմացնել հաշվետվությունը" title="Թարմացնել հաշվետվությունը"
-              :disabled="loading" @click="refresh"><span class="filter-icon reset-icon" :style="{ maskImage: `url(${resetIcon})` }" aria-hidden="true"></span></button>
-            <button type="button" class="header-icon-button property-menu-trigger" aria-label="Անշարժ գույքի տեսակ" title="Անշարժ գույքի տեսակ" popovertarget="property-menu" aria-haspopup="menu">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
-            </button>
-            <div ref="propertyMenu" id="property-menu" class="property-menu" popover role="menu" aria-label="Անշարժ գույքի տեսակ">
-              <button type="button" role="menuitem" @click="selectPropertyType('apartments')">Բնակարաններ</button>
-              <button type="button" role="menuitem" @click="selectPropertyType('parking')">Ավտոկայանատեղիներ</button>
-            </div>
-          </div>
-        </div>
-      </header>
+      <ReportHeader :section="activeSection" :loading="activeSection === 'expo' ? expoLoading : loading"
+        @refresh="activeSection === 'expo' ? expoPanel?.refresh() : refresh()" @navigate="selectPropertyType" />
+      <ToonExpo v-if="expoVisited" v-show="activeSection === 'expo'" ref="expoPanel" @loading="expoLoading = $event" />
+      <div v-show="activeSection !== 'expo'">
       <div ref="filterContainer" class="filter-container">
       <div class="report-top-panels" :class="{ 'top-wide': wideKpi }">
       <form class="filter-panel" :class="{ 'filter-panel-unavailable': disabled, 'filter-panel-with-errors': hasFilterErrors, 'stacked-filters': stackedFilters, 'month-filter': selectedPeriod === 'month', 'quarter-filter': selectedPeriod === 'quarter' }" aria-label="Զտիչներ" @submit.prevent>
         <p v-if="disabled" class="filter-notice" role="status">Հաշվետվությունների թարմացման պատճառով զտիչների կարգավորումը ժամանակավորապես անհասանելի է։</p>
         <div v-show="!disabled" aria-label="Զտիչների տարածք">
           <div class="filter-heading">
-            <h2><span class="filter-icon" :style="{ maskImage: `url(${filterIcon})` }" aria-hidden="true"></span>Զտիչներ</h2>
+            <div class="filter-title" @mouseenter="filterHelpOpen = true" @mouseleave="filterHelpOpen = false" @keydown.esc="filterHelpOpen = false">
+              <h2><span class="filter-icon" :style="{ maskImage: `url(${filterIcon})` }" aria-hidden="true"></span>Զտիչներ</h2>
+              <button type="button" class="filter-help" aria-label="Զտիչների մասին" aria-describedby="filter-help-text"
+                @focus="filterHelpOpen = true" @blur="filterHelpOpen = false" @click="filterHelpOpen = true">!</button>
+              <div v-show="filterHelpOpen" id="filter-help-text" class="filter-help-tooltip" role="tooltip">Այս բաժինը նախատեսված է վաճառված բնակարանները զտելու համար։</div>
+            </div>
             <button type="button" :disabled="disabled" @click="resetFilters"><span class="filter-icon reset-icon" :style="{ maskImage: `url(${resetIcon})` }" aria-hidden="true"></span>Վերականգնել</button>
           </div>
           <div class="filter-row">
             <div class="filter-first-row" :style="{ '--room-row-width': `${Math.max(156, availableRooms.length * 32 - 4)}px` }">
-            <fieldset class="date-filter" :disabled="disabled">
-              <legend>{{ filterFields.date }}</legend>
-              <div class="period-select">
-              <select v-model="selectedPeriod" :aria-label="filterFields.date" @change="updatePeriod">
-                <option v-for="[value, title] in periods" :key="value" :value="value">{{ title }}</option>
-              </select>
-              <span class="select-arrow" aria-hidden="true"></span>
-              </div>
-              <div v-if="selectedPeriod === 'quick'" class="period-details period-select">
-                <select v-model="selectedQuick" aria-label="Արագ ընտրություն" @change="updatePeriod">
-                  <option v-for="[value, title] in quickPeriods" :key="value" :value="value">{{ title }}</option>
-                </select>
-                <span class="select-arrow" aria-hidden="true"></span>
-              </div>
-              <div v-if="activeSelection" class="period-details">
-                <div class="period-toolbar" :class="{ 'month-toolbar': selectedPeriod === 'month' }">
-                  <div class="period-select">
-                    <select v-model.number="activeSelection.year" aria-label="Տարի" @change="changePeriodYear">
-                      <option v-for="year in periodContext.years" :key="year" :value="year">{{ year }}</option>
-                    </select>
-                    <span class="select-arrow" aria-hidden="true"></span>
-                  </div>
-                  <MonthPicker v-if="selectedPeriod === 'month'" ref="monthPicker" :months="months"
-                    :values="activeSelection.values" :limit="availableMonths" :disabled="disabled"
-                    @select="selectPeriodValue" @all="setAllMonths(false)" @clear="setAllMonths(true)" />
-                </div>
-                <div v-if="selectedPeriod === 'quarter'" class="period-buttons quarter-buttons" role="group" aria-label="Եռամսյակներ">
-                  <button v-for="(title, index) in ['I', 'II', 'III', 'IV']" :key="index" type="button"
-                    :aria-pressed="activeSelection.values.includes(index + 1)" :disabled="disabled || futurePeriod(index + 1)"
-                    @click="selectPeriodValue(index + 1)">{{ title }}</button>
-                </div>
-              </div>
-              <div v-show="selectedPeriod === 'custom'" class="custom-period">
-                <RangeInputs :key="dateRevision" kind="date" :title="filterFields.date" :range="ranges.date"
-                  @edit="(side, event) => editRange('date', side, event)" />
-              </div>
-            </fieldset>
+            <PeriodFilter ref="monthPicker" :selected-period="selectedPeriod" :selected-quick="selectedQuick"
+              :active-selection="activeSelection" :period-context="periodContext" :available-months="availableMonths"
+              :disabled="disabled" :title="filterFields.date" :range="ranges.date" :date-revision="dateRevision" :months="months"
+              @period="value => { selectedPeriod = value; updatePeriod(); }"
+              @quick="value => { selectedQuick = value; updatePeriod(); }"
+              @year="value => { activeSelection.year = value; changePeriodYear(); }"
+              @select="selectPeriodValue" @months="setAllMonths" @edit="(side, event) => editRange('date', side, event)" />
             <fieldset :disabled="disabled">
               <legend>Համալիր</legend>
               <div class="complex-buttons">
@@ -292,6 +264,7 @@ onMounted(() => refresh(false));
         :loading="loading || (!report && !failed)" :failed="failed" />
       <DealsTable :deals="kpiData?.selected.current || []" :filters="appliedFilters"
         :loading="loading || (!report && !failed)" :failed="failed" />
+      </div>
     </section>
   </main>
 </template>

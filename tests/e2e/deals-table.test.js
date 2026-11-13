@@ -24,6 +24,28 @@ beforeEach(async () => {
 });
 afterEach(async () => { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); });
 
+test.each([320, 1440])('deal list help explains filtered deals without expanding the list at %i', async width => {
+  await page.setViewportSize({ width, height: 1000 }); await page.goto(url); await ready();
+  const help = block().getByRole('button', { name: 'Գործարքների մասին', exact: true });
+  const tooltip = block().getByRole('tooltip');
+  await help.hover(); await tooltip.waitFor();
+  expect(await tooltip.innerText()).toBe('Այս բաժինը նախատեսված է ընտրված զտիչներին համապատասխանող բոլոր գործարքները դիտելու համար։');
+  expect(await tooltip.evaluate(el => getComputedStyle(el).fontSize)).toBe('12px');
+  await help.click(); expect(await toggle().getAttribute('aria-expanded')).toBe('false');
+  await page.keyboard.press('Escape'); await tooltip.waitFor({ state: 'hidden' });
+  await page.keyboard.press('Enter'); await tooltip.waitFor();
+  const title = block().getByRole('heading', { name: 'Գործարքների ցանկ', exact: true });
+  const collapsedTip = await tooltip.boundingBox(), collapsedTitle = await title.boundingBox();
+  expect(collapsedTip.y + collapsedTip.height).toBeLessThanOrEqual(collapsedTitle.y + 1);
+  await toggle().click();
+  expect(await toggle().getAttribute('aria-expanded')).toBe('true');
+  await help.hover(); await tooltip.waitFor();
+  const expandedTip = await tooltip.boundingBox(), expandedTitle = await title.boundingBox();
+  expect(expandedTip.y).toBeGreaterThanOrEqual(expandedTitle.y + expandedTitle.height - 1);
+  await help.focus();
+  await page.keyboard.press('Tab'); await tooltip.waitFor({ state: 'hidden' });
+});
+
 test('collapsed block follows charts; exact columns and deal links; 25-row pages keep their state', async () => {
   let requests = 0;
   page.on('request', request => { if (new URL(request.url()).pathname === '/api/report') requests++; });

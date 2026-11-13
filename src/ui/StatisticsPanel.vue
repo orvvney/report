@@ -5,6 +5,7 @@ import kpi from '../report/kpi.cjs';
 import icon from '../../images/statistics.png';
 const props=defineProps({ deals:Array, filters:Object, period:String, loading:Boolean, failed:Boolean, resetRevision:Number });
 const totals=ref(null), totalsStyle=ref({}), totalObserver=new ResizeObserver(fitTotals);
+const sectionHelpOpen=ref(false);
 const selected=ref('rooms'), popup=ref(null), trigger=ref(null), open=ref(false), tip=ref(null), money=ref(false), otherExpanded=ref(false);
 const type=computed(()=>selected.value==='time'?model.timeType(props.period):selected.value);
 const short={month:'Ամիս',quarter:'Եռամսյակ',year:'Տարի',complex:'Համալիր',rooms:'Սենյակ',area:'Մակերես',amount:'Բն. Արժեք'};
@@ -53,7 +54,12 @@ onBeforeUnmount(()=>{totalObserver.disconnect();document.removeEventListener('po
 </script>
 <template>
 <section class="statistics-panel" aria-label="Վիճակագրություն" :aria-busy="loading">
- <div class="filter-heading statistics-heading"><h2><span class="filter-icon" :style="{maskImage:`url(${icon})`}" aria-hidden="true"></span>Վիճակագրություն</h2>
+ <div class="filter-heading statistics-heading">
+ <div class="filter-title" @mouseenter="sectionHelpOpen=true" @mouseleave="sectionHelpOpen=false" @keydown.esc="sectionHelpOpen=false">
+ <h2><span class="filter-icon" :style="{maskImage:`url(${icon})`}" aria-hidden="true"></span>Վիճակագրություն</h2>
+ <button type="button" class="filter-help" aria-label="Վիճակագրության մասին" aria-describedby="statistics-help-text" @focus="sectionHelpOpen=true" @blur="sectionHelpOpen=false" @click="sectionHelpOpen=true">!</button>
+ <div v-show="sectionHelpOpen" id="statistics-help-text" class="filter-help-tooltip" role="tooltip">Այս բաժինը նախատեսված է վիճակագրությունն արագ դիտելու համար։</div>
+ </div>
  <button ref="trigger" class="statistics-trigger" type="button" :disabled="disabled" :aria-expanded="open" aria-controls="statistics-popup" aria-haspopup="dialog" @pointerenter="e=>{if(e.pointerType==='mouse')show()}" @pointerleave="leave" @click="show">Ըստ {{genitive[type]}}</button></div>
  <div ref="popup" id="statistics-popup" popover="manual" role="dialog" aria-label="Վիճակագրության խմբավորում" class="month-popup statistics-popup" @pointerleave="leave">
  <button v-for="[value,label] in options" :key="value" type="button" :aria-pressed="selected===value" @click="selected=value;close(true)">{{label}}</button></div>

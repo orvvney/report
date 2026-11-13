@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue';
 import table from '../report/deals-table.cjs';
 const props = defineProps({ deals: { type: Array, default: () => [] }, filters: Object, loading: Boolean, failed: Boolean });
 const expanded = ref(false), page = ref(1), sortKey = ref('date'), direction = ref('desc');
+const sectionHelpOpen = ref(false);
 const unavailable = computed(() => props.loading || props.failed);
 const sorted = computed(() => table.sortRows(props.deals, sortKey.value, direction.value));
 const paged = computed(() => table.paginate(sorted.value, page.value));
@@ -19,15 +20,22 @@ function sort(key) {
 
 <template>
   <section class="deals-list" aria-labelledby="deals-list-heading" :aria-busy="loading">
-    <h2 id="deals-list-heading">
-      <button type="button" class="deals-list-toggle" :aria-expanded="expanded" aria-controls="deals-list-content" @click="expanded = !expanded">
+    <div class="deals-list-header" @click="expanded = !expanded">
+      <div class="filter-title" @mouseenter="sectionHelpOpen = true" @mouseleave="sectionHelpOpen = false" @keydown.esc="sectionHelpOpen = false">
+      <h2 id="deals-list-heading">
+      <button type="button" class="deals-list-toggle" :aria-expanded="expanded" aria-controls="deals-list-content" @click.stop="expanded = !expanded">
         <span>Գործարքների ցանկ</span>
+      </button>
+      </h2>
+      <button type="button" class="filter-help" aria-label="Գործարքների մասին" aria-describedby="deals-help-text"
+        @mouseenter="sectionHelpOpen = true" @focus="sectionHelpOpen = true" @blur="sectionHelpOpen = false" @click.stop="sectionHelpOpen = true">!</button>
+      <div v-show="sectionHelpOpen" id="deals-help-text" class="filter-help-tooltip" :class="{ 'deals-help-above': !expanded }" role="tooltip" @click.stop>Այս բաժինը նախատեսված է ընտրված զտիչներին համապատասխանող բոլոր գործարքները դիտելու համար։</div>
+      </div>
         <span class="deals-list-count" data-testid="deals-list-count">{{ unavailable ? '—' : deals.length }}</span>
         <svg class="deals-list-chevron" :class="{ 'is-expanded': expanded }" viewBox="0 0 16 16" fill="none" aria-hidden="true">
           <path d="m4 6 4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
         </svg>
-      </button>
-    </h2>
+    </div>
     <div v-show="expanded" id="deals-list-content" class="deals-list-content">
       <p v-if="loading" class="kpi-notice" role="status">Տվյալները բեռնվում են…</p>
       <p v-else-if="failed" class="kpi-notice" role="status">Տվյալներն անհասանելի են։</p>

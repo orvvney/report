@@ -17,6 +17,7 @@ const { fullAmount, shortAmount } = chart;
 const { monthlyRoomTotals, roomColor, histogramScale, comparisonMonths } = histogram;
 const mode = ref('count');
 const compare = ref(false);
+const sectionHelpOpen = ref(false);
 const modes = [['count', 'Բն. քանակ', buildingIcon], ['months', 'Վաճառքի գումար', walletIcon], ['rooms', 'Սենյակներ', roomsIcon]];
 const isCount = computed(() => mode.value === 'count');
 const plotStyle = { paddingLeft: '0px', paddingRight: '21px' };
@@ -44,22 +45,19 @@ const tickLabelWidth = computed(() => {
   return Math.max(...scale.value.ticks.map(tick => context.measureText(isCount.value ? fullAmount(tick) : shortAmount(tick)).width));
 });
 const yAxisWidth = computed(() => 41 + tickLabelWidth.value + 21 + 1);
-const histogramWidth = ref(0);
+const plotViewport = ref(null), histogramWidth = ref(0);
 const viewportWidth = computed(() => Math.max(0, histogramWidth.value - yAxisWidth.value - 21));
 const fitMonths = computed(() => viewportWidth.value >= 520);
 const shortMonths = ['Հնվ', 'Փտր', 'Մրտ', 'Ապր', 'Մյս', 'Հնս', 'Հլս', 'Օգս', 'Սպտ', 'Հկտ', 'Նյմ', 'Դկտ'];
 let observer;
-let observedContainer;
-function observeViewport(element) {
-  const container = element?.closest('.deals-histogram');
-  if (container === observedContainer) return;
+watch(plotViewport, element => {
   observer?.disconnect();
-  observedContainer = container;
-  if (!container) return;
+  if (!element) return;
+  const container = element.closest('.deals-histogram');
   histogramWidth.value = container.clientWidth;
   observer = new ResizeObserver(([entry]) => { histogramWidth.value = entry.contentRect.width; });
   observer.observe(container);
-}
+}, { flush: 'post' });
 onBeforeUnmount(() => observer?.disconnect());
 const moneyText = entry => `${fitMonths.value ? shortAmount(entry.amount) : fullAmount(entry.amount)} ֏`;
 const moneyParts = entry => fitMonths.value && Number(entry.amount) >= 1000
@@ -133,7 +131,12 @@ watch([() => JSON.stringify(categories.value), () => comparing.value ? JSON.stri
 <template>
   <section class="deals-histogram" :class="{ 'histogram-wide': wide }" aria-label="Գործարքների հիստոգրամ">
     <div class="histogram-controls">
-      <h2>Ցուցադրություն</h2>
+      <div class="filter-title histogram-title" @mouseenter="sectionHelpOpen = true" @mouseleave="sectionHelpOpen = false" @keydown.esc="sectionHelpOpen = false">
+        <h2>Ընդհանուր տեղեկություն</h2>
+        <button type="button" class="filter-help" aria-label="Ընդհանուր տեղեկության մասին" aria-describedby="histogram-help-text"
+          @focus="sectionHelpOpen = true" @blur="sectionHelpOpen = false" @click="sectionHelpOpen = true">!</button>
+        <div v-show="sectionHelpOpen" id="histogram-help-text" class="filter-help-tooltip" role="tooltip">Այս բաժինը նախատեսված է վիճակագրությունը մանրամասն դիտելու համար՝ տարբեր բաժինների միջոցով, ինչպես նաև այն նախորդ ժամանակահատվածների հետ համեմատելու համար:</div>
+      </div>
       <div role="group" aria-label="Խմբավորում" class="histogram-modes">
         <button v-for="[item, title, icon] in modes" :key="item" type="button"
           :aria-pressed="mode === item" :disabled="loading || failed" @click="mode = item">
@@ -176,7 +179,7 @@ watch([() => JSON.stringify(categories.value), () => comparing.value ? JSON.stri
           </g>
           <line :x1="yAxisWidth - .5" :x2="yAxisWidth - .5" y1="310" y2="50" stroke="var(--control-border)" />
         </svg>
-        <div :ref="observeViewport" class="histogram-scroll" aria-label="Գծապատկերի տարածք" tabindex="0">
+        <div ref="plotViewport" class="histogram-scroll" aria-label="Գծապատկերի տարածք" tabindex="0">
         <svg :viewBox="`0 0 ${width} 380`" :style="{ minWidth: `${width}px` }" role="group" :aria-label="axisTitle">
           <line v-for="(_, index) in scale.ticks" :key="index" x1="0" :x2="width - 20"
             :y1="tickY(index)" :y2="tickY(index)"
@@ -242,6 +245,8 @@ watch([() => JSON.stringify(categories.value), () => comparing.value ? JSON.stri
 .histogram-controls { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 20px 12px; border-bottom: 1px solid var(--brand-tint); }
 .histogram-controls h2, .histogram-axis { font-size: 14px; font-weight: 500; color: var(--muted); }
 .histogram-controls h2 { text-align: center; }
+.histogram-title > .filter-help { flex-shrink: 0; }
+.histogram-title > .filter-help-tooltip { left: 50%; transform: translateX(-50%); }
 .histogram-graph-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 24px 20px 0; }
 .histogram-comparison-toggle { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: var(--muted); font-size: 14px; cursor: pointer; }
 .histogram-comparison-toggle input { width: 16px; height: 16px; accent-color: var(--brand-strong); }

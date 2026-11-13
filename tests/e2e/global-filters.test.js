@@ -208,7 +208,7 @@ test('filter icons load from bundled PNGs, controls share rounding and insets, a
     expect(await icon.boundingBox()).toMatchObject(i === 0 ? { width: 15, height: 15 } : { width: 10, height: 10 });
   }
   expect(await page.request.get(`${url}/images/filter.png`).then(r => r.status())).toBe(404);
-  for (const control of await panel.locator('button, select, input:visible').all()) {
+  for (const control of await panel.locator('button:not(.filter-help), select, input:visible').all()) {
     expect(await control.evaluate(el => getComputedStyle(el).borderTopLeftRadius)).toBe('15px');
     expect((await control.boundingBox()).height).toBe(32);
   }

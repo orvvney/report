@@ -14,6 +14,47 @@ beforeEach(async () => {
 });
 afterEach(async () => { release?.(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); });
 
+test.each([320, 1440])('filter help explains the section with mouse and keyboard at %i', async width => {
+  await page.setViewportSize({ width, height: 1200 }); await page.goto(url); await ready();
+  const help = panel().getByRole('button', { name: 'Զտիչների մասին', exact: true });
+  const tooltip = page.locator('#filter-help-text');
+  expect(await tooltip.isVisible()).toBe(false);
+  const title = await panel().getByRole('heading', { name: 'Զտիչներ', exact: true }).boundingBox();
+  expect((await help.boundingBox()).x).toBeGreaterThanOrEqual(title.x + title.width);
+  await help.hover(); await tooltip.waitFor();
+  expect(await tooltip.innerText()).toBe('Այս բաժինը նախատեսված է վաճառված բնակարանները զտելու համար։');
+  const box = await tooltip.boundingBox();
+  expect(box.x).toBeGreaterThanOrEqual(0); expect(box.x + box.width).toBeLessThanOrEqual(width);
+  await page.mouse.move(0, 0); await tooltip.waitFor({ state: 'hidden' });
+  await help.focus(); await tooltip.waitFor();
+  await page.keyboard.press('Escape'); await tooltip.waitFor({ state: 'hidden' });
+  await page.keyboard.press('Enter'); await tooltip.waitFor();
+  await page.keyboard.press('Tab'); await tooltip.waitFor({ state: 'hidden' });
+  expect(await button('Վերականգնել').evaluate(el => el === document.activeElement)).toBe(true);
+  await help.click(); await tooltip.waitFor();
+  await page.screenshot({ path: `test-results/filter-help-${width}.png` });
+});
+
+test.each([320, 1440])('statistics help explains quick statistics at %i', async width => {
+  await page.setViewportSize({ width, height: 1200 }); await page.goto(url); await ready();
+  const help = page.getByRole('button', { name: 'Վիճակագրության մասին', exact: true });
+  const tooltip = page.locator('#statistics-help-text');
+  expect(await tooltip.isVisible()).toBe(false);
+  const title = await page.getByRole('heading', { name: 'Վիճակագրություն', exact: true }).boundingBox();
+  expect((await help.boundingBox()).x).toBeGreaterThanOrEqual(title.x + title.width);
+  await help.hover(); await tooltip.waitFor();
+  expect(await tooltip.innerText()).toBe('Այս բաժինը նախատեսված է վիճակագրությունն արագ դիտելու համար։');
+  expect(await tooltip.evaluate(el => getComputedStyle(el).fontSize)).toBe('12px');
+  const box = await tooltip.boundingBox();
+  expect(box.x).toBeGreaterThanOrEqual(0); expect(box.x + box.width).toBeLessThanOrEqual(width);
+  await page.mouse.move(0, 0); await tooltip.waitFor({ state: 'hidden' });
+  await help.focus(); await tooltip.waitFor();
+  await page.keyboard.press('Escape'); await tooltip.waitFor({ state: 'hidden' });
+  await page.keyboard.press('Enter'); await tooltip.waitFor();
+  await page.keyboard.press('Tab'); await tooltip.waitFor({ state: 'hidden' });
+  await page.screenshot({ path: `test-results/statistics-help-${width}.png` });
+});
+
 test.each([1440, 1920])('wide panel preserves the year dimensions through period changes at %i', async width => {
   await page.setViewportSize({ width, height: 1200 }); await page.goto(url); await ready();
   const reference = await panel().boundingBox();
@@ -115,6 +156,10 @@ test.each([375, 768, 1024, 1440])('month popup supports hover, keyboard and mult
   expect(new Set(boxes.map(b => b.x)).size).toBe(4); expect(new Set(boxes.map(b => b.y)).size).toBe(3);
   boxes.forEach(b => { size(b, boxes[0]); expect(b.fits).toBe(true); });
   const pop = await popup.boundingBox(); expect(pop.width).toBeGreaterThan((await trigger.boundingBox()).width);
+  const triggerBox = await trigger.boundingBox();
+  const centeredLeft = triggerBox.x + (triggerBox.width - pop.width) / 2;
+  near(pop.x, Math.max(12, Math.min(centeredLeft, width - pop.width - 12)));
+  near(pop.y, triggerBox.y + triggerBox.height);
   expect(pop.x).toBeGreaterThanOrEqual(0); expect(pop.x + pop.width).toBeLessThanOrEqual(width);
   size(await panel().boundingBox(), reference);
   expect(await button('Դեկտեմբեր').isDisabled()).toBe(true);
