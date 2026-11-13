@@ -134,13 +134,13 @@ test.each([1440, 1920])('errors, initial loading, refresh failure and recovery p
   }
   await page.screenshot({ path: `test-results/stable-panel-${width}-errors.png`, fullPage: true });
   fixture.state.gate = new Promise(resolve => { release = resolve; }); fixture.state.failPage = 0;
-  await button('Թարմացնել հաշվետվությունը').click(); await page.locator('.filter-notice').waitFor();
+  await button('Թարմացնել ամբողջ հաշվետվությունը').click(); await page.locator('.filter-notice').waitFor();
   size(await panel().boundingBox(), reference); expect(await period().isVisible()).toBe(false);
   release(); fixture.state.gate = null;
   await page.locator('.statistics-status').filter({ hasText: 'Տվյալներն անհասանելի են։' }).waitFor();
   size(await panel().boundingBox(), reference);
   await page.screenshot({ path: `test-results/stable-panel-${width}-unavailable.png`, fullPage: true });
-  fixture.state.failPage = undefined; await button('Թարմացնել հաշվետվությունը').click(); await ready();
+  fixture.state.failPage = undefined; await button('Թարմացնել ամբողջ հաշվետվությունը').click(); await ready();
   size(await panel().boundingBox(), reference); expect(await panel().getByRole('alert').count()).toBe(3);
 });
 

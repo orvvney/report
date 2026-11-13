@@ -42,11 +42,11 @@ test('loading, failure, recovery, empty result and refresh preserve selected gro
  expect(await panel.getByTestId('statistics-count').count()).toBe(0);release();fixture.state.gate=null;
  await page.getByTestId('statistics-count').waitFor();await panel.locator('.statistics-trigger').click();
  await page.getByRole('dialog',{name:'Վիճակագրության խմբավորում'}).getByRole('button',{name:'Մակերես',exact:true}).click();
- fixture.state.failPage=0;await page.getByRole('button',{name:'Թարմացնել հաշվետվությունը',exact:true}).click();
+ fixture.state.failPage=0;await page.getByRole('button',{name:'Թարմացնել ամբողջ հաշվետվությունը',exact:true}).click();
  await panel.getByText('Տվյալներն անհասանելի են։',{exact:true}).waitFor();
  expect(await panel.locator('svg').count()).toBe(0);expect(await panel.locator('.statistics-trigger').isDisabled()).toBe(true);
  fixture.state.failPage=undefined;fixture.state.items=[];
- await page.getByRole('button',{name:'Թարմացնել հաշվետվությունը',exact:true}).click();
+ await page.getByRole('button',{name:'Թարմացնել ամբողջ հաշվետվությունը',exact:true}).click();
  await panel.getByText('Տվյալներ չկան',{exact:true}).waitFor();
  expect(await panel.getByTestId('statistics-count').innerText()).toBe('0');
  expect(await panel.getByTestId('statistics-amount').innerText()).toBe('~0 ֏');

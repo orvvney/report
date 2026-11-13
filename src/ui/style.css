@@ -403,20 +403,20 @@ dialog::backdrop { background: rgb(29 40 62 / 45%); }
 .expo-panel h3 { margin-block: 24px 12px; font-weight: 600; }
 .expo-scroll { max-width: 100%; overflow-x: auto; }
 .expo-daily { min-width: 400px; }
-.expo-panel table { width: 100%; border-collapse: collapse; font-size: 14px; }
-.expo-panel th, .expo-panel td { padding: 12px; text-align: left; border-bottom: 1px solid var(--border); }
-.expo-panel th { background: var(--brand-tint); }
-.expo-panel td { min-width: 100px; overflow-wrap: anywhere; }
-.expo-panel a { color: var(--brand-strong); text-decoration: underline; }
+.expo-daily { width: 100%; border-collapse: collapse; font-size: 14px; }
+.expo-daily th, .expo-daily td { padding: 12px; text-align: left; border-bottom: 1px solid var(--border); }
+.expo-daily th { background: var(--brand-tint); }
+.expo-daily td { min-width: 100px; overflow-wrap: anywhere; }
+.expo-daily a { color: var(--brand-strong); text-decoration: underline; }
 .expo-deal-link { display: block; margin-block: 4px; }
 .expo-bar { display: block; padding: 4px 8px; background: linear-gradient(to right, var(--brand-tint) var(--bar-width), transparent var(--bar-width)); }
 .expo-pagination { justify-content: center; margin-top: 20px; }
 @media (max-width: 600px) { .expo-panel { padding: 16px; } }
 
-.expo-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.expo-column { min-width: 0; padding-right: 24px; }
-.expo-column + .expo-column { border-left: 1px solid var(--border); padding-left: 24px; padding-right: 0; }
-.expo-column .expo-column-title { margin: 0 0 20px; font-size: 18px; }
+.expo-columns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.expo-column { min-width: 0; padding-inline: 16px; }
+.expo-column + .expo-column { border-left: 1px solid var(--border); padding-left: 16px; }
+.expo-column .expo-column-title { display: grid; align-items: center; min-height: 54px; margin: 0 0 20px; font-size: 18px; text-align: center; }
 @media (max-width: 900px) {
   .expo-columns { grid-template-columns: minmax(0, 1fr); }
   .expo-column { padding: 0 0 24px; }
@@ -430,3 +430,36 @@ dialog::backdrop { background: rgb(29 40 62 / 45%); }
 .expo-period-filter .period-details-quarter { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 .expo-period-filter .quarter-buttons { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
 .expo-period-filter .quarter-buttons button { width: 100%; height: 32px; min-width: 0; padding: 0; }
+
+.header-tooltip-anchor { position: relative; display: inline-flex; }
+.header-tooltip { position: absolute; top: calc(100% + 8px); right: 0; z-index: 30; width: max-content; max-width: min(280px, calc(100vw - 32px)); padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--ink); box-shadow: var(--card-shadow); font-size: 12px; line-height: 1.5; font-weight: 400; text-align: left; pointer-events: none; }
+
+.expo-column-heading { display: flex; justify-content: center; min-height: 54px; margin-bottom: 20px; }
+.expo-column-heading .expo-column-title { margin: 0; }
+.expo-column-heading .filter-help { position: absolute; left: calc(100% + 6px); top: 50%; transform: translateY(-50%); flex-shrink: 0; }
+
+.expo-column-heading .filter-help-tooltip { left: 50%; transform: translateX(-50%); }
+
+@media (min-width: 901px) {
+  .expo-columns { grid-template-rows: auto auto auto; }
+  .expo-column { display: grid; grid-row: span 3; grid-template-rows: subgrid; }
+  .expo-column > .expo-period-filter, .expo-column > .deals-list { align-self: start; }
+}
+
+.expo-records-columns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.expo-records { min-width: 0; padding-inline: 16px; }
+.expo-records + .expo-records { border-left: 1px solid var(--border); }
+.expo-records-heading { min-height: 54px; display: flex; justify-content: center; align-items: center; gap: 8px; margin: 0 0 20px; text-align: center; font-size: 14px; font-weight: 600; }
+.expo-records .deals-list-scroll { margin-top: 12px; }
+@media (max-width: 900px) {
+  .expo-records-columns { grid-template-columns: minmax(0, 1fr); }
+  .expo-records { padding: 0 0 24px; }
+  .expo-records + .expo-records { border-left: 0; border-top: 1px solid var(--border); padding: 24px 0; }
+}
+
+.expo-event-filter { --filter-control-size: 32px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-self: start; width: min(100%, 360px); margin: 0 auto 24px; gap: 8px; }
+.expo-event-filter button { min-height: 64px; }
+
+.expo-panel > .expo-lists { margin-top: 24px; border: 0; border-top: 1px solid var(--border); border-radius: 0; background: transparent; box-shadow: none; }
+.expo-panel > .expo-lists > .deals-list-header { padding-inline: 0; }
+.expo-panel > .expo-lists > .deals-list-content { padding: 0; }

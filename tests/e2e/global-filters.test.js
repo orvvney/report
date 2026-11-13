@@ -165,7 +165,7 @@ test('refresh preserves global selections and drafts, recomputes presets, and re
   fixture.state.time = '2027-01-15T10:00:00Z';
   fixture.state.items = [deal(1, { ufCrmDate: '2027-01-10' }), deal(2, { ufCrmDate: '2026-01-31' })];
   await page.clock.setFixedTime(new Date(fixture.state.time));
-  await page.getByRole('button', { name: 'Թարմացնել հաշվետվությունը', exact: true }).click(); await ready();
+  await page.getByRole('button', { name: 'Թարմացնել ամբողջ հաշվետվությունը', exact: true }).click(); await ready();
   expect(await period().inputValue()).toBe('quick');
   expect(await page.getByRole('combobox', { name: 'Արագ ընտրություն', exact: true }).inputValue()).toBe('last-12');
   expect(await hills().getAttribute('aria-pressed')).toBe('false');
@@ -238,7 +238,7 @@ test('All visually clears room buttons without disabling them, including the sin
   expect(await room(3).getAttribute('aria-pressed')).toBe('true');
   await all().click(); await count(2);
   fixture.state.items = [deal(1, { ufCrmRooms: 1 })];
-  await page.getByRole('button', { name: 'Թարմացնել հաշվետվությունը', exact: true }).click(); await ready();
+  await page.getByRole('button', { name: 'Թարմացնել ամբողջ հաշվետվությունը', exact: true }).click(); await ready();
   await room(1).click();
   expect(await all().getAttribute('aria-pressed')).toBe('false');
   expect(await room(1).getAttribute('aria-pressed')).toBe('true');

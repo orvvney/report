@@ -53,13 +53,13 @@ test('chart KPIs hide stale totals on loading and failure and recover', async ()
   await button('Վաճառքի գումար').click();
   const pending = new Promise(resolve => { release = resolve; });
   fixture.state.gate = pending;
-  await button('Թարմացնել հաշվետվությունը').click();
+  await button('Թարմացնել ամբողջ հաշվետվությունը').click();
   expect(await value().count()).toBe(0);
   fixture.state.failPage = 0;
   release(); fixture.state.gate = undefined;
   await page.getByText('Տվյալներն անհասանելի են։', { exact: true }).first().waitFor();
   expect(await value().count()).toBe(0);
   fixture.state.failPage = undefined;
-  await button('Թարմացնել հաշվետվությունը').click(); await ready();
+  await button('Թարմացնել ամբողջ հաշվետվությունը').click(); await ready();
   expect(await value().innerText()).toBe('450,00 ֏');
 });

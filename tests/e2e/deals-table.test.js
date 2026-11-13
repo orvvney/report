@@ -157,7 +157,7 @@ test('empty selection, optional field fallback, failed refresh and recovery neve
   ]);
   let release;
   fixture.state.gate = new Promise(resolve => { release = resolve; });
-  await page.getByRole('button', { name: 'Թարմացնել հաշվետվությունը', exact: true }).click();
+  await page.getByRole('button', { name: 'Թարմացնել ամբողջ հաշվետվությունը', exact: true }).click();
   await block().getByRole('status').waitFor();
   expect(await count().innerText()).toBe('—');
   expect(await rows().count()).toBe(0);
@@ -166,7 +166,7 @@ test('empty selection, optional field fallback, failed refresh and recovery neve
   expect(await count().innerText()).toBe('—');
   expect(await rows().count()).toBe(0);
   fixture.state.failPage = undefined; fixture.state.items = [];
-  await page.getByRole('button', { name: 'Թարմացնել հաշվետվությունը', exact: true }).click();
+  await page.getByRole('button', { name: 'Թարմացնել ամբողջ հաշվետվությունը', exact: true }).click();
   await block().getByText('Տվյալներ չկան', { exact: true }).waitFor();
   expect(await count().innerText()).toBe('0');
   expect(await next().count()).toBe(0);
@@ -177,7 +177,7 @@ test('refresh clamps the last page to the new snapshot and updates contact names
   await next().click(); await next().click();
   fixture.state.items = [fixture.state.items[0]];
   fixture.state.contacts[0].name = 'Նոր';
-  await page.getByRole('button', { name: 'Թարմացնել հաշվետվությունը', exact: true }).click();
+  await page.getByRole('button', { name: 'Թարմացնել ամբողջ հաշվետվությունը', exact: true }).click();
   await rows().first().getByRole('link', { name: 'Նոր Սարգսյան' }).waitFor();
   expect(await count().innerText()).toBe('1'); expect(await ids()).toEqual([1]);
   expect(await next().count()).toBe(0);

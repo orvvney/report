@@ -20,7 +20,7 @@ const selectYear = async value => { await year().selectOption(value); await open
 const button = name => page.getByRole('button', { name, exact: true });
 const ready = () => page.getByTestId('statistics-count').waitFor();
 const count = async n => expect(await page.getByTestId('statistics-count').innerText()).toBe(String(n));
-const refresh = async () => { await button('Թարմացնել հաշվետվությունը').click(); await ready(); };
+const refresh = async () => { await button('Թարմացնել ամբողջ հաշվետվությունը').click(); await ready(); };
 const selected = async (name, value = true) => { await openMonths(); expect(await button(name).getAttribute('aria-pressed')).toBe(String(value)); };
 beforeEach(async () => {
   await page.clock.setFixedTime(new Date('2026-05-15T10:00:00Z'));
@@ -141,7 +141,7 @@ test('loading and failed refresh hide controls, recovery keeps month selection',
   await page.goto(url); await ready(); await selectPeriod('month'); await selectYear('2025');
   await button('Հունվար').click(); await button('Մայիս').click(); await count(1);
   fixture.state.gate = new Promise(resolve => { release = resolve; }); fixture.state.failPage = 0;
-  await button('Թարմացնել հաշվետվությունը').click(); await page.locator('.statistics-status').filter({ hasText: 'Տվյալները բեռնվում են…' }).waitFor();
+  await button('Թարմացնել ամբողջ հաշվետվությունը').click(); await page.locator('.statistics-status').filter({ hasText: 'Տվյալները բեռնվում են…' }).waitFor();
   expect(await year().count()).toBe(0); expect(await button('Հունվար').count()).toBe(0);
   release(); fixture.state.gate = null;
   await page.locator('.statistics-status').filter({ hasText: 'Տվյալներն անհասանելի են։' }).waitFor();

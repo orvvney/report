@@ -1,8 +1,9 @@
 const path = require('node:path');
 const { loadConfig } = require('../bitrix24/config.cjs');
+const { addDetails } = require('../bitrix24/details.cjs');
 const { createClient } = require('../bitrix24/client.cjs');
 
-const SOURCE_ID = '305';
+const SOURCE_DIRECTORY_ID = '305';
 const TTL = 5 * 60 * 1000;
 const dateFormat = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Yerevan', year: 'numeric', month: '2-digit', day: '2-digit' });
 function dateOf(value) {
@@ -51,16 +52,46 @@ function createExpoLoader({ env = process.env, envPath = path.resolve(__dirname,
     try {
       const call = createClient({ ...config, fetchImpl, scheduleRequest, waitRetry, timeoutMs });
       const origin = new URL(config.webhookUrl).origin;
+      // Directory ID and the SOURCE_ID value stored on cards are different fields.
+      const sources = await call('crm.status.list', { filter: { ENTITY_ID: 'SOURCE' } });
+      const matches = sources.result.filter(row => String(row?.ID) === SOURCE_DIRECTORY_ID);
+      if (matches.length !== 1 || typeof matches[0].STATUS_ID !== 'string' || !matches[0].STATUS_ID.trim()) {
+        throw new Error('Source directory entry is missing or ambiguous');
+      }
+      const sourceId = matches[0].STATUS_ID;
       const normalize = (row, entity) => {
-        if (String(row.SOURCE_ID) !== SOURCE_ID) throw new Error('Unexpected source');
         const id = idOf(row.ID);
         return { id, title: String(row.TITLE || `#${id}`), date: dateOf(row.DATE_CREATE), url: `${origin}/crm/${entity}/details/${id}/` };
       };
       const select = ['ID', 'TITLE', 'SOURCE_ID', 'DATE_CREATE'];
-      const leads = (await list(call, 'crm.lead.list', { '=SOURCE_ID': SOURCE_ID }, select)).map(row => normalize(row, 'lead'));
-      // Deals are an independent source selection, including those without a linked lead.
-      const deals = (await list(call, 'crm.deal.list', { '=SOURCE_ID': SOURCE_ID }, select)).map(row => normalize(row, 'deal'));
-      state.body = { sourceId: SOURCE_ID, leads, deals, updatedAt: now().toISOString() };
+      const checkSource = row => {
+        if (String(row.SOURCE_ID) !== sourceId) throw new Error('Unexpected source');
+        return row;
+      };
+      const fullName = row => [row.NAME, row.LAST_NAME].filter(value => typeof value === 'string').map(value => value.trim()).filter(Boolean).join(' ') || null;
+      const leads = (await list(call, 'crm.lead.list', { '=SOURCE_ID': sourceId }, [...select, 'NAME', 'LAST_NAME']))
+        .map(row => ({ ...normalize(checkSource(row), 'lead'), customerName: fullName(row) }));
+      const leadNames = new Map(leads.map(row => [row.id, row.customerName]));
+      const leadIdOf = row => [undefined, null, '', 0, '0'].includes(row.LEAD_ID) ? null : idOf(row.LEAD_ID);
+      const dealSelect = [...select, 'LEAD_ID', 'CONTACT_ID'];
+      const sourceDeals = await list(call, 'crm.deal.list', { '=SOURCE_ID': sourceId }, dealSelect);
+      const directDeals = sourceDeals.map(checkSource).filter(row => leadIdOf(row) === null).map(row => normalize(row, 'deal'));
+      const contactNames = directDeals.map(row => ({ id: row.id }));
+      await addDetails(call, contactNames, sourceDeals.map(row => ({ id: Number(row.ID), contactId: row.CONTACT_ID })));
+      directDeals.forEach((row, index) => { row.customerName = contactNames[index].customerName; });
+      const deals = [];
+      for (let offset = 0; offset < leads.length; offset += 50) {
+        const ids = leads.slice(offset, offset + 50).map(row => row.id);
+        const allowed = new Set(ids);
+        const linked = await list(call, 'crm.deal.list', { '@LEAD_ID': ids }, dealSelect);
+        for (const row of linked) {
+          const leadId = leadIdOf(row);
+          if (!allowed.has(leadId)) throw new Error('Unexpected lead relation');
+          deals.push({ ...normalize(row, 'deal'), leadId, customerName: leadNames.get(leadId) });
+        }
+      }
+      const convertedLeadIds = new Set(deals.map(deal => deal.leadId));
+      state.body = { sourceId, leads: leads.filter(lead => !convertedLeadIds.has(lead.id)), deals, directDeals, updatedAt: now().toISOString() };
       state.at = now().getTime();
       return { status: 200, body: state.body };
     } catch { return { status: 502, body: { error: 'CRM_READ_ERROR' } }; }

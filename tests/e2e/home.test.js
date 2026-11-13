@@ -100,11 +100,11 @@ describe('home page', () => {
       return { background: style.backgroundColor, radius: style.borderRadius, shadow: style.boxShadow !== 'none' };
     })).toEqual({ background: 'rgb(29, 40, 62)', radius: '12px', shadow: true });
     const logo = header.getByRole('img', { name: 'Milon Mining', exact: true });
-    const refresh = header.getByRole('button', { name: 'Թարմացնել հաշվետվությունը', exact: true });
+    const refresh = header.getByRole('button', { name: 'Թարմացնել ամբողջ հաշվետվությունը', exact: true });
     const frame = await page.locator('.report-top-panels').boundingBox();
     const title = await header.getByRole('heading', { name: reportTitle, exact: true }).boundingBox();
     const image = await logo.boundingBox(), button = await refresh.boundingBox();
-    const menuButton = header.getByRole('button', { name: 'Անշարժ գույքի տեսակ', exact: true });
+    const menuButton = header.getByRole('button', { name: 'Հաշվետվությունների տեսակ', exact: true });
     const menuBox = await menuButton.boundingBox();
     expect(button.width).toBe(40); expect(button.height).toBe(40);
     expect(menuBox.width).toBe(40); expect(menuBox.height).toBe(40);
@@ -139,7 +139,7 @@ describe('home page', () => {
       expect(Math.abs(image.y + image.height / 2 - copy.y - copy.height / 2)).toBeLessThan(1);
       expect(Math.abs(image.y + image.height / 2 - button.y - button.height / 2)).toBeLessThan(1);
     } else expect(button.y).toBeGreaterThanOrEqual(title.y + title.height);
-    expect(await page.getByRole('button', { name: 'Թարմացնել հաշվետվությունը', exact: true }).count()).toBe(1);
+    expect(await page.getByRole('button', { name: 'Թարմացնել ամբողջ հաշվետվությունը', exact: true }).count()).toBe(1);
     const source = await logo.getAttribute('src');
     expect(source).toMatch(/^\/assets\/logo_milon-[\w-]+\.png$/);
     const response = await page.request.get(source);
@@ -183,9 +183,9 @@ describe('home page', () => {
 
   test('opens and dismisses the property menu', async () => {
     await page.goto('/');
-    const trigger = page.getByRole('button', { name: 'Անշարժ գույքի տեսակ', exact: true });
+    const trigger = page.getByRole('button', { name: 'Հաշվետվությունների տեսակ', exact: true });
     await trigger.click();
-    const menu = page.getByRole('menu', { name: 'Անշարժ գույքի տեսակ' });
+    const menu = page.getByRole('menu', { name: 'Հաշվետվությունների տեսակ' });
     await menu.waitFor({ state: 'visible' });
     await menu.getByRole('menuitem', { name: 'Ավտոկայանատեղիներ', exact: true }).click();
     expect(await menu.isVisible()).toBe(false);

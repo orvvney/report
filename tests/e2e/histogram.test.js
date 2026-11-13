@@ -7,7 +7,7 @@ const months = () => histogram().getByRole('button', { name: 'Վաճառքի գ�
 const rooms = () => histogram().getByRole('button', { name: 'Սենյակներ', exact: true });
 const counts = () => histogram().getByRole('button', { name: 'Բն. քանակ', exact: true });
 const ready = () => page.getByTestId('statistics-count').waitFor();
-const refresh = () => page.getByRole('button', { name: 'Թարմացնել հաշվետվությունը', exact: true }).click();
+const refresh = () => page.getByRole('button', { name: 'Թարմացնել ամբողջ հաշվետվությունը', exact: true }).click();
 
 beforeEach(async () => {
   await page.clock.setFixedTime(new Date('2026-11-15T10:00:00Z'));

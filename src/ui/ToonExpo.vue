@@ -1,41 +1,42 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue';
-import ExpoPeriodFilter from './ExpoPeriodFilter.vue';
+import ExpoRecordsList from './ExpoRecordsList.vue';
 const snapshot = ref(null), loading = ref(false), failed = ref(false);
-const arrivalPage = ref(1), dealsPage = ref(1);
+const helpOpen = ref(null), listsExpanded = ref(false);
+const expoPeriod = reactive({ arrival: 'current', direct: 'current', deals: 'current' });
+const columnHelp = {
+  arrival: { id: 'expo-interested-help', label: 'Հետաքրքրված հաճախորդների մասին', text: 'Այս սյունակում ներկայացված են Տուն Էքսպոյից եկած հետաքրքրված հաճախորդները:' },
+  direct: { id: 'expo-direct-help', label: 'Անմիջապես գրանցված գործարքների մասին', text: 'Այս սյունակում ներկայացված են Տուն Էքսպոյից անմիջապես գրանցված գործարքները:' },
+  deals: { id: 'expo-converted-help', label: 'Հետաքրքրությունից գործարք դառնալու մասին', text: 'Այս սյունակում ներկայացված են հետաքրքրված հաճախորդներից ձևավորված գործարքները:' },
+};
 const emit = defineEmits(['loading']);
-const periods = reactive({ arrival: { ranges: [], invalid: false }, deals: { ranges: [], invalid: false } });
-function applyPeriod(key, value) {
-  periods[key] = value;
-  if (key === 'arrival') arrivalPage.value = 1;
-  else dealsPage.value = 1;
+const periods = reactive({ arrival: { ranges: [{ min: '2026-11-13', max: null }], invalid: false }, deals: { ranges: [{ min: '2026-11-13', max: null }], invalid: false }, direct: { ranges: [{ min: '2026-11-13', max: null }], invalid: false } });
+function selectExpoPeriod(key, value) {
+  expoPeriod[key] = value;
+  periods[key] = { ranges: [value === 'past' ? { min: null, max: '2026-11-12' } : { min: '2026-11-13', max: null }], invalid: false };
 }
 function selectRows(rows, key) {
   return rows.filter(row => periods[key].ranges.some(({ min, max }) => (!min || row.date >= min) && (!max || row.date <= max)));
 }
-const selected = computed(() => selectRows(snapshot.value?.leads || [], 'arrival'));
+const unconvertedLeads = computed(() => {
+  const convertedIds = new Set((snapshot.value?.deals || []).map(deal => Number(deal.leadId)));
+  return (snapshot.value?.leads || []).filter(lead => !convertedIds.has(Number(lead.id)));
+});
+const selected = computed(() => selectRows(unconvertedLeads.value, 'arrival'));
 const selectedDeals = computed(() => selectRows(snapshot.value?.deals || [], 'deals'));
-function groupDays(rows) {
-  const groups = new Map();
-  for (const row of rows) groups.set(row.date, (groups.get(row.date) || 0) + 1);
-  return [...groups].map(([date, count]) => ({ date, count })).sort((a, b) => a.date.localeCompare(b.date));
-}
+const selectedDirect = computed(() => selectRows(snapshot.value?.directDeals || [], 'direct'));
 const columns = computed(() => [
-  { key: 'arrival', title: 'Լիդերի մուտք', filterTitle: 'Լիդի ստեղծման ժամանակահատված', sourceRows: snapshot.value?.leads || [], rows: selected.value, page: arrivalPage.value },
-  { key: 'deals', title: 'Գործարքներ', filterTitle: 'Գործարքի ստեղծման ժամանակահատված', sourceRows: snapshot.value?.deals || [], rows: selectedDeals.value, page: dealsPage.value },
-].map(column => ({ ...column, days: groupDays(column.rows), peak: Math.max(1, ...groupDays(column.rows).map(day => day.count)), pages: Math.max(1, Math.ceil(column.rows.length / 25)),
-  visibleRows: [...column.rows].sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id).slice((column.page - 1) * 25, column.page * 25) })));
-function turnPage(key, delta) {
-  if (key === 'arrival') arrivalPage.value += delta;
-  else dealsPage.value += delta;
-}
+  { key: 'arrival', title: 'Հետաքրքրված հաճախորդներ', filterTitle: 'Ստեղծման ժամանակահատված', sourceRows: unconvertedLeads.value, rows: selected.value },
+  { key: 'direct', title: 'Անմիջապես գրանցված գործարքներ', filterTitle: 'Ստեղծման ժամանակահատված', sourceRows: snapshot.value?.directDeals || [], rows: selectedDirect.value },
+  { key: 'deals', title: 'Հետաքրքրությունից դեպի գործարք', filterTitle: 'Ստեղծման ժամանակահատված', sourceRows: snapshot.value?.deals || [], rows: selectedDeals.value },
+]);
 async function refresh(force = true) {
   if (loading.value) return;
   loading.value = true; emit('loading', true); failed.value = false; snapshot.value = null;
   try {
     const response = await fetch(`/api/toon-expo${force ? '?refresh=1' : ''}`, { cache: 'no-store' });
     if (!response.ok) throw new Error();
-    snapshot.value = await response.json(); arrivalPage.value = 1; dealsPage.value = 1;
+    snapshot.value = await response.json();
   } catch { failed.value = true; }
   finally { loading.value = false; emit('loading', false); }
 }
@@ -49,33 +50,43 @@ defineExpose({ refresh });
     <div v-else-if="failed" role="alert">Չհաջողվեց բեռնել Տուն Էքսպոյի տվյալները։ <button type="button" @click="refresh()">Կրկին փորձել</button></div>
     <div v-show="snapshot && !loading && !failed" class="expo-columns">
       <section v-for="column in columns" :key="column.key" class="expo-column" :aria-label="column.title">
-        <h3 class="expo-column-title">{{ column.title }}</h3>
-        <ExpoPeriodFilter :rows="column.sourceRows" :disabled="loading || failed || !snapshot"
-          :title="column.filterTitle" :id-prefix="`expo-${column.key}-`" @change="applyPeriod(column.key, $event)" />
+        <div class="expo-column-heading">
+          <div class="filter-title" @mouseenter="helpOpen = column.key"
+            @mouseleave="helpOpen = null" @keydown.esc="helpOpen = null">
+            <h3 class="expo-column-title">{{ column.title }}</h3>
+            <button type="button" class="filter-help" :aria-label="columnHelp[column.key].label" :aria-describedby="columnHelp[column.key].id"
+              @focus="helpOpen = column.key" @blur="helpOpen = null" @click="helpOpen = column.key">!</button>
+            <div v-show="helpOpen === column.key" :id="columnHelp[column.key].id" class="filter-help-tooltip" role="tooltip">{{ columnHelp[column.key].text }}</div>
+          </div>
+        </div>
+        <div class="expo-event-filter period-buttons" role="group" aria-label="Տուն Էքսպոյի ժամանակահատված">
+          <button type="button" :aria-pressed="expoPeriod[column.key] === 'past'" :disabled="loading || failed || !snapshot" @click="selectExpoPeriod(column.key, 'past')">Անցած Տուն Էքսպոներ</button>
+          <button type="button" :aria-pressed="expoPeriod[column.key] === 'current'" :disabled="loading || failed || !snapshot" @click="selectExpoPeriod(column.key, 'current')">Ներկայիս Տուն Էքսպո</button>
+        </div>
         <template v-if="!periods[column.key].invalid">
         <div class="expo-totals">
           <div v-if="column.key === 'arrival'"><strong data-testid="expo-leads">{{ selected.length }}</strong><span>Ստացված լիդեր</span></div>
-          <div v-else><strong data-testid="expo-deals">{{ selectedDeals.length }}</strong><span>Գործարքների քանակ</span></div>
+          <div v-else><strong :data-testid="column.key === 'deals' ? 'expo-deals' : 'expo-direct-deals'">{{ column.rows.length }}</strong><span>Գործարքների քանակ</span></div>
         </div>
-        <p class="expo-explanation">{{ column.key === 'arrival' ? 'Լիդերը խմբավորված են ըստ ստեղծման օրվա։' : 'Toon Expo աղբյուրով գործարքներ՝ ըստ գործարքի ստեղծման օրվա։ Հաշվի են առնվում բոլոր փուլերն ու ուղղությունները՝ անկախ լիդի հետ կապից։' }}</p>
-        <p v-if="!column.rows.length" role="status">{{ column.key === 'arrival' ? 'Ընտրված ժամանակահատվածում լիդեր չկան։' : 'Ընտրված ժամանակահատվածում գործարքներ չկան։' }}</p>
-        <template v-else>
-          <h3>{{ column.key === 'arrival' ? 'Մուտքն ըստ օրերի' : 'Գործարքներն ըստ օրերի' }}</h3>
-          <div class="expo-scroll" tabindex="0" :aria-label="`${column.title}՝ օրական վիճակագրություն`">
-            <table class="expo-daily"><thead><tr><th scope="col">Ամսաթիվ</th><th scope="col">{{ column.key === 'arrival' ? 'Լիդեր' : 'Գործարքներ' }}</th></tr></thead>
-              <tbody><tr v-for="day in column.days" :key="day.date"><td>{{ day.date }}</td><td><span class="expo-bar" :style="{ '--bar-width': `${day.count / column.peak * 100}%` }">{{ day.count }}</span></td></tr></tbody>
-            </table>
-          </div>
-          <h3>{{ column.key === 'arrival' ? 'Լիդերի ցանկ' : 'Գործարքների ցանկ' }} ({{ column.rows.length }})</h3>
-          <div class="expo-scroll" tabindex="0" :aria-label="`${column.title}՝ ցանկ`">
-            <table><thead><tr><th scope="col">{{ column.key === 'arrival' ? 'Լիդ' : 'Գործարք' }}</th><th scope="col">Ստեղծման ամսաթիվ</th></tr></thead>
-              <tbody><tr v-for="row in column.visibleRows" :key="row.id"><td><a :href="row.url" target="_blank" rel="noopener noreferrer">#{{ row.id }} · {{ row.title }}</a></td><td>{{ row.date }}</td></tr></tbody>
-            </table>
-          </div>
-          <nav v-if="column.pages > 1" class="expo-pagination" :aria-label="`${column.title}՝ էջեր`"><button :disabled="column.page === 1" @click="turnPage(column.key, -1)">Նախորդը</button><span>{{ column.page }} / {{ column.pages }}</span><button :disabled="column.page === column.pages" @click="turnPage(column.key, 1)">Հաջորդը</button></nav>
-        </template>
         </template>
       </section>
     </div>
+  <section class="deals-list expo-lists" aria-label="Տուն Էքսպո՝ ցանկ" :aria-busy="loading">
+    <div class="deals-list-header" @click="listsExpanded = !listsExpanded">
+      <h2><button type="button" class="deals-list-toggle" :aria-expanded="listsExpanded" aria-controls="expo-lists-content" @click.stop="listsExpanded = !listsExpanded">Ցանկ</button></h2>
+      <span class="deals-list-count">{{ loading || failed ? '—' : columns.reduce((sum, column) => sum + (periods[column.key].invalid ? 0 : column.rows.length), 0) }}</span>
+      <svg class="deals-list-chevron" :class="{ 'is-expanded': listsExpanded }" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m4 6 4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+    </div>
+    <div v-show="listsExpanded" id="expo-lists-content" class="deals-list-content">
+      <p v-if="loading" class="kpi-notice" role="status">Տվյալները բեռնվում են…</p>
+      <p v-else-if="failed" class="kpi-notice" role="status">Տվյալներն անհասանելի են։</p>
+      <div v-else-if="snapshot" class="expo-records-columns">
+        <template v-for="column in columns" :key="column.key">
+          <ExpoRecordsList v-if="!periods[column.key].invalid" :rows="column.rows" :title="column.title" :filters="periods[column.key]" />
+          <section v-else class="expo-records" :aria-label="`${column.title}՝ ցանկ`"><h3 class="expo-records-heading">{{ column.title }}</h3><p class="kpi-notice">Ուղղեք ժամանակահատվածի սխալը։</p></section>
+        </template>
+      </div>
+    </div>
+  </section>
   </section>
 </template>

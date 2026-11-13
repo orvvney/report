@@ -2,7 +2,7 @@ const fs = require('node:fs');
 const { createServer } = require('../../server.js');
 const { createFixture, deal } = require('../support/crm-fixture.cjs');
 let fixture, server, url, release;
-const refresh = () => page.getByRole('button', { name: 'Թարմացնել հաշվետվությունը', exact: true });
+const refresh = () => page.getByRole('button', { name: 'Թարմացնել ամբողջ հաշվետվությունը', exact: true });
 const ready = async () => { await page.getByTestId('statistics-count').waitFor(); };
 async function reloadReport() { await refresh().click(); await ready(); }
 beforeEach(async () => {
@@ -545,7 +545,7 @@ test.each([1440, 375])('filters precede charts with reset and without panel scro
   expect(await page.getByRole('button', { name: 'Բն. քանակ', exact: true }).evaluate(el => el === document.activeElement)).toBe(true);
   // Header actions precede the filters in keyboard order.
   await refresh().focus(); await page.keyboard.press('Tab');
-  expect(await page.getByRole('button', { name: 'Անշարժ գույքի տեսակ', exact: true }).evaluate(el => el === document.activeElement)).toBe(true);
+  expect(await page.getByRole('button', { name: 'Հաշվետվությունների տեսակ', exact: true }).evaluate(el => el === document.activeElement)).toBe(true);
   await page.keyboard.press('Tab');
   expect(await page.getByRole('button', { name: 'Զտիչների մասին', exact: true }).evaluate(el => el === document.activeElement)).toBe(true);
   await page.keyboard.press('Tab');

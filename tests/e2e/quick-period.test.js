@@ -58,7 +58,7 @@ test('quick memory is independent of manual choices, updates its relative date a
   await button('Ամիսներ').click(); expect(await button('Մարտ').getAttribute('aria-pressed')).toBe('true'); await page.keyboard.press('Escape');
   await period().selectOption('quick'); expect(await quick().inputValue()).toBe('previous-month');
   fixture.state.time = '2027-01-15T10:00:00Z'; await page.clock.setFixedTime(new Date(fixture.state.time));
-  await button('Թարմացնել հաշվետվությունը').click(); await ready();
+  await button('Թարմացնել ամբողջ հաշվետվությունը').click(); await ready();
   expect(await quick().inputValue()).toBe('previous-month');
   expect(await page.locator('.histogram-year-legend').getByText('Ընտրված՝ 01.12.2026 – 31.12.2026', { exact: true }).isVisible()).toBe(true); await count(0);
   await button('Վերականգնել').click(); expect(await period().inputValue()).toBe('year'); expect(await year().inputValue()).toBe('2027');
