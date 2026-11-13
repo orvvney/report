@@ -9,7 +9,7 @@ const columnHelp = {
   direct: { id: 'expo-direct-help', label: 'Անմիջապես գրանցված գործարքների մասին', text: 'Այս սյունակում ներկայացված են Տուն Էքսպոյից անմիջապես գրանցված գործարքները:' },
   deals: { id: 'expo-converted-help', label: 'Հետաքրքրությունից գործարք դառնալու մասին', text: 'Այս սյունակում ներկայացված են հետաքրքրված հաճախորդներից ձևավորված գործարքները:' },
 };
-const emit = defineEmits(['loading']);
+const emit = defineEmits(['loading', 'expired']);
 const periods = reactive({ arrival: { ranges: [{ min: '2026-11-13', max: null }], invalid: false }, deals: { ranges: [{ min: '2026-11-13', max: null }], invalid: false }, direct: { ranges: [{ min: '2026-11-13', max: null }], invalid: false } });
 function selectExpoPeriod(key, value) {
   expoPeriod[key] = value;
@@ -35,6 +35,7 @@ async function refresh(force = true) {
   loading.value = true; emit('loading', true); failed.value = false; snapshot.value = null;
   try {
     const response = await fetch(`/api/toon-expo${force ? '?refresh=1' : ''}`, { cache: 'no-store' });
+    if (response.status === 401) { emit('expired'); return; }
     if (!response.ok) throw new Error();
     snapshot.value = await response.json();
   } catch { failed.value = true; }

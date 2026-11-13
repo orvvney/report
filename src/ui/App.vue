@@ -16,6 +16,8 @@ import ReportHeader from './ReportHeader.vue';
 const { periods, quickPeriods, quickSelection, calendarContext, defaultSelection, initialSelections, reconcileSelections, togglePeriodValue, periodRanges } = calendar;
 const { formatAmountInput, ungroupAmount } = amountInput;
 const { roomOptions, reconcileRooms, toggleRoom, validateRange } = filters;
+defineProps({ account: { type: String, default: '' } });
+const emit = defineEmits(['logout', 'expired']);
 const report = ref(null), loading = ref(false), failed = ref(false);
 const filterHelpOpen = ref(false);
 const activeSection = ref(window.location.hash === '#toon-expo' ? 'expo' : 'apartments');
@@ -172,6 +174,7 @@ async function refresh(force = true) {
   monthPicker.value?.close(); report.value = null; failed.value = false; loading.value = true;
   try {
     const response = await fetch(force ? '/api/report?refresh=1' : '/api/report', { cache: 'no-store' });
+    if (response.status === 401) { emit('expired'); return; }
     if (!response.ok) throw new Error();
     const snapshot = await response.json();
     const available = roomOptions(snapshot.deals);
@@ -189,9 +192,9 @@ onMounted(() => refresh(false));
 <template>
   <main class="report-page">
     <section aria-label="Գործարքների հաշվետվություն" class="report-shell">
-      <ReportHeader :section="activeSection" :loading="activeSection === 'expo' ? expoLoading : loading"
+      <ReportHeader :account="account" @logout="emit('logout')" :section="activeSection" :loading="activeSection === 'expo' ? expoLoading : loading"
         @refresh="activeSection === 'expo' ? expoPanel?.refresh() : refresh()" @navigate="selectPropertyType" />
-      <ToonExpo v-if="expoVisited" v-show="activeSection === 'expo'" ref="expoPanel" @loading="expoLoading = $event" />
+      <ToonExpo v-if="expoVisited" v-show="activeSection === 'expo'" ref="expoPanel" @loading="expoLoading = $event" @expired="emit('expired')" />
       <div v-show="activeSection !== 'expo'">
       <div ref="filterContainer" class="filter-container">
       <div class="report-top-panels" :class="{ 'top-wide': wideKpi }">

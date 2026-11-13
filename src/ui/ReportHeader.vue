@@ -2,8 +2,8 @@
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import milonLogo from '../../images/logo_milon.png';
 import resetIcon from '../../images/reset.png';
-const props = defineProps({ loading: Boolean, section: { type: String, default: 'apartments' } });
-const emit = defineEmits(['refresh', 'navigate']);
+const props = defineProps({ loading: Boolean, account: { type: String, default: '' }, section: { type: String, default: 'apartments' } });
+const emit = defineEmits(['refresh', 'navigate', 'logout']);
 const header = ref(null), propertyMenu = ref(null), wide = ref(false);
 let observer, tooltipTimer;
 const tooltip = ref(null);
@@ -31,7 +31,7 @@ onBeforeUnmount(() => { observer?.disconnect(); hideTooltip(); });
 </script>
 
 <template>
-      <header class="report-header" :class="{ 'header-wide': wide, 'header-with-subtitle': section === 'apartments' || section === 'expo' }" ref="header">
+      <header class="report-header" :class="{ 'header-with-account': !!account, 'header-wide': wide, 'header-with-subtitle': section === 'apartments' || section === 'expo' }" ref="header">
         <div class="report-header-row">
           <div class="report-brand">
             <img :src="milonLogo" alt="Milon Mining" class="report-logo">
@@ -42,6 +42,7 @@ onBeforeUnmount(() => { observer?.disconnect(); hideTooltip(); });
             <p v-if="section === 'apartments' || section === 'expo'" class="report-header-subtitle"><span>{{ section === 'expo' ? 'Տուն Էքսպո' : 'Կնքված բնակարաններ' }}</span></p>
           </div>
           <div class="header-actions">
+            <button v-if="account" type="button" class="logout-button" :title="account" @click="emit('logout')">Ելք</button>
             <span class="header-tooltip-anchor" @pointerenter="event => { if (event.pointerType === 'mouse') showTooltip('refresh'); }" @pointerleave="hideTooltip">
             <button type="button" class="refresh-button header-icon-button" aria-label="Թարմացնել ամբողջ հաշվետվությունը" :aria-describedby="tooltip === 'refresh' ? 'refresh-tooltip' : undefined" @focus="showTooltip('refresh')" @blur="hideTooltip" @keydown.esc="hideTooltip"
               :disabled="loading" @click="hideTooltip(); emit('refresh')"><span class="filter-icon reset-icon" :style="{ maskImage: `url(${resetIcon})` }" aria-hidden="true"></span></button>

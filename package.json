@@ -29,6 +29,11 @@
   },
   "dependencies": {
     "@lucide/vue": "1.70.0",
-    "vue": "3.5.44"
+    "vue": "3.5.44",
+    "express": "4.22.3",
+    "google-auth-library": "10.9.1",
+    "helmet": "8.1.0",
+    "otplib": "12.0.1",
+    "qrcode": "1.5.4"
   }
 }
