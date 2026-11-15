@@ -88,20 +88,34 @@ test('the report stays closed until Google and Authenticator pass, and the accou
   expect(await page.locator('.login-card').count()).toBe(0);
   expect(fs.existsSync(path.join(dataDir, 'auth-users.enc'))).toBe(true);
 
-  const logout = page.getByRole('button', { name: 'Ելք', exact: true });
-  expect(await logout.getAttribute('title')).toBe(ALLOWED);
-  const frame = await page.locator('.header-actions').boundingBox();
-  const refresh = await page.getByRole('button', { name: 'Թարմացնել ամբողջ հաշվետվությունը', exact: true }).boundingBox();
-  expect(refresh.x).toBeGreaterThan(frame.x);
-  expect(await logout.boundingBox()).toMatchObject({ height: refresh.height });
-  await page.screenshot({ path: 'test-results/login-report.png' });
-  for (const width of [320, 390]) {
+  const menu = page.getByRole('menu', { name: 'Հաշվետվությունների տեսակ' });
+  const logout = menu.getByRole('menuitem', { name: 'Ելք', exact: true });
+  for (const width of [1440, 320, 390]) {
     await page.setViewportSize({ width, height: 900 });
     await page.waitForFunction(() => document.documentElement.scrollWidth <= innerWidth);
+    expect(await logout.isVisible()).toBe(false);
+    expect(await page.locator('.header-actions > button').count()).toBe(0);
+    await page.getByRole('button', { name: 'Հաշվետվությունների տեսակ', exact: true }).click();
     expect(await logout.isVisible()).toBe(true);
+    expect(await logout.getAttribute('title')).toBe(ALLOWED);
+    expect(await menu.getByRole('menuitem').allTextContents()).toEqual([
+      'Կնքված բնակարաններ', 'Կնքված կայանատեղիներ', 'Տուն Էքսպո', 'Ելք',
+    ]);
+    const divider = menu.getByRole('separator');
+    expect(await divider.isVisible()).toBe(true);
+    const line = await divider.boundingBox();
+    const lastSection = await menu.getByRole('menuitem', { name: 'Տուն Էքսպո', exact: true }).boundingBox();
+    const exit = await logout.boundingBox();
+    expect(line.y).toBeGreaterThanOrEqual(lastSection.y + lastSection.height);
+    expect(exit.y).toBeGreaterThan(line.y + line.height);
+    expect(exit.x).toBeGreaterThanOrEqual(0);
+    expect(exit.x + exit.width).toBeLessThanOrEqual(width);
+    expect(await divider.evaluate(el => getComputedStyle(el).borderTopWidth)).toBe('1px');
+    await page.screenshot({ path: `test-results/logout-menu-${width}.png` });
+    await page.keyboard.press('Escape');
   }
 
-
+  await page.getByRole('button', { name: 'Հաշվետվությունների տեսակ', exact: true }).click();
   await logout.click();
   await card().waitFor({ state: 'visible' });
   expect((await page.request.get(`${url}/api/report`)).status()).toBe(401);

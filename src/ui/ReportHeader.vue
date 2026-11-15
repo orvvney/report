@@ -21,6 +21,10 @@ function selectSection(section) {
   propertyMenu.value?.hidePopover();
   emit('navigate', section);
 }
+function logout() {
+  propertyMenu.value?.hidePopover();
+  emit('logout');
+}
 onMounted(() => {
   const measure = () => { wide.value = header.value.clientWidth >= 1100; };
   measure();
@@ -31,7 +35,7 @@ onBeforeUnmount(() => { observer?.disconnect(); hideTooltip(); });
 </script>
 
 <template>
-      <header class="report-header" :class="{ 'header-with-account': !!account, 'header-wide': wide, 'header-with-subtitle': section === 'apartments' || section === 'expo' }" ref="header">
+      <header class="report-header" :class="{ 'header-wide': wide, 'header-with-subtitle': section === 'apartments' || section === 'expo' }" ref="header">
         <div class="report-header-row">
           <div class="report-brand">
             <img :src="milonLogo" alt="Milon Mining" class="report-logo">
@@ -42,7 +46,6 @@ onBeforeUnmount(() => { observer?.disconnect(); hideTooltip(); });
             <p v-if="section === 'apartments' || section === 'expo'" class="report-header-subtitle"><span>{{ section === 'expo' ? 'Տուն Էքսպո' : 'Կնքված բնակարաններ' }}</span></p>
           </div>
           <div class="header-actions">
-            <button v-if="account" type="button" class="logout-button" :title="account" @click="emit('logout')">Ելք</button>
             <span class="header-tooltip-anchor" @pointerenter="event => { if (event.pointerType === 'mouse') showTooltip('refresh'); }" @pointerleave="hideTooltip">
             <button type="button" class="refresh-button header-icon-button" aria-label="Թարմացնել ամբողջ հաշվետվությունը" :aria-describedby="tooltip === 'refresh' ? 'refresh-tooltip' : undefined" @focus="showTooltip('refresh')" @blur="hideTooltip" @keydown.esc="hideTooltip"
               :disabled="loading" @click="hideTooltip(); emit('refresh')"><span class="filter-icon reset-icon" :style="{ maskImage: `url(${resetIcon})` }" aria-hidden="true"></span></button>
@@ -58,6 +61,10 @@ onBeforeUnmount(() => { observer?.disconnect(); hideTooltip(); });
               <button type="button" role="menuitem" @click="selectSection('apartments')">Կնքված բնակարաններ</button>
               <button type="button" role="menuitem" @click="selectSection('parking')">Կնքված կայանատեղիներ</button>
               <button type="button" role="menuitem" @click="selectSection('expo')">Տուն Էքսպո</button>
+              <template v-if="account">
+                <div class="property-menu-divider" role="separator"></div>
+                <button type="button" role="menuitem" :title="account" @click="logout">Ելք</button>
+              </template>
             </div>
           </div>
         </div>

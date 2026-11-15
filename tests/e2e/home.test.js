@@ -228,6 +228,7 @@ describe('home page', () => {
     const menu = page.getByRole('menu', { name: 'Հաշվետվությունների տեսակ' });
     await menu.waitFor({ state: 'visible' });
     expect(await menu.getByRole('menuitem').allTextContents()).toEqual(['Կնքված բնակարաններ', 'Կնքված կայանատեղիներ', 'Տուն Էքսպո']);
+    expect(await menu.getByRole('separator').count()).toBe(0);
     expect(await menu.getByRole('menuitem').evaluateAll(els => els.map(el => getComputedStyle(el).fontSize))).toEqual(Array(3).fill('15px'));
     await menu.getByRole('menuitem', { name: 'Կնքված կայանատեղիներ', exact: true }).click();
     expect(await menu.isVisible()).toBe(false);

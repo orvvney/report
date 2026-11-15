@@ -377,6 +377,7 @@ dialog::backdrop { background: rgb(29 40 62 / 45%); }
 .property-menu { position: fixed; position-anchor: --property-menu-trigger; inset: auto; top: anchor(bottom); right: anchor(right); margin: 8px 0 0; padding: 6px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--ink); box-shadow: var(--card-shadow); }
 .property-menu button { font-size: 15px; display: block; width: 100%; padding: 10px 14px; text-align: left; }
 .property-menu button:hover, .property-menu button[aria-checked="true"] { background: var(--brand-tint); }
+.property-menu-divider { margin: 6px 0; border-top: 1px solid var(--border); }
 .report-header:not(.header-wide) .header-actions { grid-column: 1; grid-row: 3; }
 
 .report-header:not(.header-wide) .report-header-row { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; }
@@ -468,12 +469,6 @@ dialog::backdrop { background: rgb(29 40 62 / 45%); }
 .expo-panel > .expo-lists { margin-top: 24px; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .expo-panel > .expo-lists > .deals-list-content { padding: 0; }
 
-.logout-button { height: 40px; padding: 0 12px; border: 1px solid #cbd5e1; border-radius: 8px; background: white; color: #334155; cursor: pointer; font: inherit; }
-.logout-button:hover { background: #f1f5f9; }
-.logout-button:focus-visible { outline: 2px solid #00a387; outline-offset: 2px; }
-
-.report-header.header-with-account:not(.header-wide) .header-actions { grid-column: 1 / -1; grid-row: 3; }
-
 /* Each Expo list belongs to its summary column, including the stacked layout. */
 .expo-column > .expo-lists { margin-top: 24px; }
 .expo-column .expo-records { padding: 0; }
@@ -494,8 +489,7 @@ dialog::backdrop { background: rgb(29 40 62 / 45%); }
   .report-header.header-with-subtitle:not(.header-wide) .report-header-copy { display: flex; flex-direction: column; align-items: center; grid-column: 2; grid-row: 1; width: 100%; }
   .report-header:not(.header-wide) h1 { font-size: 18px; white-space: nowrap; }
   .report-header .report-header-subtitle { display: none; }
-  .report-header:not(.header-wide) .header-actions,
-  .report-header.header-with-account:not(.header-wide) .header-actions { position: static; gap: 4px; grid-column: 3; grid-row: 1; }
+  .report-header:not(.header-wide) .header-actions { position: static; gap: 4px; grid-column: 3; grid-row: 1; }
 
   .filter-row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 8px; padding-inline: 16px; }
   .filter-row fieldset { grid-column: 1 / -1; }
@@ -528,8 +522,6 @@ dialog::backdrop { background: rgb(29 40 62 / 45%); }
   .expo-records-content .deals-list-scroll { margin-top: 0; }
   .expo-records-content { display: none; }
   .expo-records-content.is-expanded { display: block; }
-  .report-header.header-with-account:not(.header-wide) .header-actions { flex-wrap: wrap; justify-content: flex-end; }
-  .report-header .logout-button { height: 24px; padding: 0 4px; font-size: 11px; }
   .expo-column-heading .filter-help { position: static; transform: none; }
 }
 
