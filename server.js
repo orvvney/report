@@ -54,7 +54,7 @@ function createStaticHandler({ distPath, liveReload }) {
 }
 
 // Инлайн-скрипт автообновления существует только в режиме разработки.
-function createPolicy({ liveReload }) {
+function createPolicy({ liveReload, secureCookies }) {
   return helmet({
     contentSecurityPolicy: {
       directives: {
@@ -67,6 +67,8 @@ function createPolicy({ liveReload }) {
         objectSrc: ["'none'"],
         baseUri: ["'none'"],
         frameAncestors: ["'none'"],
+        // HTTP over Wi-Fi must load assets over HTTP as well.
+        upgradeInsecureRequests: secureCookies ? [] : null,
       },
     },
     crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
@@ -86,7 +88,7 @@ function createServer({ distPath = path.join(__dirname, 'dist'), dataDir = path.
   app.set('strict routing', true);
   app.set('case sensitive routing', true);
   app.set('trust proxy', 'loopback');
-  app.use(createPolicy({ liveReload }));
+  app.use(createPolicy({ liveReload, secureCookies: authConfig?.secureCookies }));
 
   if (authConfig) {
     app.use((request, response, next) => {
@@ -143,7 +145,7 @@ if (require.main === module) {
       console.error(`Не удалось запустить HTTP-сервер: ${error.code || 'ошибка запуска'}.`);
       process.exitCode = 1;
     });
-    server.listen(Number(port), '127.0.0.1', () => {
+    server.listen(Number(port), '0.0.0.0', () => {
       console.log(`Сайт доступен: http://127.0.0.1:${port}${auth ? ' (вход через Google и Authenticator)' : ''}`);
     });
   }

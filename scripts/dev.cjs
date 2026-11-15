@@ -71,7 +71,7 @@ if (require.main === module) {
       for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, async () => {
         await close(); process.exit(0);
       });
-      server.listen(Number(port), '127.0.0.1', () => {
+      server.listen(Number(port), '0.0.0.0', () => {
         console.log(`Автообновление включено: http://127.0.0.1:${port}`);
       });
     }).catch((error) => { console.error(error.message); process.exitCode = 1; });

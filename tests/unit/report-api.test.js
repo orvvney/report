@@ -12,6 +12,17 @@ async function start(options) {
 }
 afterEach(async () => { if (server?.listening) await new Promise((resolve) => server.close(resolve)); });
 
+test.each([false, true])('HTTPS asset upgrades follow the configured HTTPS mode (%s)', async (secureCookies) => {
+  const fixture = createFixture();
+  await start({ ...fixture, auth: secureCookies ? {
+    publicOrigin: 'https://report.example', secureCookies: true,
+    googleClientId: 'test-client', allowedEmails: new Set(['test@example.com']),
+    encryptionSecret: 'test-secret-at-least-32-characters-long',
+  } : null });
+  const response = await fetch(base);
+  expect(response.headers.get('content-security-policy').includes('upgrade-insecure-requests')).toBe(secureCookies);
+});
+
 test('resolves dynamic property metadata and includes apartments on later pages only', async () => {
   const fixture = createFixture({ items: Array.from({ length: 51 }, (_, i) => deal(i + 1, {
     ufCrmCustomType: i === 50 ? 801 : '802', ufCrmRooms: i === 50 ? 3 : 20,
