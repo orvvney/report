@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import ExpoRecordsList from './ExpoRecordsList.vue';
 const snapshot = ref(null), loading = ref(false), failed = ref(false);
-const helpOpen = ref(null), listsExpanded = ref(false);
+const helpOpen = ref(null);
 const expoPeriod = reactive({ arrival: 'current', direct: 'current', deals: 'current' });
 const columnHelp = {
   arrival: { id: 'expo-interested-help', label: 'Հետաքրքրված հաճախորդների մասին', text: 'Այս սյունակում ներկայացված են Տուն Էքսպոյից եկած հետաքրքրված հաճախորդները:' },
@@ -66,25 +66,20 @@ defineExpose({ refresh });
         </div>
         <template v-if="!periods[column.key].invalid">
         <div class="expo-totals">
-          <div v-if="column.key === 'arrival'"><strong data-testid="expo-leads">{{ selected.length }}</strong><span>Ստացված լիդեր</span></div>
-          <div v-else><strong :data-testid="column.key === 'deals' ? 'expo-deals' : 'expo-direct-deals'">{{ column.rows.length }}</strong><span>Գործարքների քանակ</span></div>
+          <div v-if="column.key === 'arrival'"><strong data-testid="expo-leads">{{ selected.length }}</strong></div>
+          <div v-else><strong :data-testid="column.key === 'deals' ? 'expo-deals' : 'expo-direct-deals'">{{ column.rows.length }}</strong></div>
         </div>
         </template>
       </section>
     </div>
   <section class="deals-list expo-lists" aria-label="Տուն Էքսպո՝ ցանկ" :aria-busy="loading">
-    <div class="deals-list-header" @click="listsExpanded = !listsExpanded">
-      <h2><button type="button" class="deals-list-toggle" :aria-expanded="listsExpanded" aria-controls="expo-lists-content" @click.stop="listsExpanded = !listsExpanded">Ցանկ</button></h2>
-      <span class="deals-list-count">{{ loading || failed ? '—' : columns.reduce((sum, column) => sum + (periods[column.key].invalid ? 0 : column.rows.length), 0) }}</span>
-      <svg class="deals-list-chevron" :class="{ 'is-expanded': listsExpanded }" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m4 6 4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
-    </div>
-    <div v-show="listsExpanded" id="expo-lists-content" class="deals-list-content">
+    <div id="expo-lists-content" class="deals-list-content">
       <p v-if="loading" class="kpi-notice" role="status">Տվյալները բեռնվում են…</p>
       <p v-else-if="failed" class="kpi-notice" role="status">Տվյալներն անհասանելի են։</p>
       <div v-else-if="snapshot" class="expo-records-columns">
         <template v-for="column in columns" :key="column.key">
           <ExpoRecordsList v-if="!periods[column.key].invalid" :rows="column.rows" :title="column.title" :filters="periods[column.key]" />
-          <section v-else class="expo-records" :aria-label="`${column.title}՝ ցանկ`"><h3 class="expo-records-heading">{{ column.title }}</h3><p class="kpi-notice">Ուղղեք ժամանակահատվածի սխալը։</p></section>
+          <section v-else class="expo-records" :aria-label="`${column.title}՝ ցանկ`"><p class="kpi-notice">Ուղղեք ժամանակահատվածի սխալը։</p></section>
         </template>
       </div>
     </div>

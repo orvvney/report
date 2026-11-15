@@ -396,7 +396,7 @@ dialog::backdrop { background: rgb(29 40 62 / 45%); }
 .expo-panel :focus-visible { outline: 2px solid var(--brand-strong); outline-offset: 3px; }
 .expo-panel [role=alert] { color: var(--danger); }
 .expo-totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
-.expo-totals > div { padding: 20px; border-radius: 12px; background: var(--brand-tint); }
+.expo-totals > div { padding: 20px; border-radius: 12px; background: var(--brand-tint); text-align: center; }
 .expo-totals strong { display: block; font-size: 32px; font-variant-numeric: tabular-nums; }
 .expo-totals span { display: block; margin-top: 8px; font-size: 13px; }
 .expo-explanation { margin-block: 20px; }
@@ -414,7 +414,7 @@ dialog::backdrop { background: rgb(29 40 62 / 45%); }
 @media (max-width: 600px) { .expo-panel { padding: 16px; } }
 
 .expo-columns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.expo-column { min-width: 0; padding-inline: 16px; }
+.expo-column { container-type: inline-size; container-name: expo-column; min-width: 0; padding-inline: 16px; }
 .expo-column + .expo-column { border-left: 1px solid var(--border); padding-left: 16px; }
 .expo-column .expo-column-title { display: grid; align-items: center; min-height: 54px; margin: 0 0 20px; font-size: 18px; text-align: center; }
 @media (max-width: 900px) {
@@ -434,8 +434,9 @@ dialog::backdrop { background: rgb(29 40 62 / 45%); }
 .header-tooltip-anchor { position: relative; display: inline-flex; }
 .header-tooltip { position: absolute; top: calc(100% + 8px); right: 0; z-index: 30; width: max-content; max-width: min(280px, calc(100vw - 32px)); padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--ink); box-shadow: var(--card-shadow); font-size: 12px; line-height: 1.5; font-weight: 400; text-align: left; pointer-events: none; }
 
-.expo-column-heading { display: flex; justify-content: center; min-height: 54px; margin-bottom: 20px; }
-.expo-column-heading .expo-column-title { margin: 0; }
+.expo-column-heading { display: flex; align-items: flex-end; justify-content: center; min-height: 54px; margin-bottom: 24px; }
+.expo-column-heading .filter-title { min-width: 0; max-width: calc(100% - 40px); }
+.expo-column-heading .expo-column-title { min-width: 0; min-height: 0; margin: 0; overflow-wrap: anywhere; }
 .expo-column-heading .filter-help { position: absolute; left: calc(100% + 6px); top: 50%; transform: translateY(-50%); flex-shrink: 0; }
 
 .expo-column-heading .filter-help-tooltip { left: 50%; transform: translateX(-50%); }
@@ -449,7 +450,6 @@ dialog::backdrop { background: rgb(29 40 62 / 45%); }
 .expo-records-columns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .expo-records { min-width: 0; padding-inline: 16px; }
 .expo-records + .expo-records { border-left: 1px solid var(--border); }
-.expo-records-heading { min-height: 54px; display: flex; justify-content: center; align-items: center; gap: 8px; margin: 0 0 20px; text-align: center; font-size: 14px; font-weight: 600; }
 .expo-records .deals-list-scroll { margin-top: 12px; }
 @media (max-width: 900px) {
   .expo-records-columns { grid-template-columns: minmax(0, 1fr); }
@@ -457,11 +457,13 @@ dialog::backdrop { background: rgb(29 40 62 / 45%); }
   .expo-records + .expo-records { border-left: 0; border-top: 1px solid var(--border); padding: 24px 0; }
 }
 
-.expo-event-filter { --filter-control-size: 32px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-self: start; width: min(100%, 360px); margin: 0 auto 24px; gap: 8px; }
-.expo-event-filter button { min-height: 64px; }
+.expo-event-filter { --filter-control-size: 32px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-self: start; width: min(100%, 448px); margin: 0 auto 24px; gap: 8px; }
+.expo-event-filter button { width: 100%; min-height: 64px; font-size: 14px; white-space: nowrap; }
+@container expo-column (max-width: 447px) {
+  .expo-event-filter { grid-template-columns: minmax(0, 1fr); width: min(100%, 220px); }
+}
 
-.expo-panel > .expo-lists { margin-top: 24px; border: 0; border-top: 1px solid var(--border); border-radius: 0; background: transparent; box-shadow: none; }
-.expo-panel > .expo-lists > .deals-list-header { padding-inline: 0; }
+.expo-panel > .expo-lists { margin-top: 24px; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .expo-panel > .expo-lists > .deals-list-content { padding: 0; }
 
 .logout-button { height: 40px; padding: 0 12px; border: 1px solid #cbd5e1; border-radius: 8px; background: white; color: #334155; cursor: pointer; font: inherit; }

@@ -59,9 +59,16 @@ function createExpoLoader({ env = process.env, envPath = path.resolve(__dirname,
         throw new Error('Source directory entry is missing or ambiguous');
       }
       const sourceId = matches[0].STATUS_ID;
+      const stageDirectories = new Map();
       const normalize = (row, entity) => {
         const id = idOf(row.ID);
-        return { id, title: String(row.TITLE || `#${id}`), date: dateOf(row.DATE_CREATE), url: `${origin}/crm/${entity}/details/${id}/` };
+        const stageId = entity === 'lead' ? row.STATUS_ID : row.STAGE_ID;
+        const categoryId = Number(row.CATEGORY_ID ?? 0);
+        if (entity === 'deal' && (!Number.isSafeInteger(categoryId) || categoryId < 0)) throw new Error('Invalid category');
+        const result = { id, title: String(row.TITLE || `#${id}`), date: dateOf(row.DATE_CREATE), url: `${origin}/crm/${entity}/details/${id}/`,
+          stageId: typeof stageId === 'string' && stageId.trim() ? stageId : null, stageName: null };
+        stageDirectories.set(result, entity === 'lead' ? 'STATUS' : categoryId === 0 ? 'DEAL_STAGE' : `DEAL_STAGE_${categoryId}`);
+        return result;
       };
       const select = ['ID', 'TITLE', 'SOURCE_ID', 'DATE_CREATE'];
       const checkSource = row => {
@@ -69,11 +76,11 @@ function createExpoLoader({ env = process.env, envPath = path.resolve(__dirname,
         return row;
       };
       const fullName = row => [row.NAME, row.LAST_NAME].filter(value => typeof value === 'string').map(value => value.trim()).filter(Boolean).join(' ') || null;
-      const leads = (await list(call, 'crm.lead.list', { '=SOURCE_ID': sourceId }, [...select, 'NAME', 'LAST_NAME']))
-        .map(row => ({ ...normalize(checkSource(row), 'lead'), customerName: fullName(row) }));
+      const leads = (await list(call, 'crm.lead.list', { '=SOURCE_ID': sourceId }, [...select, 'NAME', 'LAST_NAME', 'STATUS_ID']))
+        .map(row => Object.assign(normalize(checkSource(row), 'lead'), { customerName: fullName(row) }));
       const leadNames = new Map(leads.map(row => [row.id, row.customerName]));
       const leadIdOf = row => [undefined, null, '', 0, '0'].includes(row.LEAD_ID) ? null : idOf(row.LEAD_ID);
-      const dealSelect = [...select, 'LEAD_ID', 'CONTACT_ID'];
+      const dealSelect = [...select, 'LEAD_ID', 'CONTACT_ID', 'STAGE_ID', 'CATEGORY_ID'];
       const sourceDeals = await list(call, 'crm.deal.list', { '=SOURCE_ID': sourceId }, dealSelect);
       const directDeals = sourceDeals.map(checkSource).filter(row => leadIdOf(row) === null).map(row => normalize(row, 'deal'));
       const contactNames = directDeals.map(row => ({ id: row.id }));
@@ -87,11 +94,22 @@ function createExpoLoader({ env = process.env, envPath = path.resolve(__dirname,
         for (const row of linked) {
           const leadId = leadIdOf(row);
           if (!allowed.has(leadId)) throw new Error('Unexpected lead relation');
-          deals.push({ ...normalize(row, 'deal'), leadId, customerName: leadNames.get(leadId) });
+          deals.push(Object.assign(normalize(row, 'deal'), { leadId, customerName: leadNames.get(leadId) }));
         }
       }
       const convertedLeadIds = new Set(deals.map(deal => deal.leadId));
-      state.body = { sourceId, leads: leads.filter(lead => !convertedLeadIds.has(lead.id)), deals, directDeals, updatedAt: now().toISOString() };
+      const unconvertedLeads = leads.filter(lead => !convertedLeadIds.has(lead.id));
+      const stageNames = new Map();
+      for (const row of [...unconvertedLeads, ...directDeals, ...deals]) {
+        if (!row.stageId) continue;
+        const entityId = stageDirectories.get(row);
+        if (!stageNames.has(entityId)) {
+          const directory = await call('crm.status.list', { filter: { ENTITY_ID: entityId } });
+          stageNames.set(entityId, new Map(directory.result.map(stage => [stage.STATUS_ID, typeof stage.NAME === 'string' ? stage.NAME.trim() : null])));
+        }
+        row.stageName = stageNames.get(entityId).get(row.stageId) || null;
+      }
+      state.body = { sourceId, leads: unconvertedLeads, deals, directDeals, updatedAt: now().toISOString() };
       state.at = now().getTime();
       return { status: 200, body: state.body };
     } catch { return { status: 502, body: { error: 'CRM_READ_ERROR' } }; }
