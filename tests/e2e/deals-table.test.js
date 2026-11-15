@@ -59,7 +59,7 @@ test('collapsed block follows charts; exact columns and deal links; 25-row pages
   await toggle().focus(); await page.keyboard.press('Enter');
   expect(await rows().count()).toBe(25);
   expect(await ids()).toEqual(Array.from({ length: 25 }, (_, i) => 51 - i));
-  expect(await block().getByRole('columnheader').allTextContents()).toEqual([
+  expect(await block().getByRole('columnheader').allInnerTexts()).toEqual([
     'Հաճախորդ ↕', 'Կնքման ամսաթիվ ↓', 'Համալիր ↕', 'Մուտք ↕', 'Հարկ ↕',
     'Համար ↕', 'Սենյակ ↕', 'Մակերես (մ²) ↕', 'Արժեք (֏) ↕',
   ]);
@@ -196,12 +196,35 @@ test('wide and narrow layouts keep all columns inside a keyboard-scrollable regi
     expect(await page.evaluate(() => ({ width: window.innerWidth, actual: document.documentElement.scrollWidth,
       overflowing: [...document.querySelectorAll('main > *, main section')].filter(el => el.getBoundingClientRect().right > window.innerWidth).map(el => el.className) })))
       .toEqual({ width, actual: width, overflowing: [] });
+    const customer = rows().first().locator('td').first().getByRole('link');
+    expect(await customer.innerText()).toBe(width === 375 ? 'Անի51\nՍարգսյան' : 'Անի51 Սարգսյան');
+    const lines = await customer.locator('.customer-name > span').evaluateAll(els => els.map(el => el.getBoundingClientRect().y));
+    if (width === 375) expect(lines[1]).toBeGreaterThan(lines[0]);
+    else expect(lines[1]).toBe(lines[0]);
+    expect(await rows().first().locator('td').nth(1).innerText()).toBe(width === 375 ? '10.11.26' : '10.11.2026');
     if (width === 375) {
+      expect(await block().getByRole('columnheader', { name: /^Կնքված՝/ }).isVisible()).toBe(true);
       expect(await scroll.evaluate(el => el.scrollWidth > el.clientWidth)).toBe(true);
       await page.keyboard.press('End');
       await scroll.evaluate(el => { el.scrollLeft = el.scrollWidth; });
       expect(await scroll.evaluate(el => el.scrollLeft)).toBeGreaterThan(0);
     }
     await block().screenshot({ path: `test-results/deals-table-${width}.png` });
+  }
+});
+
+
+test.each([320, 375, 1440, 1920])('pagination buttons have equal dimensions and form a centered group at %i', async width => {
+  fixture.state.items = Array.from({ length: 201 }, (_, i) => deal(i + 1, { ufCrmDate: '2026-11-10' }));
+  await page.setViewportSize({ width, height: 1000 }); await page.goto(url); await ready(); await toggle().click();
+  const nav = block().locator('.deals-list-pagination'), previousBox = await previous().boundingBox(), nextBox = await next().boundingBox(), frame = await nav.boundingBox();
+  expect(previousBox.width).toBe(nextBox.width); expect(previousBox.height).toBe(nextBox.height);
+  expect(previousBox.y).toBe(nextBox.y);
+  const center = (previousBox.x + nextBox.x + nextBox.width) / 2;
+  expect(center).toBeCloseTo(frame.x + frame.width / 2, 0);
+  expect(await nav.locator('span').innerText()).toBe('1 / 9');
+  if (width >= 1100) {
+    const panels = await page.locator('.report-top-panels').boundingBox();
+    expect(center).toBeCloseTo(panels.x + panels.width / 2, 0);
   }
 });

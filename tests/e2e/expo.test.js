@@ -22,34 +22,43 @@ test.each([390, 1440])('preserves shared header, column order, and responsive la
   await page.setViewportSize({ width, height: 900 }); await page.goto('/'); await page.getByTestId('statistics-count').waitFor();
   const header = await page.locator('.report-header').boundingBox();
   const gap = await page.evaluate(() => document.querySelector('.report-top-panels').getBoundingClientRect().top - document.querySelector('.report-header').getBoundingClientRect().bottom);
+  expect(gap).toBeCloseTo(0, 0);
   await page.getByRole('button', { name: 'Հաշվետվությունների տեսակ', exact: true }).click(); await page.getByRole('menuitem', { name: 'Տուն Էքսպո', exact: true }).click(); await page.getByTestId('expo-leads').waitFor();
   expect(page.context().pages()).toHaveLength(1); expect(page.url()).toMatch(/#toon-expo$/);
   expect(await page.locator('.report-header').boundingBox()).toEqual(header);
+  expect(await page.locator('.report-header-subtitle').isVisible()).toBe(width >= 640);
   expect(await page.evaluate(() => document.querySelector('.expo-panel').getBoundingClientRect().top - document.querySelector('.report-header').getBoundingClientRect().bottom)).toBeCloseTo(gap, 0);
+  expect(await page.locator('.expo-panel').evaluate(el => getComputedStyle(el).paddingTop)).toBe(width <= 600 ? '16px' : '24px');
   expect(await page.locator('.expo-column-title').allTextContents()).toEqual(titles);
   expect(await page.locator('.expo-event-filter button').evaluateAll(nodes => nodes.map(el => getComputedStyle(el).fontSize))).toEqual(Array(6).fill('14px'));
   expect(await page.locator('.expo-totals').allTextContents()).toEqual(['2', '2', '2']);
-  const boxes = await page.locator('.expo-column').evaluateAll(nodes => nodes.map(el => { const r = el.getBoundingClientRect(), f = el.querySelector('.expo-event-filter').getBoundingClientRect(), h = el.querySelector('h3').getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, filterY: f.y, filterCenter: f.x + f.width / 2, headingCenter: h.x + h.width / 2 }; }));
+  const boxes = await page.locator('.expo-column').evaluateAll(nodes => nodes.map(el => { const r = el.getBoundingClientRect(), f = el.querySelector('.expo-event-filter').getBoundingClientRect(), h = el.querySelector(innerWidth < 640 ? '.filter-title' : 'h3').getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, filterY: f.y, filterCenter: f.x + f.width / 2, headingCenter: h.x + h.width / 2 }; }));
   for (const b of boxes) { expect(b.width).toBeCloseTo(boxes[0].width, 0); expect(b.filterCenter).toBeCloseTo(b.headingCenter, 0); if (width > 900) { expect(b.y).toBe(boxes[0].y); expect(b.filterY).toBe(boxes[0].filterY); } }
   expect(await page.locator('.expo-records').count()).toBe(3);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: `test-results/expo-${width}.png`, fullPage: true });
   await page.reload(); await page.getByTestId('expo-leads').waitFor();
-  expect(await page.locator('#expo-lists-content').isVisible()).toBe(true);
+  expect(await page.locator('.expo-lists').evaluateAll(els => els.every(el => el.getBoundingClientRect().height > 0))).toBe(true);
   await page.goBack(); await page.getByTestId('statistics-count').waitFor({ state: 'visible' });
 });
-test('places one always-open list block inside the bottom of the summary with three aligned lists, names and sortable dates', async () => {
+test('restores the desktop summary columns and the common always-open list block', async () => {
   await page.goto('/#toon-expo'); await page.getByTestId('expo-leads').waitFor();
+  expect(await page.locator('.expo-column > .expo-lists').count()).toBe(0);
   expect(await page.locator('.expo-panel > .expo-lists').count()).toBe(1);
-  expect(await page.locator('.expo-lists h2, .expo-records-heading, .expo-lists .deals-list-count').count()).toBe(0);
-  expect(await page.locator('.expo-lists .deals-list-toggle, .expo-lists .deals-list-chevron').count()).toBe(0);
-  expect(await page.locator('#expo-lists-content').isVisible()).toBe(true);
-  const panel = await page.locator('.expo-panel').boundingBox(), columns = await page.locator('.expo-columns').boundingBox(), block = await page.locator('.expo-lists').boundingBox(); expect(block.y).toBeGreaterThanOrEqual(columns.y + columns.height); expect(block.y + block.height).toBeLessThanOrEqual(panel.y + panel.height);
+  expect(await page.locator('.expo-lists h2, .expo-records-heading, .expo-lists .deals-list-count:visible').count()).toBe(0);
+  expect(await page.locator('.expo-lists .deals-list-toggle, .expo-lists .deals-list-chevron:visible').count()).toBe(0);
+  expect(await page.locator('.expo-lists').evaluateAll(els => els.every(el => el.getBoundingClientRect().height > 0))).toBe(true);
+  const summary = await page.locator('.expo-columns').boundingBox(), records = await page.locator('.expo-panel > .expo-lists').boundingBox();
+  expect(records.y).toBeGreaterThanOrEqual(summary.y + summary.height);
+  for (const i of [0, 2]) {
+    expect(await column(i).locator('table').count()).toBe(0);
+    expect(await column(i).evaluate(el => getComputedStyle(el).gridRowStart)).toBe('span 3');
+  }
 
   const boxes = await page.locator('.expo-records').evaluateAll(nodes => nodes.map(el => { const r = el.getBoundingClientRect(); return [r.y, r.width]; }));
   for (const box of boxes) { expect(box[0]).toBeCloseTo(boxes[0][0], 0); expect(box[1]).toBeCloseTo(boxes[0][1], 0); }
   for (let i = 0; i < 3; i++) {
-    expect(await list(i).locator('tbody a').first().innerText()).toMatch(/^Person /);
+    expect(await list(i).locator('tbody a').first().innerText()).toMatch(/^Person\s*\n\d+$/);
     expect(await list(i).locator('tbody a').first().innerText()).not.toContain('#');
     expect(await list(i).locator('tbody td:nth-child(2)').allTextContents()).toEqual(['14.11.2026', '13.11.2026']);
     await list(i).getByRole('button', { name: /Ստեղծված՝/ }).click();
@@ -143,7 +152,7 @@ test.each([320, 390, 900, 901, 1440, 1920])('keeps period buttons equally sized 
   }
   for (let index = 0; index < 3; index++) {
     const gaps = await column(index).evaluate(el => {
-      const heading = el.querySelector('h3').getBoundingClientRect();
+      const heading = el.querySelector(innerWidth < 640 ? '.expo-column-heading' : 'h3').getBoundingClientRect();
       const buttons = el.querySelectorAll('.expo-event-filter button');
       const first = buttons[0].getBoundingClientRect(), last = buttons[1].getBoundingClientRect();
       const card = el.querySelector('.expo-totals').getBoundingClientRect();
@@ -153,4 +162,40 @@ test.each([320, 390, 900, 901, 1440, 1920])('keeps period buttons equally sized 
     expect(gaps.above).toBeCloseTo(24, 0);
   }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test.each([320, 390, 600])('phone keeps each collapsed list within its section and adapts heading help at %i', async width => {
+  await page.setViewportSize({ width, height: 1000 }); await page.goto('/#toon-expo'); await page.getByTestId('expo-leads').waitFor();
+  for (let i = 0; i < 3; i++) {
+    const section = column(i), records = list(i), toggle = section.getByRole('button', { name: 'Ցանկ', exact: true });
+    if (i > 0) {
+      const divider = await section.evaluate(el => { const s = getComputedStyle(el); return { width: s.borderTopWidth, color: s.borderTopColor, space: s.paddingTop, bottomSpace: getComputedStyle(el.previousElementSibling).paddingBottom }; });
+      expect(divider).toEqual({ width: '1px', color: 'rgb(211, 223, 219)', space: '24px', bottomSpace: '24px' });
+    }
+    expect(await toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(await records.locator('.filter-help').count()).toBe(0);
+    expect(await toggle.locator('.deals-list-count').innerText()).toBe('2');
+    expect(await toggle.locator('.deals-list-chevron').isVisible()).toBe(true);
+    const style = await section.locator('.expo-lists').evaluate(el => { const s = getComputedStyle(el); return { border: s.borderTopWidth, radius: s.borderRadius, shadow: s.boxShadow !== 'none' }; });
+    expect(style).toEqual({ border: '1px', radius: '12px', shadow: true });
+    expect(await records.locator('table').isVisible()).toBe(false);
+    await toggle.click(); await records.locator('table').waitFor();
+    expect(await records.locator('tbody td:nth-child(2)').allInnerTexts()).toEqual(['14.11.26', '13.11.26']);
+    expect(await records.locator('tbody a').first().innerText()).toMatch(/^Person\s*\n\d+$/);
+    const box = await records.boundingBox(), summary = await section.boundingBox();
+    expect(box.y + box.height).toBeLessThanOrEqual(summary.y + summary.height);
+    if (i < 2) expect((await column(i + 1).boundingBox()).y).toBeGreaterThanOrEqual(box.y + box.height);
+    const heading = await section.locator('h3').boundingBox(), help = await section.locator('.filter-help').boundingBox();
+    const multiline = await section.locator('.filter-title').evaluate(el => el.classList.contains('is-multiline'));
+    if (multiline) {
+      expect(help.y).toBeGreaterThanOrEqual(heading.y + heading.height);
+      expect(help.x + help.width / 2).toBeCloseTo(heading.x + heading.width / 2, 0);
+    } else {
+      expect(help.x).toBeGreaterThanOrEqual(heading.x + heading.width);
+      expect(help.y + help.height / 2).toBeCloseTo(heading.y + heading.height / 2, 0);
+    }
+    await toggle.click(); expect(await records.locator('table').isVisible()).toBe(false);
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: `test-results/expo-mobile-${width}.png`, fullPage: true });
 });

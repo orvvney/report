@@ -1,8 +1,25 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import ExpoRecordsList from './ExpoRecordsList.vue';
 const snapshot = ref(null), loading = ref(false), failed = ref(false);
 const helpOpen = ref(null);
+const phoneQuery = window.matchMedia('(max-width: 639px)');
+const phone = ref(phoneQuery.matches);
+function updatePhone(event) { phone.value = event.matches; }
+onMounted(() => phoneQuery.addEventListener('change', updatePhone));
+onBeforeUnmount(() => phoneQuery.removeEventListener('change', updatePhone));
+const vMeasureHeading = {
+  mounted(element) {
+    const heading = element.querySelector('h3');
+    const observer = new ResizeObserver(() => {
+      const lineHeight = parseFloat(getComputedStyle(heading).lineHeight);
+      element.classList.toggle('is-multiline', heading.getBoundingClientRect().height > lineHeight * 1.5);
+    });
+    observer.observe(heading);
+    element.headingObserver = observer;
+  },
+  unmounted(element) { element.headingObserver?.disconnect(); },
+};
 const expoPeriod = reactive({ arrival: 'current', direct: 'current', deals: 'current' });
 const columnHelp = {
   arrival: { id: 'expo-interested-help', label: 'Հետաքրքրված հաճախորդների մասին', text: 'Այս սյունակում ներկայացված են Տուն Էքսպոյից եկած հետաքրքրված հաճախորդները:' },
@@ -52,7 +69,7 @@ defineExpose({ refresh });
     <div v-show="snapshot && !loading && !failed" class="expo-columns">
       <section v-for="column in columns" :key="column.key" class="expo-column" :aria-label="column.title">
         <div class="expo-column-heading">
-          <div class="filter-title" @mouseenter="helpOpen = column.key"
+          <div class="filter-title" v-measure-heading @mouseenter="helpOpen = column.key"
             @mouseleave="helpOpen = null" @keydown.esc="helpOpen = null">
             <h3 class="expo-column-title">{{ column.title }}</h3>
             <button type="button" class="filter-help" :aria-label="columnHelp[column.key].label" :aria-describedby="columnHelp[column.key].id"
@@ -70,9 +87,13 @@ defineExpose({ refresh });
           <div v-else><strong :data-testid="column.key === 'deals' ? 'expo-deals' : 'expo-direct-deals'">{{ column.rows.length }}</strong></div>
         </div>
         </template>
+        <div v-if="phone" class="deals-list expo-lists">
+          <ExpoRecordsList v-if="!periods[column.key].invalid" :rows="column.rows" :title="column.title" item-title="Ցանկ" :filters="periods[column.key]" />
+          <p v-else class="kpi-notice">Ուղղեք ժամանակահատվածի սխալը։</p>
+        </div>
       </section>
     </div>
-  <section class="deals-list expo-lists" aria-label="Տուն Էքսպո՝ ցանկ" :aria-busy="loading">
+  <section v-if="!phone" class="deals-list expo-lists" aria-label="Տուն Էքսպո՝ ցանկ" :aria-busy="loading">
     <div id="expo-lists-content" class="deals-list-content">
       <p v-if="loading" class="kpi-notice" role="status">Տվյալները բեռնվում են…</p>
       <p v-else-if="failed" class="kpi-notice" role="status">Տվյալներն անհասանելի են։</p>

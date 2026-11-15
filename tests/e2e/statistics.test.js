@@ -148,7 +148,11 @@ test('short card labels, approximate total and horizontal full amount tooltip',a
     return text.left>=card.left+8&&text.right<=card.right-8;
    })};
   });
-  expect(sizing.width).toBe(sizing.originalWidth);expect(sizing.sizes[0]).toBe(sizing.sizes[1]);expect(sizing.sizes[0]).toBeGreaterThan(14);expect(sizing.fits).toBe(true);
+  if(width>=640) expect(sizing.width).toBe(sizing.originalWidth);
+  else {
+   const cards=await panel.locator('.statistics-totals article').evaluateAll(els=>els.map(el=>{const r=el.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width};}));
+   expect(cards[0].y).toBe(cards[1].y);expect(cards[0].width).toBe(cards[1].width);expect(cards[1].x).toBeGreaterThan(cards[0].x);
+  }expect(sizing.sizes[0]).toBe(sizing.sizes[1]);expect(sizing.sizes[0]).toBeGreaterThan(14);expect(sizing.fits).toBe(true);
   for(const heading of await panel.locator('article h3').all()){
    expect(await heading.evaluate(e=>e.getBoundingClientRect().height/parseFloat(getComputedStyle(e).lineHeight))).toBeCloseTo(1,0);
   }

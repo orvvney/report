@@ -187,7 +187,7 @@ test('January All and Clear both remain available when only the current month is
   expect(await monthAction('Բոլորը').isVisible()).toBe(true); expect(await button('Փետրվար').isDisabled()).toBe(true);
 });
 
-test.each([375])('quarter layout aligns headings, equal complexes and room rows 123 / 45 at %i px', async width => {
+test.each([375])('quarter layout aligns equal complex and room buttons to the area fields at %i px', async width => {
   fixture.state.items = Array.from({ length: 5 }, (_, i) => deal(i + 1, { ufCrmRooms: i + 1, ufCrmDate: '2026-05-01' }));
   await page.setViewportSize({ width, height: 1200 }); await page.goto(url); await ready(); await selectPeriod('quarter');
   const panel = page.getByRole('form', { name: 'Զտիչներ', exact: true });
@@ -204,17 +204,15 @@ test.each([375])('quarter layout aligns headings, equal complexes and room rows 
   expect(await numeric.allTextContents()).toEqual(['1', '2', '3', '4', '5']);
   near(tower.width, hills.width); near(tower.height, hills.height); near(tower.x, hills.x);
   near(tower.height, periodBox.height); near(hills.height, periodBox.height);
-  near(hills.y - tower.y - tower.height, 8);
-  for (const b of boxes.slice(0, 3)) { near(b.y, boxes[0].y); near(b.width, boxes[0].width); }
-  near(boxes[3].y, boxes[4].y); near(boxes[3].width, boxes[4].width);
-  for (const b of boxes) near(b.height, all.height);
-  near(boxes[0].x, all.x);
-  near(boxes[2].x + boxes[2].width, all.x + all.width);
-  const firstRowWidth = boxes[2].x + boxes[2].width - boxes[0].x;
-  expect(firstRowWidth).toBeLessThanOrEqual(all.width + .1);
-  expect(all.width).toBeLessThan((await rooms.boundingBox()).width);
-  near((boxes[3].x + boxes[4].x + boxes[4].width) / 2, boxes[0].x + firstRowWidth / 2);
-  for (const b of boxes) near(b.width, 28);
+  near(hills.y - tower.y - tower.height, 4);
+  for (const b of boxes) { near(b.height, all.height); near(b.width, boxes[0].width); }
+  boxes.forEach(b => near(b.y, boxes[0].y));
+  expect(boxes[0].y).toBeGreaterThanOrEqual(all.y + all.height);
+  near(boxes[0].x, all.x); near(boxes[4].x + boxes[4].width, all.x + all.width);
+  near(all.width, tower.width);
+  const roomGroup = await rooms.locator('.room-buttons').boundingBox();
+  const maxArea = await page.getByLabel('Մակերես (մ²)՝ Մինչև', { exact: true }).boundingBox();
+  near(roomGroup.x, maxArea.x); near(roomGroup.width, maxArea.width);
   await button('Սենյակների քանակ՝ 4').click(); await count(1);
   await rooms.getByRole('button', { name: 'Բոլորը', exact: true }).click(); await count(5);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

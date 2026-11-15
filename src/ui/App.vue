@@ -219,7 +219,7 @@ onMounted(() => refresh(false));
               @quick="value => { selectedQuick = value; updatePeriod(); }"
               @year="value => { activeSelection.year = value; changePeriodYear(); }"
               @select="selectPeriodValue" @months="setAllMonths" @edit="(side, event) => editRange('date', side, event)" />
-            <fieldset :disabled="disabled">
+            <fieldset class="complex-filter" :disabled="disabled">
               <legend>Համալիր</legend>
               <div class="complex-buttons">
                 <button v-for="[value, title] in complexes" :key="value" type="button"
@@ -231,7 +231,7 @@ onMounted(() => refresh(false));
               <div class="room-buttons">
                 <button class="all-rooms" type="button" :aria-pressed="allRooms"
                   @click="selectAllRooms">Բոլորը</button>
-                <div class="room-values">
+                <div class="room-values" :style="{ '--room-count': Math.min(availableRooms.length || 1, 5) }">
                   <template v-if="selectedPeriod === 'quarter'">
                     <div v-for="(row, index) in quarterRoomRows" :key="index" class="quarter-room-row">
                       <button v-for="room in row" :key="room" type="button"

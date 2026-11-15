@@ -193,8 +193,16 @@ test.each([375, 768, 1024, 1189, 1190, 1440])('resizing retains the existing ada
   } else if ((await panel().boundingBox()).width - 2 >= 640) {
     near(boxes[0].y, boxes[1].y); near(boxes[2].y, boxes[3].y); expect(boxes[2].y).toBeGreaterThan(boxes[0].y);
   } else {
-    boxes.forEach(box => near(box.x, boxes[0].x));
-    for (let i = 1; i < boxes.length; i++) expect(boxes[i].y).toBeGreaterThan(boxes[i - 1].y);
+    if (width < 640) {
+      near(boxes[1].y, boxes[2].y);
+      expect(boxes[2].x).toBeGreaterThan(boxes[1].x);
+      expect(boxes[1].y).toBeGreaterThan(boxes[0].y);
+      expect(boxes[3].y).toBeGreaterThan(boxes[2].y);
+      expect(boxes[4].y).toBeGreaterThan(boxes[3].y);
+    } else {
+      boxes.forEach(box => near(box.x, boxes[0].x));
+      for (let i = 1; i < boxes.length; i++) expect(boxes[i].y).toBeGreaterThan(boxes[i - 1].y);
+    }
   }
   await choose('quarter');
   if (outer.width < 1100) {
@@ -227,7 +235,8 @@ test.each([375, 768, 1024, 1440])('relative quick options preserve mobile button
     const tower = await button('Թաուեր').boundingBox(), hills = await button('Հիլլս').boundingBox();
     const all = await page.locator('.room-filter').getByRole('button', { name: 'Բոլորը', exact: true }).boundingBox();
     const first = await button('Սենյակների քանակ՝ 1').boundingBox();
-    if (width < 1440) { near(tower.y, hills.y); near(all.y, first.y); }
+    if (width < 640) { expect(hills.y).toBeGreaterThan(tower.y); expect(first.y).toBeGreaterThan(all.y); }
+    else if (width < 1440) { near(tower.y, hills.y); near(all.y, first.y); }
     else { expect(hills.y).toBeGreaterThan(tower.y); expect(first.y).toBeGreaterThan(all.y); }
   }
 });
@@ -243,4 +252,27 @@ test.each([1440,1920])('complex and room buttons align to period and amount cont
   near(first.x-hills.x-hills.width,hills.x-periodBox.x-periodBox.width);
  }
  await page.screenshot({path:`test-results/filter-button-alignment-${width}.png`,fullPage:true});
+});
+
+test.each([320, 375, 430])('phone aligns complex and equal room buttons to the area fields at %i', async width => {
+  await page.setViewportSize({ width, height: 1000 }); await page.goto(url); await ready();
+  for (const value of ['quick', 'quarter', 'custom']) {
+    await choose(value);
+    const left = await input('area', 'Սկսած').boundingBox(), right = await input('area', 'Մինչև').boundingBox();
+    const complex = await page.locator('.complex-filter').boundingBox(), rooms = await page.locator('.room-filter').boundingBox();
+    near(complex.y, rooms.y);
+    for (const item of await page.locator('.complex-buttons button').all()) {
+      const box = await item.boundingBox(); near(box.x, left.x); near(box.width, left.width);
+    }
+    const group = await page.locator('.room-buttons').boundingBox(); near(group.x, right.x); near(group.width, right.width);
+    const all = await page.locator('.room-buttons .all-rooms').boundingBox();
+    near(all.width, left.width); near(all.x, right.x);
+    const buttons = await page.locator('.room-values button').evaluateAll(els => els.map(el => { const b = el.getBoundingClientRect(); return { x: b.x, y: b.y, width: b.width, right: b.right }; }));
+    buttons.forEach(box => { near(box.width, buttons[0].width); near(box.y, buttons[0].y); expect(box.y).toBeGreaterThanOrEqual(all.y + all.height); });
+    near(buttons[0].x, all.x); near(buttons.at(-1).right, all.x + all.width);
+    await page.screenshot({ path: `test-results/phone-rooms-${width}-${value}.png` });
+    const totals = await page.locator('.statistics-totals article').all();
+    const count = await totals[0].boundingBox(), amount = await totals[1].boundingBox();
+    near(count.y, amount.y); expect(amount.x).toBeGreaterThan(count.x);
+  }
 });

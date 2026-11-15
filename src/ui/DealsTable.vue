@@ -1,5 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
+import CustomerName from './CustomerName.vue';
+import ReportDate from './ReportDate.vue';
 import table from '../report/deals-table.cjs';
 const props = defineProps({ deals: { type: Array, default: () => [] }, filters: Object, loading: Boolean, failed: Boolean });
 const expanded = ref(false), page = ref(1), sortKey = ref('date'), direction = ref('desc');
@@ -45,12 +47,13 @@ function sort(key) {
             <thead><tr>
               <th v-for="[key, label] in table.columns" :key="key" scope="col"
                 :aria-sort="sortKey === key ? (direction === 'asc' ? 'ascending' : 'descending') : 'none'">
-                <button type="button" @click="sort(key)">{{ label }}<span aria-hidden="true">{{ sortKey === key ? (direction === 'asc' ? ' ↑' : ' ↓') : ' ↕' }}</span></button>
+                <button type="button" @click="sort(key)"><template v-if="key === 'date'"><span class="desktop-text">{{ label }}</span><span class="mobile-text">Կնքված՝</span></template><template v-else>{{ label }}</template><span aria-hidden="true">{{ sortKey === key ? (direction === 'asc' ? ' ↑' : ' ↓') : ' ↕' }}</span></button>
               </th>
             </tr></thead>
             <tbody><tr v-for="row in paged.rows" :key="row.id">
               <td v-for="[key] in table.columns" :key="key">
-                <a v-if="key === 'customerName'" :href="row.url" target="_blank" rel="noopener noreferrer">{{ table.cellText(row, key) }}</a>
+                <a v-if="key === 'customerName'" :href="row.url" target="_blank" rel="noopener noreferrer"><CustomerName :name="table.cellText(row, key)" /></a>
+                <ReportDate v-else-if="key === 'date'" :text="table.cellText(row, key)" />
                 <template v-else>{{ table.cellText(row, key) }}</template>
               </td>
             </tr></tbody>

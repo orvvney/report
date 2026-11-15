@@ -91,7 +91,7 @@ test.each([1440, 1920, 1024, 375, 320])('filter layout reflows without scrolling
     const panel = await filterPanel().boundingBox();
     const leftInset = boxes[0].x - panel.x;
     const panelBorder = await filterPanel().evaluate((el) => parseFloat(getComputedStyle(el).borderLeftWidth));
-    expectEqualPixels(leftInset - panelBorder, 24);
+    expectEqualPixels(leftInset - panelBorder, width < 640 ? 16 : 24);
     expectEqualPixels(panel.x + panel.width - Math.max(...boxes.map(box => box.right)), leftInset);
     boxes.forEach((box) => expectEqualPixels(box.titleCenter, box.x + box.width / 2));
     if (width === 1440 || width === 1920) {
@@ -110,9 +110,14 @@ test.each([1440, 1920, 1024, 375, 320])('filter layout reflows without scrolling
       expect(firstRoom.y).toBeGreaterThanOrEqual(all.y + all.height);
       expectEqualPixels(all.x + all.width / 2, boxes[2].x + boxes[2].width / 2);
       expectEqualPixels((await page.locator('.report-top-panels').boundingBox()).x, (await page.locator('.deals-histogram').boundingBox()).x);
+    } else if (width < 640) {
+      expectEqualPixels(boxes[1].width, boxes[2].width);
+      expectEqualPixels(boxes[1].y, boxes[2].y);
+      expectEqualPixels(boxes[1].width * 2 + 8, boxes[0].width);
+      boxes.slice(3).forEach(box => expectEqualPixels(box.width, boxes[0].width));
     } else boxes.forEach((box) => expectEqualPixels(box.width, boxes[0].width));
     const rows = [...new Set(boxes.map((box) => box.y))];
-    if (width < 1440) expect(rows).toHaveLength(width === 1024 ? 3 : 5);
+    if (width < 1440) expect(rows).toHaveLength(width === 1024 ? 3 : 4);
     else expectEqualPixels(boxes[3].y - Math.max(...boxes.slice(0, 3).map(box => box.y + box.height)), 16);
     if (width >= 1440) {
       for (const [a, b] of [[0, 1], [1, 2]]) expectEqualPixels(boxes[b].x - boxes[a].right, 16);
@@ -126,7 +131,7 @@ test.each([1440, 1920, 1024, 375, 320])('filter layout reflows without scrolling
       const box = el.getBoundingClientRect(); return { x: box.x, y: box.y, width: box.width, height: box.height, fits: el.scrollWidth <= el.clientWidth };
     }));
     expect(buttons).toHaveLength(count);
-    buttons.forEach((box) => { expect(box.width).toBe(28); expect(box.height).toBe(32); expect(box.fits).toBe(true); });
+    buttons.forEach((box) => { if (width < 640) expectEqualPixels(box.width, buttons[0].width); else expect(box.width).toBe(28); expect(box.height).toBe(32); expect(box.fits).toBe(true); });
     if (width >= 1440) {
       const roomWidth=(await filterPanel().locator('.room-values').boundingBox()).width;
       expect(new Set(buttons.map(box => box.y)).size).toBe(Math.ceil(count / Math.floor((roomWidth + 4) / 32)));
@@ -502,7 +507,7 @@ test.each([1440, 375])('filters precede charts with reset and without panel scro
   expect(panelBox.y + panelBox.height).toBeLessThan(groupBox.y);
   expect(await page.getByRole('button', { name: 'Վերականգնել', exact: true }).count()).toBe(1);
   const boxes = await panel.locator('fieldset').evaluateAll((els) => els.map((el) => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y }; }));
-  expect(new Set(boxes.map((b) => b.y)).size).toBe(width === 375 ? 5 : 2); // wide headings share the first row
+  expect(new Set(boxes.map((b) => b.y)).size).toBe(width === 375 ? 4 : 2); // wide headings share the first row
   for (const row of [...new Set(boxes.map(b => b.y))]) {
     const xs = boxes.filter(b => b.y === row).map(b => b.x); expect(xs).toEqual([...xs].sort((a, b) => a - b));
   }

@@ -50,13 +50,13 @@ onBeforeUnmount(() => { observer?.disconnect(); hideTooltip(); });
             </span>
             <span class="header-tooltip-anchor" @pointerenter="event => { if (event.pointerType === 'mouse') showTooltip('menu'); }" @pointerleave="hideTooltip">
             <button type="button" class="header-icon-button property-menu-trigger" aria-label="Հաշվետվությունների տեսակ" :aria-describedby="tooltip === 'menu' ? 'menu-tooltip' : undefined" @focus="showTooltip('menu')" @blur="hideTooltip" @keydown.esc="hideTooltip" @click="hideTooltip" popovertarget="property-menu" aria-haspopup="menu">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
+              <span class="header-menu-icon" aria-hidden="true"><span></span><span></span><span></span></span>
             </button>
             <span v-if="tooltip === 'menu'" id="menu-tooltip" class="header-tooltip" role="tooltip">Հաշվետվությունների տեսակ</span>
             </span>
             <div ref="propertyMenu" id="property-menu" class="property-menu" popover role="menu" aria-label="Հաշվետվությունների տեսակ">
-              <button type="button" role="menuitem" @click="selectSection('apartments')">Բնակարաններ</button>
-              <button type="button" role="menuitem" @click="selectSection('parking')">Ավտոկայանատեղիներ</button>
+              <button type="button" role="menuitem" @click="selectSection('apartments')">Կնքված բնակարաններ</button>
+              <button type="button" role="menuitem" @click="selectSection('parking')">Կնքված կայանատեղիներ</button>
               <button type="button" role="menuitem" @click="selectSection('expo')">Տուն Էքսպո</button>
             </div>
           </div>
