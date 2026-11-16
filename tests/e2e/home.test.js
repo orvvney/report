@@ -198,7 +198,9 @@ describe('home page', () => {
     expect(frame.y - headerBox.y - headerBox.height).toBeCloseTo(0, 0);
     expect(await header.evaluate(el => [getComputedStyle(el).paddingTop, getComputedStyle(el).paddingBottom])).toEqual(width < 640 ? ['15px', '15px'] : ['20px', '20px']);
     if (width < 640) expect(headerBox.height).toBeCloseTo(image.height + 30, 0);
-    expect(kpiFrame.y - frame.y - frame.height).toBeCloseTo(aboveLogo, 0);
+    const stagesFrame = await page.locator('.property-stages').boundingBox();
+    expect(stagesFrame.y - frame.y - frame.height).toBeCloseTo(aboveLogo, 0);
+    expect(kpiFrame.y - stagesFrame.y - stagesFrame.height).toBeCloseTo(aboveLogo, 0);
     const dealsFrame = await page.locator('.deals-histogram + .deals-list').boundingBox();
     expect(dealsFrame.y - kpiFrame.y - kpiFrame.height).toBeCloseTo(aboveLogo, 0);
     expect(Math.abs(pageGaps.bottom - expectedGap)).toBeLessThan(1);
@@ -206,7 +208,7 @@ describe('home page', () => {
     expect(histogram.y).toBeGreaterThanOrEqual(frame.y + frame.height);
     expect(await page.locator('.deals-histogram').isVisible()).toBe(true);
     expect(await page.getByRole('region', { name: 'Վիճակագրություն', exact: true }).isVisible()).toBe(true);
-    for (const surface of [page.locator('.report-top-panels'),
+    for (const surface of [page.locator('.report-top-panels'), page.locator('.property-stages'),
       page.getByRole('region', { name: 'Գործարքների հիստոգրամ', exact: true }), page.locator('.deals-list')]) {
       expect(await surface.evaluate(el => {
         const style = getComputedStyle(el);

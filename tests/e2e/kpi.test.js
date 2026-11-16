@@ -28,7 +28,7 @@ test.each([1440, 375])('only chart KPIs remain and update with periods and filte
   await page.goto(url); await ready();
   const requests = fixture.state.httpRequests.length;
   expect(await page.locator('.kpi-container, .kpi-card, .kpi-dialog').count()).toBe(0);
-  expect(await page.locator('.report-top-panels').evaluate(el => el.parentElement.nextElementSibling.classList.contains('deals-histogram'))).toBe(true);
+  expect(await page.locator('.report-top-panels').evaluate(el => el.parentElement.nextElementSibling.classList.contains('property-stages') && el.parentElement.nextElementSibling.nextElementSibling.classList.contains('deals-histogram'))).toBe(true);
   expect(await value().innerText()).toBe('3');
   await button('Վաճառքի գումար').click();
   expect(await value().innerText()).toBe('450,00 ֏');

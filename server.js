@@ -1,4 +1,5 @@
 const { createExpoLoader } = require('./src/report/expo-load.cjs');
+const { createPropertyStagesLoader } = require('./src/report/property-stages.cjs');
 const http = require('node:http');
 const path = require('node:path');
 const { readFile, realpath } = require('node:fs/promises');
@@ -81,6 +82,7 @@ function createServer({ distPath = path.join(__dirname, 'dist'), dataDir = path.
   const authConfig = auth === undefined ? loadAuthConfig({ env, envPath }) : auth;
   const authService = authConfig ? new AuthService({ dataDir, ...authConfig }) : null;
   const loadReport = createReportLoader({ env, envPath, ...reportOptions });
+  const loadPropertyStages = createPropertyStagesLoader({ env, envPath, ...reportOptions });
   const loadExpo = createExpoLoader({ env, envPath, ...reportOptions });
 
   const app = express();
@@ -105,8 +107,8 @@ function createServer({ distPath = path.join(__dirname, 'dist'), dataDir = path.
   const reportGuards = authService
     ? [requireSession(authService), createRateLimiter({ limit: 60, windowMs: 60 * 1000, key: (request) => request.user?.username || request.ip })]
     : [];
-  app.get(['/api/report', '/api/toon-expo'], ...reportGuards, async (request, response) => {
-    const { status, body } = await (request.path === '/api/toon-expo' ? loadExpo : loadReport)({ refresh: new URL(request.url, 'http://localhost').searchParams.get('refresh') === '1' });
+  app.get(['/api/report', '/api/toon-expo', '/api/property-stages'], ...reportGuards, async (request, response) => {
+    const { status, body } = await (request.path === '/api/property-stages' ? loadPropertyStages : request.path === '/api/toon-expo' ? loadExpo : loadReport)({ refresh: new URL(request.url, 'http://localhost').searchParams.get('refresh') === '1' });
     if (authService) audit('report_viewed', { username: request.user.username, path: request.path, status, ip: request.ip });
     response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
     response.end(JSON.stringify(body));

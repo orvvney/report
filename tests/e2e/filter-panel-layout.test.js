@@ -249,7 +249,12 @@ test.each([1440,1920])('complex and room buttons align to period and amount cont
   const amountMax=await input('amount','Մինչև').boundingBox();
   near(hills.height,periodBox.height);near(first.height,periodBox.height);
   near(last.x+last.width,amountMax.x+amountMax.width);
-  near(first.x-hills.x-hills.width,hills.x-periodBox.x-periodBox.width);
+  near(first.x-hills.x-hills.width,hills.x-periodBox.x-periodBox.width-8);
+  const filterBox=await panel().boundingBox();
+  const count=await page.locator('.statistics-totals article').first().boundingBox();
+  const statsInset=count.x-filterBox.x-filterBox.width;
+  near(filterBox.x+filterBox.width-last.x-last.width,statsInset);
+  near(filterBox.x+filterBox.width-amountMax.x-amountMax.width,statsInset);
  }
  await page.screenshot({path:`test-results/filter-button-alignment-${width}.png`,fullPage:true});
 });

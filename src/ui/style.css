@@ -556,3 +556,25 @@ dialog::backdrop { background: rgb(29 40 62 / 45%); }
 }
 
 .expo-section { display: flow-root; }
+
+.property-stages { margin-top: var(--section-gap); padding: 20px 24px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--card-shadow); }
+.property-stages-row { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 32px; }
+.property-stages article { aspect-ratio: 1; min-width: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 8px; display: flex; flex-direction: column; justify-content: center; text-align: center; }
+.property-stages article p { font-weight: 700; font-size: clamp(24px, 2.5vw, 40px); line-height: 1.5; }
+.property-stages h3 { min-height: 36px; line-height: 18px; font-weight: 600; font-size: 12px; overflow-wrap: normal; }
+
+@media (max-width: 639px) {
+  .property-stages { padding-inline: 16px; }
+}
+
+/* Mirror the statistics cards' 16px inset from the central divider. */
+.report-top-panels.top-wide .complex-filter,
+.report-top-panels.top-wide .room-filter,
+.report-top-panels.top-wide .filter-second-row > .range-filter:last-child { position: relative; left: 8px; }
+
+@media (max-width: 1099px) {
+  .property-stages-row { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (max-width: 639px) {
+  .property-stages-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

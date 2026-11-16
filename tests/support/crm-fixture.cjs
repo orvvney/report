@@ -30,7 +30,7 @@ function createFixture(state = {}) {
     const method = url.split('/').at(-1).replace(/\.json$/, '');
     const params = JSON.parse(options.body);
     state.httpRequests.push({ method, params });
-    if (state.failures > 0 && (!state.failMethod || state.failMethod === method)) {
+    if (!isPropertyRequest({ method, params }) && state.failures > 0 && (!state.failMethod || state.failMethod === method)) {
       state.failures--;
       return { ok: false, status: 503 };
     }
@@ -54,11 +54,23 @@ function createFixture(state = {}) {
       return { ok: true, status: 200, json: async () => ({ result }) };
     }
     state.requests.push({ method, params });
-    if (state.commandFailures > 0 && method === 'crm.item.list') {
+    if (state.commandFailures > 0 && method === 'crm.item.list' && params.entityTypeId !== 177) {
       state.commandFailures--;
       return { ok: true, json: async () => ({ error: 'ACCESS_DENIED' }) };
     }
     const reply = (body) => ({ ok: true, status: 200, json: async () => body });
+    if (method === 'crm.type.list') return reply({ result: { types: [{ entityTypeId: 177, title: 'Անշարժ գույք' }] } });
+    if (params.entityTypeId === 177 && method === 'crm.category.list') return reply({ result: { categories: [{ id: 5 }] } });
+    if (method === 'crm.status.list' && params.filter.ENTITY_ID === 'DYNAMIC_177_STAGE_5') {
+      const { STAGES } = require('../../src/report/property-stages.cjs');
+      return reply({ result: (state.propertyStageNames || STAGES).map((NAME, i) => ({ NAME, STATUS_ID: `DT177_5:${i}`, ENTITY_ID: 'DYNAMIC_177_STAGE_5' })) });
+    }
+    if (method === 'crm.item.list' && params.entityTypeId === 177) {
+      if (state.failPropertyStages) return reply({ error: 'ACCESS_DENIED' });
+      const rows = (state.propertyItems || []).filter(item => String(item.ufCrmProperty) === String(params.filter.ufCrmProperty)
+        && Number(item.id) > Number(params.filter['>id'])).sort((a,b) => Number(a.id)-Number(b.id)).slice(0,50);
+      return reply({ result: { items: rows } });
+    }
     if (method === 'crm.category.list') {
       return reply({ result: { categories: [{ id: 3, name: 'Վաճառք' }] } });
     }
@@ -131,3 +143,6 @@ function decodeCommand(command) {
 }
 module.exports.selectItems = selectItems;
 module.exports.decodeCommand = decodeCommand;
+
+function isPropertyRequest({method, params}) { return method === 'crm.type.list' || params.entityTypeId === 177 || params.filter?.ENTITY_ID === 'DYNAMIC_177_STAGE_5'; }
+module.exports.isPropertyRequest = isPropertyRequest;

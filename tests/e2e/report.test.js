@@ -1,3 +1,4 @@
+const { isPropertyRequest } = require('../support/crm-fixture.cjs');
 const fs = require('node:fs');
 const { createServer } = require('../../server.js');
 const { createFixture, deal } = require('../support/crm-fixture.cjs');
@@ -92,7 +93,7 @@ test.each([1440, 1920, 1024, 375, 320])('filter layout reflows without scrolling
     const leftInset = boxes[0].x - panel.x;
     const panelBorder = await filterPanel().evaluate((el) => parseFloat(getComputedStyle(el).borderLeftWidth));
     expectEqualPixels(leftInset - panelBorder, width < 640 ? 16 : 24);
-    expectEqualPixels(panel.x + panel.width - Math.max(...boxes.map(box => box.right)), leftInset);
+    expectEqualPixels(panel.x + panel.width - Math.max(...boxes.map(box => box.right)), width >= 1100 ? 16 : leftInset);
     boxes.forEach((box) => expectEqualPixels(box.titleCenter, box.x + box.width / 2));
     if (width === 1440 || width === 1920) {
       boxes.slice(1, 3).forEach(box => expectEqualPixels(box.y, boxes[0].y));
@@ -102,9 +103,9 @@ test.each([1440, 1920, 1024, 375, 320])('filter layout reflows without scrolling
       else expect(panel.width).toBeLessThan((sectionWidth - 24) * .7);
       const select = await filterPanel().locator('select').boundingBox();
       expectEqualPixels(select.x - panel.x, leftInset);
-      expectEqualPixels(boxes[1].x - boxes[0].right, 16);
+      expectEqualPixels(boxes[1].x - boxes[0].right, 24);
       expectEqualPixels(boxes[2].x - boxes[1].right, 16);
-      expect(boxes[2].right).toBeLessThanOrEqual(panel.x + panel.width - leftInset + 1);
+      expect(boxes[2].right).toBeLessThanOrEqual(panel.x + panel.width - 16 + 1);
       const all = await allRoomsButton().boundingBox();
       const firstRoom = await room(1).boundingBox();
       expect(firstRoom.y).toBeGreaterThanOrEqual(all.y + all.height);
@@ -120,8 +121,9 @@ test.each([1440, 1920, 1024, 375, 320])('filter layout reflows without scrolling
     if (width < 1440) expect(rows).toHaveLength(width === 1024 ? 3 : 4);
     else expectEqualPixels(boxes[3].y - Math.max(...boxes.slice(0, 3).map(box => box.y + box.height)), 16);
     if (width >= 1440) {
-      for (const [a, b] of [[0, 1], [1, 2]]) expectEqualPixels(boxes[b].x - boxes[a].right, 16);
-      expectEqualPixels(boxes[4].x - boxes[3].right, 16);
+      expectEqualPixels(boxes[1].x - boxes[0].right, 24);
+      expectEqualPixels(boxes[2].x - boxes[1].right, 16);
+      expectEqualPixels(boxes[4].x - boxes[3].right, 24);
     }
     for (let i = 1; width < 1440 && i < rows.length; i++) {
       const previousBottom = Math.max(...boxes.filter((box) => box.y === rows[i - 1]).map((box) => box.y + box.height));
@@ -331,19 +333,19 @@ test('excluding five-room apartments survives batched refreshes while reusing me
   page.on('response', (response) => { if (new URL(response.url()).pathname === '/api/report') statuses.push(response.status()); });
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto(url); await ready();
-  expect(fixture.state.httpRequests).toHaveLength(4);
-  const initial = fixture.state.httpRequests.length;
+  expect(fixture.state.httpRequests.filter(r => !isPropertyRequest(r))).toHaveLength(4);
+  const initial = fixture.state.httpRequests.filter(r => !isPropertyRequest(r)).length;
   await room(1).click();
   for (const n of [2, 3, 4]) await room(n).click();
   expect(await room(5).getAttribute('aria-pressed')).toBe('false');
   await expectTotals(401);
-  expect(fixture.state.httpRequests).toHaveLength(initial);
+  expect(fixture.state.httpRequests.filter(r => !isPropertyRequest(r))).toHaveLength(initial);
   for (let run = 1; run <= 3; run++) {
     await reloadReport();
     expect(await room(5).getAttribute('aria-pressed')).toBe('false');
     await expectTotals(401);
-    expect(fixture.state.httpRequests).toHaveLength(initial + run * 2);
-    expect(fixture.state.requests.filter((r) => r.method !== 'crm.item.list')).toHaveLength(3);
+    expect(fixture.state.httpRequests.filter(r => !isPropertyRequest(r))).toHaveLength(initial + run * 2);
+    expect(fixture.state.requests.filter(r => !isPropertyRequest(r)).filter((r) => r.method !== 'crm.item.list')).toHaveLength(3);
   }
   expect(statuses).toEqual([200, 200, 200, 200]);
   expect(errors).toEqual([]);
@@ -559,17 +561,17 @@ test.each([1440, 375])('filters precede charts with reset and without panel scro
 
 test('reload and a second tab use cached data, while header refresh gets fresh deals', async () => {
   fixture.state.items = [deal(1)]; await page.goto(url); await ready(); await expectTotals(1, '10 ֏');
-  const count = fixture.state.httpRequests.length;
+  const count = fixture.state.httpRequests.filter(r => !isPropertyRequest(r)).length;
   fixture.state.items[0].opportunity = '90';
-  await page.reload(); await ready(); expect(fixture.state.httpRequests).toHaveLength(count); await expectTotals(1, '10 ֏');
+  await page.reload(); await ready(); expect(fixture.state.httpRequests.filter(r => !isPropertyRequest(r))).toHaveLength(count); await expectTotals(1, '10 ֏');
   const other = await page.context().newPage();
   try {
     await other.goto(url); await other.getByTestId('statistics-count').waitFor();
     expect(await other.getByTestId('statistics-amount').innerText()).toBe('~10 ֏');
-    expect(fixture.state.httpRequests).toHaveLength(count);
+    expect(fixture.state.httpRequests.filter(r => !isPropertyRequest(r))).toHaveLength(count);
   } finally { await other.close(); }
   await reloadReport(); await expectTotals(1, '90 ֏');
-  expect(fixture.state.requests.filter(r => r.method !== 'crm.item.list')).toHaveLength(3);
+  expect(fixture.state.requests.filter(r => !isPropertyRequest(r)).filter(r => r.method !== 'crm.item.list')).toHaveLength(3);
 });
 
 test('automatic retries keep loading, recover on third retry and show no data after exhaustion', async () => {

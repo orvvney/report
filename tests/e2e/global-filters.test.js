@@ -146,8 +146,9 @@ test.each([1440, 1920])('wide panel has two rows and retains geometry with custo
     expect(boxes[3].y).toBeGreaterThan(Math.max(...boxes.slice(0, 3).map(b => b.bottom)));
     const selectBox = await period().boundingBox();
     const inset = selectBox.x - box.x;
-    for (const gap of [boxes[1].x - boxes[0].x - boxes[0].width, boxes[2].x - boxes[1].x - boxes[1].width]) expect(Math.abs(gap - 16)).toBeLessThan(1);
-    expect(boxes[2].x + boxes[2].width).toBeLessThanOrEqual(box.x + box.width - inset + 1);
+    expect(Math.abs(boxes[1].x - boxes[0].x - boxes[0].width - 24)).toBeLessThan(1);
+    expect(Math.abs(boxes[2].x - boxes[1].x - boxes[1].width - 16)).toBeLessThan(1);
+    expect(boxes[2].x + boxes[2].width).toBeLessThanOrEqual(box.x + box.width - 16 + 1);
     expect(Math.abs(boxes[3].width - boxes[0].width)).toBeLessThan(1);
     const title = await panel.getByRole('heading', { name: 'Զտիչներ' }).boundingBox();
     const button = await reset().boundingBox();

@@ -1,7 +1,7 @@
 const { CheckError, validateWebhook } = require('./config.cjs');
 
 const METHODS = new Set([
-  'crm.category.list', 'crm.status.list', 'crm.item.fields', 'crm.item.list', 'crm.lead.list', 'crm.deal.list',
+  'crm.type.list', 'crm.category.list', 'crm.status.list', 'crm.item.fields', 'crm.item.list', 'crm.lead.list', 'crm.deal.list',
 ]);
 const API_ERRORS = {
   INVALID_CREDENTIALS: 'Неверные учётные данные вебхука.',
@@ -14,7 +14,7 @@ const API_ERRORS = {
 };
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 function validateResult(method, result) {
-  const valid = ['crm.lead.list', 'crm.deal.list'].includes(method) ? Array.isArray(result)
+  const valid = method === 'crm.type.list' ? Array.isArray(result?.types) : ['crm.lead.list', 'crm.deal.list'].includes(method) ? Array.isArray(result)
     : method === 'crm.item.list' ? Array.isArray(result?.items)
     : method === 'crm.category.list' ? Array.isArray(result?.categories)
       : method === 'crm.item.fields' ? isObject(result?.fields)

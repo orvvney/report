@@ -5,6 +5,7 @@ import calendar from '../report/period.cjs';
 import amountInput from '../report/amount-input.cjs';
 import RangeInputs from './RangeInputs.vue';
 import PeriodFilter from './PeriodFilter.vue';
+import PropertyStages from './PropertyStages.vue';
 import StatisticsPanel from './StatisticsPanel.vue';
 import DealsHistogram from './DealsHistogram.vue';
 import DealsTable from './DealsTable.vue';
@@ -19,6 +20,7 @@ const { roomOptions, reconcileRooms, toggleRoom, validateRange } = filters;
 defineProps({ account: { type: String, default: '' } });
 const emit = defineEmits(['logout', 'expired']);
 const report = ref(null), loading = ref(false), failed = ref(false);
+const propertyStages = ref(null);
 const filterHelpOpen = ref(false);
 const activeSection = ref(window.location.hash === '#toon-expo' ? 'expo' : 'apartments');
 const expoVisited = ref(activeSection.value === 'expo'), expoPanel = ref(null), expoLoading = ref(false);
@@ -171,6 +173,7 @@ function editRange(kind, side, event) {
 }
 async function refresh(force = true) {
   if (loading.value) return;
+  propertyStages.value?.refresh(force);
   monthPicker.value?.close(); report.value = null; failed.value = false; loading.value = true;
   try {
     const response = await fetch(force ? '/api/report?refresh=1' : '/api/report', { cache: 'no-store' });
@@ -261,6 +264,7 @@ onMounted(() => refresh(false));
       <StatisticsPanel :deals="report?.deals || []" :filters="appliedFilters" :period="selectedPeriod" :loading="loading || (!report && !failed)" :failed="failed" :reset-revision="kpiResetRevision" />
       </div>
       </div>
+      <PropertyStages ref="propertyStages" @expired="emit('expired')" />
       <DealsHistogram :wide="wideKpi" :deals="report?.deals || []" :filters="appliedFilters" :months="months"
         :data="kpiData" :period="effectivePeriod.period"
         :year="effectivePeriod.selection?.year || report?.year || periodContext.year"

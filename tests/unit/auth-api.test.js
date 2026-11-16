@@ -63,6 +63,7 @@ test('report and session routes stay closed until Google and Authenticator pass'
   const closed = await fetch(`${base}/api/report`);
   expect(closed.status).toBe(401);
   expect((await fetch(`${base}/api/toon-expo?refresh=1`)).status).toBe(401);
+  expect((await fetch(`${base}/api/property-stages?refresh=1`)).status).toBe(401);
   expect(await closed.json()).toEqual({ error: { code: 'authentication_required', message: 'Մուտք գործեք համակարգ' } });
   expect((await fetch(`${base}/api/auth/me`)).status).toBe(401);
   expect(await (await fetch(`${base}/api/auth/config`)).json()).toEqual({ googleClientId: 'client' });
