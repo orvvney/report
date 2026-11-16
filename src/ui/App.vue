@@ -40,10 +40,10 @@ let kpiObserver;
 function layoutPanels() {
     if (!filterContainer.value) return;
     wideKpi.value = filterContainer.value.closest('.report-shell').clientWidth >= 1100;
-    if (!filterContainer.value.clientWidth) return;
     const page = filterContainer.value.closest('.report-page');
     const logo = page.querySelector('.report-logo');
     page.style.setProperty('--section-gap', `${logo.getBoundingClientRect().top + window.scrollY}px`);
+    if (!filterContainer.value.clientWidth) return;
     const row = filterContainer.value.querySelector('.report-top-panels');
     const form = row.querySelector('form');
     row.classList.toggle('panels-stacked', !wideKpi.value);

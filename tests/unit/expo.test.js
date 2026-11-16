@@ -19,7 +19,7 @@ function fixture(count = 51) {
       expect(params.filter).toEqual({ '=SOURCE_ID': 'UC_TOON_EXPO' }); rows = leads;
     } else {
       expect(method).toBe('crm.deal.list');
-      rows = params.filter['@LEAD_ID'] ? deals.filter(row => params.filter['@LEAD_ID'].includes(Number(row.LEAD_ID))) : deals.filter(row => row.SOURCE_ID !== 'OTHER');
+      rows = params.filter['>=DATE_CREATE'] ? deals.filter(row => new Date(row.DATE_CREATE) >= new Date(params.filter['>=DATE_CREATE']) && new Date(row.DATE_CREATE) < new Date(params.filter['<DATE_CREATE'])) : params.filter['@LEAD_ID'] ? deals.filter(row => params.filter['@LEAD_ID'].includes(Number(row.LEAD_ID))) : deals.filter(row => row.SOURCE_ID !== 'OTHER' && row.SOURCE_ID !== '');
       expect(params.filter).not.toHaveProperty('STAGE_ID');
     }
     const page = rows.slice(params.start, params.start + 50);
@@ -41,7 +41,7 @@ test('loads all source 305 leads and independent deals, with Yerevan creation da
   expect(result.body.directDeals[0].customerName).toBe('Անի Պետրոսյան');
   expect(result.body.directDeals[0]).toMatchObject({ id: 71, date: '2026-11-01', url: 'https://portal.example/crm/deal/details/71/' });
   expect(f.requests.filter(row => row.method === 'crm.lead.list').map(row => row.params.start)).toEqual([0, 50]);
-  expect(f.requests.filter(row => row.method === 'crm.deal.list')).toHaveLength(3);
+  expect(f.requests.filter(row => row.method === 'crm.deal.list')).toHaveLength(4);
   const calls = f.requests.length;
   result.body.leads.length = 0;
   expect((await load()).body.leads).toHaveLength(49);
@@ -52,14 +52,14 @@ test('reads every page of source deals even with no leads', async () => {
   const f = fixture(0); f.deals.splice(0, f.deals.length, ...Array.from({ length: 51 }, (_, i) => ({ ID: String(i + 1), LEAD_ID: '0', SOURCE_ID: 'UC_TOON_EXPO', STAGE_ID: 'NEW', DATE_CREATE: '2026-11-01T10:00:00Z', TITLE: 'Deal' })));
   const result = await createExpoLoader(f.options)();
   expect(result.body.directDeals).toHaveLength(51);
-  expect(f.requests.filter(row => row.method === 'crm.deal.list').map(row => row.params.start)).toEqual([0, 50]);
+  expect(f.requests.filter(row => row.method === 'crm.deal.list').map(row => row.params.start)).toEqual([0, 50, 0]);
 });
 test('empty leads still read deals; cache expires after five minutes and coalesces simultaneous reads', async () => {
   const f = fixture(0); let time = 0;
   const load = createExpoLoader({ ...f.options, now: () => new Date(time) });
-  await Promise.all([load(), load()]); expect(f.requests).toHaveLength(5);
+  await Promise.all([load(), load()]); expect(f.requests).toHaveLength(6);
   expect((await load()).body.leads).toEqual([]);
-  time = 300000; await load(); expect(f.requests).toHaveLength(10);
+  time = 300000; await load(); expect(f.requests).toHaveLength(12);
 });
 test.each(['source', 'date', 'deal-source', 'deal-date', 'page'])('fails closed on invalid %s and clears stale data after a failed refresh', async kind => {
   const f = fixture(), load = createExpoLoader(f.options);
@@ -148,4 +148,52 @@ test('API applies the November boundary in Yerevan and allowed stages after excl
   expect(result.body.leads.map(row => row.id)).toEqual([3]);
   expect(result.body.directDeals).toEqual([]);
   expect(result.body.deals).toEqual([]);
+});
+
+test('comparison reads all historical sources, Yerevan boundaries and own-source deals with any lead', async () => {
+  const f = fixture(0);
+  f.deals.splice(0, f.deals.length, ...[
+    ['2026-05-31T19:59:59Z', 'OTHER'],
+    ['2026-05-31T20:00:00Z', ''],
+    ['2026-10-31T19:59:59Z', 'OTHER'],
+    ['2026-10-31T20:00:00Z', 'UC_TOON_EXPO'],
+    ['2027-01-01T00:00:00Z', 'UC_TOON_EXPO'],
+    ['2026-11-01T00:00:00Z', 'OTHER'],
+  ].map(([DATE_CREATE, SOURCE_ID], i) => ({ ID: String(100 + i), DATE_CREATE, SOURCE_ID, STAGE_ID: 'NEW', LEAD_ID: '999' })));
+  const result = await createExpoLoader(f.options)();
+  expect(result.status).toBe(200);
+  expect(result.body.createdDealsComparison).toEqual({ baselineCount: 2, baselineMonths: 5, baselineMonthlyAverage: 0.4, expoCount: 2 });
+  expect(result.body.directDeals).toEqual([]);
+});
+
+test('comparison paginates historical deals, resolves other funnels and excludes unknown stages', async () => {
+  const f = fixture(0);
+  f.deals.splice(0, f.deals.length, ...Array.from({ length: 55 }, (_, i) => ({
+    ID: String(100 + i), DATE_CREATE: '2026-06-01T00:00:00+04:00', SOURCE_ID: 'OTHER',
+    CATEGORY_ID: 3, STAGE_ID: i < 51 ? 'C3:WON' : 'UNKNOWN', LEAD_ID: '0',
+  })));
+  const load = createExpoLoader(f.options);
+  expect((await load()).body.createdDealsComparison).toEqual({ baselineCount: 51, baselineMonths: 5, baselineMonthlyAverage: 10.2, expoCount: 0 });
+  const calls = f.requests.length;
+  const copy = await load(); copy.body.createdDealsComparison.baselineCount = 0;
+  expect((await load()).body.createdDealsComparison.baselineCount).toBe(51);
+  expect(f.requests).toHaveLength(calls);
+  f.stages.DEAL_STAGE_3 = [];
+  expect((await load({ refresh: true })).body.createdDealsComparison.baselineCount).toBe(0);
+});
+
+test('comparison failures clear the entire cached snapshot', async () => {
+  const f = fixture(0); let fail = false;
+  const original = f.options.fetchImpl;
+  f.options.fetchImpl = async (url, init) => {
+    if (fail && JSON.parse(init.body).filter?.['>=DATE_CREATE']) throw new Error('historical read failed');
+    return original(url, init);
+  };
+  const load = createExpoLoader(f.options);
+  expect((await load()).status).toBe(200);
+  fail = true;
+  expect(await load({ refresh: true })).toEqual({ status: 502, body: { error: 'CRM_READ_ERROR' } });
+  expect((await load()).status).toBe(502);
+  fail = false;
+  expect((await load()).status).toBe(200);
 });

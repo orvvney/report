@@ -3,6 +3,7 @@ const { loadConfig } = require('../bitrix24/config.cjs');
 const { addDetails } = require('../bitrix24/details.cjs');
 const { createClient } = require('../bitrix24/client.cjs');
 
+const { calculateCreatedDealsComparison } = require('./expo-comparison.cjs');
 const { selectExpoRows } = require('./expo-selection.cjs');
 
 const SOURCE_DIRECTORY_ID = '305';
@@ -84,6 +85,11 @@ function createExpoLoader({ env = process.env, envPath = path.resolve(__dirname,
       const leadIdOf = row => [undefined, null, '', 0, '0'].includes(row.LEAD_ID) ? null : idOf(row.LEAD_ID);
       const dealSelect = [...select, 'LEAD_ID', 'CONTACT_ID', 'STAGE_ID', 'CATEGORY_ID'];
       const sourceDeals = await list(call, 'crm.deal.list', { '=SOURCE_ID': sourceId }, dealSelect);
+      const comparisonSource = sourceDeals.map(checkSource).map(row => normalize(row, 'deal'));
+      const baseline = (await list(call, 'crm.deal.list', {
+        '>=DATE_CREATE': '2026-06-01T00:00:00+04:00',
+        '<DATE_CREATE': '2026-11-01T00:00:00+04:00',
+      }, ['ID', 'DATE_CREATE', 'STAGE_ID', 'CATEGORY_ID'])).map(row => normalize(row, 'deal'));
       const directDeals = sourceDeals.map(checkSource).filter(row => leadIdOf(row) === null).map(row => normalize(row, 'deal'));
       const contactNames = directDeals.map(row => ({ id: row.id }));
       await addDetails(call, contactNames, sourceDeals.map(row => ({ id: Number(row.ID), contactId: row.CONTACT_ID })));
@@ -102,7 +108,7 @@ function createExpoLoader({ env = process.env, envPath = path.resolve(__dirname,
       const convertedLeadIds = new Set(deals.map(deal => deal.leadId));
       const unconvertedLeads = leads.filter(lead => !convertedLeadIds.has(lead.id));
       const stageNames = new Map();
-      for (const row of [...unconvertedLeads, ...directDeals, ...deals]) {
+      for (const row of [...unconvertedLeads, ...directDeals, ...deals, ...baseline, ...comparisonSource]) {
         if (!row.stageId) continue;
         const entityId = stageDirectories.get(row);
         if (!stageNames.has(entityId)) {
@@ -111,7 +117,7 @@ function createExpoLoader({ env = process.env, envPath = path.resolve(__dirname,
         }
         row.stageName = stageNames.get(entityId).get(row.stageId) || null;
       }
-      state.body = { sourceId, leads: selectExpoRows(unconvertedLeads, 'lead'), deals: selectExpoRows(deals, 'deal'), directDeals: selectExpoRows(directDeals, 'deal'), updatedAt: now().toISOString() };
+      state.body = { createdDealsComparison: calculateCreatedDealsComparison(baseline, comparisonSource), sourceId, leads: selectExpoRows(unconvertedLeads, 'lead'), deals: selectExpoRows(deals, 'deal'), directDeals: selectExpoRows(directDeals, 'deal'), updatedAt: now().toISOString() };
       state.at = now().getTime();
       return { status: 200, body: state.body };
     } catch { return { status: 502, body: { error: 'CRM_READ_ERROR' } }; }

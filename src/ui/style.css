@@ -546,3 +546,13 @@ dialog::backdrop { background: rgb(29 40 62 / 45%); }
 .expo-records .kpi-notice { margin: 0; }
 .expo-records-footer { min-height: 60px; padding-top: 20px; }
 .expo-records-footer .kpi-pagination { margin-top: 0; }
+
+/* Match the header-to-title gap to the cards-to-list gap. */
+.expo-panel { padding-top: 23px; }
+.expo-column-heading { min-height: 0; align-items: flex-start; }
+@media (min-width: 901px) {
+  .expo-columns { grid-template-rows: none; }
+  .expo-column { display: block; grid-row: auto; }
+}
+
+.expo-section { display: flow-root; }

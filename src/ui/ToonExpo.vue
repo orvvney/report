@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import ExpoComparison from './ExpoComparison.vue';
 import ExpoRecordsList from './ExpoRecordsList.vue';
 import selection from '../report/expo-selection.cjs';
 const listsExpanded = ref(false);
@@ -56,6 +57,7 @@ defineExpose({ refresh });
 </script>
 
 <template>
+  <div class="expo-section">
   <section class="expo-panel" aria-label="Տուն Էքսպո Նոյեմբեր 2026">
     <p v-if="loading" role="status">Տվյալները բեռնվում են…</p>
     <div v-else-if="failed" role="alert">Չհաջողվեց բեռնել Տուն Էքսպոյի տվյալները։ <button type="button" @click="refresh()">Կրկին փորձել</button></div>
@@ -95,4 +97,6 @@ defineExpose({ refresh });
     </div>
   </section>
   </section>
+  <ExpoComparison v-if="snapshot?.createdDealsComparison && !loading && !failed" :data="snapshot.createdDealsComparison" />
+  </div>
 </template>

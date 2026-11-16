@@ -43,6 +43,9 @@ test.each([320, 390, 600])('phone keeps each collapsed list within its section a
     if (i < 2) expect((await column([1, 0, 2][i + 1]).boundingBox()).y).toBeGreaterThanOrEqual(box.y + box.height);
     const heading = await section.locator('h3').boundingBox(), help = await section.locator('.filter-help').boundingBox();
     const multiline = await section.locator('.filter-title').evaluate(el => el.classList.contains('is-multiline'));
+    const total = await section.locator('.expo-totals').boundingBox();
+    const bottomElement = multiline ? help : heading;
+    expect(total.y - bottomElement.y - bottomElement.height).toBeCloseTo(24, 0);
     if (multiline) {
       expect(help.y).toBeGreaterThanOrEqual(heading.y + heading.height);
       expect(help.x + help.width / 2).toBeCloseTo(heading.x + heading.width / 2, 0);
@@ -175,4 +178,102 @@ test.each([390, 1440])('keeps ten row slots, equal list heights and sticky colum
   expect(after.y).toBeCloseTo(0, 0);
   expect(await scroller.evaluate(el => el.scrollTop)).toBe(0);
   await page.screenshot({ path: `test-results/expo-sticky-${width}.png`, fullPage: true });
+});
+
+test.each([320, 375, 1440])('comparison shows monthly average and total after lists at %i px', async width => {
+  await page.setViewportSize({ width, height: 1000 });
+  await page.route('**/api/toon-expo*', route => route.fulfill({ json: { ...data,
+    createdDealsComparison: { baselineCount: 11, baselineMonths: 5, baselineMonthlyAverage: 2.2, expoCount: 7 },
+  } }));
+  await page.goto('/#toon-expo');
+  const chart = page.locator('.expo-comparison');
+  await chart.waitFor();
+  expect(await chart.getByTestId('expo-comparison-value').allTextContents()).toEqual([await page.evaluate(() => new Intl.NumberFormat('hy-AM', { maximumFractionDigits: 2 }).format(2.2)), '7']);
+  expect(await chart.locator('.expo-comparison-labels').innerText()).toBe('Միջին ամսական գործարքների քանակ\nՏուն Էքսպո · ընդհանուր գործարքների քանակ');
+  expect(await chart.innerText()).not.toContain('01.06.2026–31.10.2026');
+  expect(await chart.innerText()).not.toContain('01.11.2026-ից');
+  expect(await chart.innerText()).not.toContain('գործարք / ամիս');
+  expect(await chart.innerText()).not.toContain('Բոլոր աղբյուրները · 5 ամիս');
+  expect(await chart.innerText()).not.toContain('Գործարքի աղբյուրը՝ Տուն Էքսպո');
+  const heading = chart.getByRole('heading', { name: 'Ավելացված գործարքների համեմատություն', exact: true });
+  expect(await heading.evaluate(el => getComputedStyle(el).fontSize)).toBe('14px');
+  expect(await chart.locator('svg').evaluate(el => el.getBoundingClientRect().height)).toBe(380);
+  expect(await chart.getByTestId('expo-comparison-value').first().getAttribute('font-size')).toBe('14');
+  const help = chart.getByRole('button', { name: 'Ավելացված գործարքների համեմատության մասին' });
+  const tooltip = chart.getByRole('tooltip');
+  await help.focus();
+  expect(await tooltip.isVisible()).toBe(true);
+  expect(await tooltip.innerText()).toContain('Տուն Էքսպոյի ընթացքում');
+  await page.keyboard.press('Escape');
+  expect(await tooltip.isVisible()).toBe(false);
+  await help.click();
+  expect(await tooltip.isVisible()).toBe(true);
+  await help.blur();
+  await page.mouse.move(0, 0);
+  const titleBox = await heading.boundingBox(), helpBox = await help.boundingBox(), chartBox = await chart.boundingBox();
+  expect((titleBox.x + helpBox.x + helpBox.width) / 2).toBeCloseTo(chartBox.x + chartBox.width / 2, 0);
+  const header = await page.locator('.report-header').boundingBox();
+  const firstHeading = await page.locator('.expo-column-title').first().boundingBox();
+  const card = await page.locator('.expo-totals').first().boundingBox();
+  const firstList = await page.locator(width < 640 ? '.expo-column .expo-lists' : '.expo-panel > .expo-lists').first().boundingBox();
+  expect(Math.abs((firstHeading.y - header.y - header.height) - (firstList.y - card.y - card.height))).toBeLessThanOrEqual(0.5);
+  for (const column of await page.locator('.expo-column').all()) {
+    const title = await column.locator('h3').boundingBox();
+    const total = await column.locator('.expo-totals').boundingBox();
+    const stackedHelp = width < 640 && await column.locator('.filter-title').evaluate(el => el.classList.contains('is-multiline'));
+    const bottomElement = stackedHelp ? await column.locator('.filter-help').boundingBox() : title;
+    expect(total.y - bottomElement.y - bottomElement.height).toBeCloseTo(24, 0);
+  }
+  const labelStyle = await chart.locator('.expo-comparison-labels h3').first().evaluate(el => {
+    const style = getComputedStyle(el);
+    return [style.fontSize, style.fontWeight, style.color];
+  });
+  expect(labelStyle).toEqual(await heading.evaluate(el => {
+    const style = getComputedStyle(el);
+    return [style.fontSize, style.fontWeight, style.color];
+  }));
+  const panelBox = await page.locator('.expo-panel').boundingBox();
+  const sectionGap = await page.locator('.report-page').evaluate(el => parseFloat(getComputedStyle(el).getPropertyValue('--section-gap')));
+  expect(chartBox.y - panelBox.y - panelBox.height).toBeCloseTo(sectionGap, 0);
+  expect(chartBox.x).toBeCloseTo(panelBox.x, 0);
+  expect(chartBox.width).toBeCloseTo(panelBox.width, 0);
+  const bars = chart.locator('rect');
+  const first = await bars.nth(0).boundingBox(), second = await bars.nth(1).boundingBox();
+  const labelBox = await chart.locator('.expo-comparison-labels').boundingBox();
+  const svgBox = await chart.locator('svg').boundingBox();
+  const titleGap = titleBox.y - chartBox.y;
+  expect(labelBox.y - (svgBox.y + 310)).toBeCloseTo(titleGap, 0);
+  const textBoxes = await chart.locator('.expo-comparison-labels h3').evaluateAll(elements =>
+    elements.map(el => { const box = el.getBoundingClientRect(); return { bottom: box.bottom }; }));
+  expect(chartBox.y + chartBox.height - Math.max(...textBoxes.map(box => box.bottom))).toBeCloseTo(titleGap, 0);
+  expect(first.x).toBeLessThan(second.x);
+  expect(first.height / second.height).toBeCloseTo(2.2 / 7, 3);
+  const lists = page.locator(width < 640 ? '.expo-column .expo-lists' : '.expo-panel > .expo-lists');
+  const lastList = await lists.last().boundingBox();
+  expect((await chart.boundingBox()).y).toBeGreaterThanOrEqual(lastList.y + lastList.height);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: 'test-results/expo-comparison-' + width + '.png', fullPage: true });
+});
+
+test('comparison hides stale values during refresh and errors and recovers with zero totals', async () => {
+  let release;
+  await page.route('**/api/toon-expo*', route => route.fulfill({ json: { ...data,
+    createdDealsComparison: { baselineCount: 11, baselineMonths: 5, baselineMonthlyAverage: 2.2, expoCount: 7 },
+  } }));
+  await page.goto('/#toon-expo'); await page.locator('.expo-comparison').waitFor();
+  await page.route('**/api/toon-expo*', async route => {
+    await new Promise(resolve => { release = resolve; }); await route.fulfill({ status: 502, json: { error: 'CRM_READ_ERROR' } });
+  });
+  await page.locator('.report-header button').first().click();
+  await page.getByRole('status').filter({ hasText: 'Տվյալները բեռնվում են' }).first().waitFor();
+  expect(await page.locator('.expo-comparison').count()).toBe(0);
+  release();
+  await page.getByRole('alert').waitFor();
+  expect(await page.locator('.expo-comparison').count()).toBe(0);
+  await page.route('**/api/toon-expo*', route => route.fulfill({ json: { ...data,
+    createdDealsComparison: { baselineCount: 0, baselineMonths: 5, baselineMonthlyAverage: 0, expoCount: 0 },
+  } }));
+  await page.getByRole('button', { name: 'Կրկին փորձել', exact: true }).click();
+  await page.locator('.expo-comparison').waitFor();
+  expect(await page.getByTestId('expo-comparison-value').allTextContents()).toEqual(['0', '0']);
 });

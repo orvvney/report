@@ -1,4 +1,8 @@
-beforeEach(async () => { await page.clock.install(); await page.goto('/'); await page.getByTestId('statistics-count').waitFor(); });
+beforeEach(async () => { await page.clock.install(); await page.goto('/'); await page.getByTestId('statistics-count').waitFor();
+  // Freeze automatic clock advancement so hover processing cannot consume part
+  // of the 400 ms delay before the explicit boundary assertions.
+  await page.clock.pauseAt(await page.evaluate(() => Date.now()));
+});
 test.each([
   ['Թարմացնել ամբողջ հաշվետվությունը', 'refresh-tooltip'],
   ['Հաշվետվությունների տեսակ', 'menu-tooltip'],
