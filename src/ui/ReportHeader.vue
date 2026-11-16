@@ -43,7 +43,7 @@ onBeforeUnmount(() => { observer?.disconnect(); hideTooltip(); });
           </div>
           <div class="report-header-copy">
             <h1>Հաշվետվություն</h1>
-            <p v-if="section === 'apartments' || section === 'expo'" class="report-header-subtitle"><span>{{ section === 'expo' ? 'Տուն Էքսպո' : 'Կնքված բնակարաններ' }}</span></p>
+            <p v-if="section === 'apartments' || section === 'expo'" class="report-header-subtitle"><span>{{ section === 'expo' ? 'Տուն Էքսպո Նոյեմբեր 2026' : 'Կնքված բնակարաններ' }}</span></p>
           </div>
           <div class="header-actions">
             <span class="header-tooltip-anchor" @pointerenter="event => { if (event.pointerType === 'mouse') showTooltip('refresh'); }" @pointerleave="hideTooltip">
@@ -60,7 +60,7 @@ onBeforeUnmount(() => { observer?.disconnect(); hideTooltip(); });
             <div ref="propertyMenu" id="property-menu" class="property-menu" popover role="menu" aria-label="Հաշվետվությունների տեսակ">
               <button type="button" role="menuitem" @click="selectSection('apartments')">Կնքված բնակարաններ</button>
               <button type="button" role="menuitem" @click="selectSection('parking')">Կնքված կայանատեղիներ</button>
-              <button type="button" role="menuitem" @click="selectSection('expo')">Տուն Էքսպո</button>
+              <button type="button" role="menuitem" @click="selectSection('expo')">Տուն Էքսպո Նոյեմբեր 2026</button>
               <template v-if="account">
                 <div class="property-menu-divider" role="separator"></div>
                 <button type="button" role="menuitem" :title="account" @click="logout">Ելք</button>

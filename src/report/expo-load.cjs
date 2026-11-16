@@ -3,6 +3,8 @@ const { loadConfig } = require('../bitrix24/config.cjs');
 const { addDetails } = require('../bitrix24/details.cjs');
 const { createClient } = require('../bitrix24/client.cjs');
 
+const { selectExpoRows } = require('./expo-selection.cjs');
+
 const SOURCE_DIRECTORY_ID = '305';
 const TTL = 5 * 60 * 1000;
 const dateFormat = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Yerevan', year: 'numeric', month: '2-digit', day: '2-digit' });
@@ -109,7 +111,7 @@ function createExpoLoader({ env = process.env, envPath = path.resolve(__dirname,
         }
         row.stageName = stageNames.get(entityId).get(row.stageId) || null;
       }
-      state.body = { sourceId, leads: unconvertedLeads, deals, directDeals, updatedAt: now().toISOString() };
+      state.body = { sourceId, leads: selectExpoRows(unconvertedLeads, 'lead'), deals: selectExpoRows(deals, 'deal'), directDeals: selectExpoRows(directDeals, 'deal'), updatedAt: now().toISOString() };
       state.at = now().getTime();
       return { status: 200, body: state.body };
     } catch { return { status: 502, body: { error: 'CRM_READ_ERROR' } }; }

@@ -99,12 +99,12 @@ test('the report stays closed until Google and Authenticator pass, and the accou
     expect(await logout.isVisible()).toBe(true);
     expect(await logout.getAttribute('title')).toBe(ALLOWED);
     expect(await menu.getByRole('menuitem').allTextContents()).toEqual([
-      'Կնքված բնակարաններ', 'Կնքված կայանատեղիներ', 'Տուն Էքսպո', 'Ելք',
+      'Կնքված բնակարաններ', 'Կնքված կայանատեղիներ', 'Տուն Էքսպո Նոյեմբեր 2026', 'Ելք',
     ]);
     const divider = menu.getByRole('separator');
     expect(await divider.isVisible()).toBe(true);
     const line = await divider.boundingBox();
-    const lastSection = await menu.getByRole('menuitem', { name: 'Տուն Էքսպո', exact: true }).boundingBox();
+    const lastSection = await menu.getByRole('menuitem', { name: 'Տուն Էքսպո Նոյեմբեր 2026', exact: true }).boundingBox();
     const exit = await logout.boundingBox();
     expect(line.y).toBeGreaterThanOrEqual(lastSection.y + lastSection.height);
     expect(exit.y).toBeGreaterThan(line.y + line.height);
@@ -163,7 +163,7 @@ for (const endpoint of ['report', 'toon-expo']) {
     await signIn();
     if (endpoint === 'toon-expo') {
       await page.getByRole('button', { name: 'Հաշվետվությունների տեսակ', exact: true }).click();
-      await page.getByRole('menuitem', { name: 'Տուն Էքսպո', exact: true }).click();
+      await page.getByRole('menuitem', { name: 'Տուն Էքսպո Նոյեմբեր 2026', exact: true }).click();
       await page.getByTestId('expo-leads').waitFor();
     }
     await page.context().clearCookies();

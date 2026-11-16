@@ -1,6 +1,8 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import ExpoRecordsList from './ExpoRecordsList.vue';
+import selection from '../report/expo-selection.cjs';
+const listsExpanded = ref(false);
 const snapshot = ref(null), loading = ref(false), failed = ref(false);
 const helpOpen = ref(null);
 const phoneQuery = window.matchMedia('(max-width: 639px)');
@@ -20,32 +22,23 @@ const vMeasureHeading = {
   },
   unmounted(element) { element.headingObserver?.disconnect(); },
 };
-const expoPeriod = reactive({ arrival: 'current', direct: 'current', deals: 'current' });
 const columnHelp = {
   arrival: { id: 'expo-interested-help', label: 'Հետաքրքրված հաճախորդների մասին', text: 'Այս սյունակում ներկայացված են Տուն Էքսպոյից եկած հետաքրքրված հաճախորդները:' },
   direct: { id: 'expo-direct-help', label: 'Անմիջապես գրանցված գործարքների մասին', text: 'Այս սյունակում ներկայացված են Տուն Էքսպոյից անմիջապես գրանցված գործարքները:' },
   deals: { id: 'expo-converted-help', label: 'Հետաքրքրությունից գործարք դառնալու մասին', text: 'Այս սյունակում ներկայացված են հետաքրքրված հաճախորդներից ձևավորված գործարքները:' },
 };
 const emit = defineEmits(['loading', 'expired']);
-const periods = reactive({ arrival: { ranges: [{ min: '2026-11-13', max: null }], invalid: false }, deals: { ranges: [{ min: '2026-11-13', max: null }], invalid: false }, direct: { ranges: [{ min: '2026-11-13', max: null }], invalid: false } });
-function selectExpoPeriod(key, value) {
-  expoPeriod[key] = value;
-  periods[key] = { ranges: [value === 'past' ? { min: null, max: '2026-11-12' } : { min: '2026-11-13', max: null }], invalid: false };
-}
-function selectRows(rows, key) {
-  return rows.filter(row => periods[key].ranges.some(({ min, max }) => (!min || row.date >= min) && (!max || row.date <= max)));
-}
 const unconvertedLeads = computed(() => {
   const convertedIds = new Set((snapshot.value?.deals || []).map(deal => Number(deal.leadId)));
   return (snapshot.value?.leads || []).filter(lead => !convertedIds.has(Number(lead.id)));
 });
-const selected = computed(() => selectRows(unconvertedLeads.value, 'arrival'));
-const selectedDeals = computed(() => selectRows(snapshot.value?.deals || [], 'deals'));
-const selectedDirect = computed(() => selectRows(snapshot.value?.directDeals || [], 'direct'));
+const selected = computed(() => selection.selectExpoRows(unconvertedLeads.value, 'lead'));
+const selectedDeals = computed(() => selection.selectExpoRows(snapshot.value?.deals || [], 'deal'));
+const selectedDirect = computed(() => selection.selectExpoRows(snapshot.value?.directDeals || [], 'deal'));
 const columns = computed(() => [
-  { key: 'arrival', title: 'Հետաքրքրված հաճախորդներ', filterTitle: 'Ստեղծման ժամանակահատված', sourceRows: unconvertedLeads.value, rows: selected.value },
-  { key: 'direct', title: 'Անմիջապես գրանցված գործարքներ', filterTitle: 'Ստեղծման ժամանակահատված', sourceRows: snapshot.value?.directDeals || [], rows: selectedDirect.value },
-  { key: 'deals', title: 'Հետաքրքրությունից դեպի գործարք', filterTitle: 'Ստեղծման ժամանակահատված', sourceRows: snapshot.value?.deals || [], rows: selectedDeals.value },
+  { key: 'direct', title: 'Անմիջապես գրանցված գործարքներ', rows: selectedDirect.value },
+  { key: 'arrival', title: 'Հետաքրքրված հաճախորդներ', rows: selected.value },
+  { key: 'deals', title: 'Հետաքրքրությունից դեպի գործարք', rows: selectedDeals.value },
 ]);
 async function refresh(force = true) {
   if (loading.value) return;
@@ -63,7 +56,7 @@ defineExpose({ refresh });
 </script>
 
 <template>
-  <section class="expo-panel" aria-label="Տուն Էքսպո">
+  <section class="expo-panel" aria-label="Տուն Էքսպո Նոյեմբեր 2026">
     <p v-if="loading" role="status">Տվյալները բեռնվում են…</p>
     <div v-else-if="failed" role="alert">Չհաջողվեց բեռնել Տուն Էքսպոյի տվյալները։ <button type="button" @click="refresh()">Կրկին փորձել</button></div>
     <div v-show="snapshot && !loading && !failed" class="expo-columns">
@@ -77,30 +70,26 @@ defineExpose({ refresh });
             <div v-show="helpOpen === column.key" :id="columnHelp[column.key].id" class="filter-help-tooltip" role="tooltip">{{ columnHelp[column.key].text }}</div>
           </div>
         </div>
-        <div class="expo-event-filter period-buttons" role="group" aria-label="Տուն Էքսպոյի ժամանակահատված">
-          <button type="button" :aria-pressed="expoPeriod[column.key] === 'past'" :disabled="loading || failed || !snapshot" @click="selectExpoPeriod(column.key, 'past')">Անցած Տուն Էքսպոներ</button>
-          <button type="button" :aria-pressed="expoPeriod[column.key] === 'current'" :disabled="loading || failed || !snapshot" @click="selectExpoPeriod(column.key, 'current')">Ներկայիս Տուն Էքսպո</button>
-        </div>
-        <template v-if="!periods[column.key].invalid">
         <div class="expo-totals">
           <div v-if="column.key === 'arrival'"><strong data-testid="expo-leads">{{ selected.length }}</strong></div>
           <div v-else><strong :data-testid="column.key === 'deals' ? 'expo-deals' : 'expo-direct-deals'">{{ column.rows.length }}</strong></div>
         </div>
-        </template>
         <div v-if="phone" class="deals-list expo-lists">
-          <ExpoRecordsList v-if="!periods[column.key].invalid" :rows="column.rows" :title="column.title" item-title="Ցանկ" :filters="periods[column.key]" />
-          <p v-else class="kpi-notice">Ուղղեք ժամանակահատվածի սխալը։</p>
+          <ExpoRecordsList :rows="column.rows" :title="column.title" item-title="Ցանկ" />
         </div>
       </section>
     </div>
-  <section v-if="!phone" class="deals-list expo-lists" aria-label="Տուն Էքսպո՝ ցանկ" :aria-busy="loading">
-    <div id="expo-lists-content" class="deals-list-content">
+  <section v-if="!phone" class="deals-list expo-lists" aria-label="Տուն Էքսպո Նոյեմբեր 2026՝ ցանկ" :aria-busy="loading">
+    <button type="button" class="expo-records-toggle deals-list-header expo-desktop-toggle" :aria-expanded="listsExpanded" aria-controls="expo-lists-content" @click="listsExpanded = !listsExpanded">
+      <span class="expo-records-title">Ցանկ</span>
+      <svg class="deals-list-chevron" :class="{ 'is-expanded': listsExpanded }" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m4 6 4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+    </button>
+    <div v-show="listsExpanded" id="expo-lists-content" class="deals-list-content">
       <p v-if="loading" class="kpi-notice" role="status">Տվյալները բեռնվում են…</p>
       <p v-else-if="failed" class="kpi-notice" role="status">Տվյալներն անհասանելի են։</p>
       <div v-else-if="snapshot" class="expo-records-columns">
         <template v-for="column in columns" :key="column.key">
-          <ExpoRecordsList v-if="!periods[column.key].invalid" :rows="column.rows" :title="column.title" :filters="periods[column.key]" />
-          <section v-else class="expo-records" :aria-label="`${column.title}՝ ցանկ`"><p class="kpi-notice">Ուղղեք ժամանակահատվածի սխալը։</p></section>
+          <ExpoRecordsList :rows="column.rows" :title="column.title" :collapsible="false" />
         </template>
       </div>
     </div>

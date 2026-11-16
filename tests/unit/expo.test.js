@@ -2,9 +2,9 @@ const { createExpoLoader } = require('../../src/report/expo-load.cjs');
 const { createServer } = require('../../server.js');
 const env = { BITRIX24_WEBHOOK_URL: 'https://portal.example/rest/1/expo-test-secret/' };
 function fixture(count = 51) {
-  const leads = Array.from({ length: count }, (_, i) => ({ ID: String(i + 1), TITLE: `Lead ${i + 1}`, NAME: 'Արամ', LAST_NAME: `Ազգանուն ${i + 1}`, SOURCE_ID: 'UC_TOON_EXPO', DATE_CREATE: '2026-01-31T23:00:00+00:00' }));
-  const deals = [{ ID: '71', LEAD_ID: '0', CONTACT_ID: '8', SOURCE_ID: 'UC_TOON_EXPO', DATE_CREATE: '2025-12-31T22:00:00Z', TITLE: 'Deal A' }, { ID: '72', LEAD_ID: '999', SOURCE_ID: 'UC_TOON_EXPO', DATE_CREATE: '2026-03-02T10:00:00Z', TITLE: 'Deal B' }, { ID: '73', LEAD_ID: '51', SOURCE_ID: 'UC_TOON_EXPO', DATE_CREATE: '2026-04-02T10:00:00Z', TITLE: 'Deal C' }];
-  deals.push({ ID: '74', LEAD_ID: '1', SOURCE_ID: 'OTHER', DATE_CREATE: '2026-05-01T10:00:00Z', TITLE: 'Converted with another source' });
+  const leads = Array.from({ length: count }, (_, i) => ({ ID: String(i + 1), TITLE: `Lead ${i + 1}`, STATUS_ID: 'NEW', NAME: 'Արամ', LAST_NAME: `Ազգանուն ${i + 1}`, SOURCE_ID: 'UC_TOON_EXPO', STAGE_ID: 'NEW', DATE_CREATE: '2026-10-31T23:00:00+00:00' }));
+  const deals = [{ ID: '71', LEAD_ID: '0', CONTACT_ID: '8', SOURCE_ID: 'UC_TOON_EXPO', STAGE_ID: 'NEW', DATE_CREATE: '2026-10-31T22:00:00Z', TITLE: 'Deal A' }, { ID: '72', LEAD_ID: '999', SOURCE_ID: 'UC_TOON_EXPO', STAGE_ID: 'NEW', DATE_CREATE: '2026-11-02T10:00:00Z', TITLE: 'Deal B' }, { ID: '73', LEAD_ID: '51', SOURCE_ID: 'UC_TOON_EXPO', STAGE_ID: 'NEW', DATE_CREATE: '2026-11-02T10:00:00Z', TITLE: 'Deal C' }];
+  deals.push({ ID: '74', LEAD_ID: '1', SOURCE_ID: 'OTHER', STAGE_ID: 'NEW', DATE_CREATE: '2026-11-01T10:00:00Z', TITLE: 'Converted with another source' });
   const stages = { STATUS: [{ STATUS_ID: 'NEW', NAME: 'Նոր լիդ' }], DEAL_STAGE: [{ STATUS_ID: 'NEW', NAME: 'Նոր գործարք' }], DEAL_STAGE_3: [{ STATUS_ID: 'C3:WON', NAME: 'Կնքված' }] };
   const requests = [];
   const options = { env, scheduleRequest: task => task(), waitRetry: async () => {}, fetchImpl: async (url, init) => {
@@ -33,13 +33,13 @@ test('loads all source 305 leads and independent deals, with Yerevan creation da
   expect(result.status).toBe(200);
   expect(result.body.sourceId).toBe('UC_TOON_EXPO');
   expect(result.body.leads).toHaveLength(49);
-  expect(result.body.leads[0]).toMatchObject({ date: '2026-02-01', url: 'https://portal.example/crm/lead/details/2/' });
+  expect(result.body.leads[0]).toMatchObject({ date: '2026-11-01', url: 'https://portal.example/crm/lead/details/2/' });
   expect(result.body.deals.map(row => row.id)).toEqual([74, 73]);
   expect(result.body.directDeals.map(row => row.id)).toEqual([71]);
   expect(result.body.leads[0].customerName).toBe('Արամ Ազգանուն 2');
   expect(result.body.deals[0].customerName).toBe('Արամ Ազգանուն 1');
   expect(result.body.directDeals[0].customerName).toBe('Անի Պետրոսյան');
-  expect(result.body.directDeals[0]).toMatchObject({ id: 71, date: '2026-01-01', url: 'https://portal.example/crm/deal/details/71/' });
+  expect(result.body.directDeals[0]).toMatchObject({ id: 71, date: '2026-11-01', url: 'https://portal.example/crm/deal/details/71/' });
   expect(f.requests.filter(row => row.method === 'crm.lead.list').map(row => row.params.start)).toEqual([0, 50]);
   expect(f.requests.filter(row => row.method === 'crm.deal.list')).toHaveLength(3);
   const calls = f.requests.length;
@@ -49,7 +49,7 @@ test('loads all source 305 leads and independent deals, with Yerevan creation da
   await load({ refresh: true }); expect(f.requests).toHaveLength(calls * 2);
 });
 test('reads every page of source deals even with no leads', async () => {
-  const f = fixture(0); f.deals.splice(0, f.deals.length, ...Array.from({ length: 51 }, (_, i) => ({ ID: String(i + 1), LEAD_ID: '0', SOURCE_ID: 'UC_TOON_EXPO', DATE_CREATE: '2026-01-01T10:00:00Z', TITLE: 'Deal' })));
+  const f = fixture(0); f.deals.splice(0, f.deals.length, ...Array.from({ length: 51 }, (_, i) => ({ ID: String(i + 1), LEAD_ID: '0', SOURCE_ID: 'UC_TOON_EXPO', STAGE_ID: 'NEW', DATE_CREATE: '2026-11-01T10:00:00Z', TITLE: 'Deal' })));
   const result = await createExpoLoader(f.options)();
   expect(result.body.directDeals).toHaveLength(51);
   expect(f.requests.filter(row => row.method === 'crm.deal.list').map(row => row.params.start)).toEqual([0, 50]);
@@ -57,9 +57,9 @@ test('reads every page of source deals even with no leads', async () => {
 test('empty leads still read deals; cache expires after five minutes and coalesces simultaneous reads', async () => {
   const f = fixture(0); let time = 0;
   const load = createExpoLoader({ ...f.options, now: () => new Date(time) });
-  await Promise.all([load(), load()]); expect(f.requests).toHaveLength(4);
+  await Promise.all([load(), load()]); expect(f.requests).toHaveLength(5);
   expect((await load()).body.leads).toEqual([]);
-  time = 300000; await load(); expect(f.requests).toHaveLength(8);
+  time = 300000; await load(); expect(f.requests).toHaveLength(10);
 });
 test.each(['source', 'date', 'deal-source', 'deal-date', 'page'])('fails closed on invalid %s and clears stale data after a failed refresh', async kind => {
   const f = fixture(), load = createExpoLoader(f.options);
@@ -95,7 +95,7 @@ test.each([[], [{ ID: '305', STATUS_ID: '' }], [{ ID: '305', STATUS_ID: 'A' }, {
 
 test('excludes converted leads once even with multiple deals while preserving every converted deal', async () => {
   const f = fixture(3);
-  f.deals.push({ ID: '75', LEAD_ID: '1', SOURCE_ID: 'OTHER', DATE_CREATE: '2025-01-01T10:00:00Z', TITLE: 'Earlier deal' });
+  f.deals.push({ ID: '75', LEAD_ID: '1', SOURCE_ID: 'OTHER', STAGE_ID: 'NEW', DATE_CREATE: '2026-11-01T10:00:00Z', TITLE: 'Earlier deal' });
   const result = await createExpoLoader(f.options)();
   expect(result.status).toBe(200);
   expect(result.body.leads.map(row => row.id)).toEqual([2, 3]);
@@ -118,13 +118,14 @@ test('resolves lead and deal stage names by pipeline with one directory read per
   expect(f.requests.find(row => row.method === 'crm.lead.list').params.select).toContain('STATUS_ID');
   for (const row of f.requests.filter(row => row.method === 'crm.deal.list')) expect(row.params.select).toEqual(expect.arrayContaining(['STAGE_ID', 'CATEGORY_ID']));
 });
-test('preserves missing and unknown stages without dropping records', async () => {
+test('excludes missing and unknown stages from the report', async () => {
   const f = fixture(3);
   f.leads[1].STATUS_ID = 'CUSTOM';
   const result = await createExpoLoader(f.options)();
   expect(result.status).toBe(200);
-  expect(result.body.leads[0]).toMatchObject({ stageId: 'CUSTOM', stageName: null });
-  expect(result.body.leads[1]).toMatchObject({ stageId: null, stageName: null });
+  f.leads[2].STATUS_ID = null;
+  const refreshed = await createExpoLoader(f.options)();
+  expect(refreshed.body.leads).toEqual([]);
 });
 test('clears stale snapshot if a stage directory cannot be read during refresh', async () => {
   const f = fixture(3); f.leads[1].STATUS_ID = 'NEW';
@@ -133,4 +134,18 @@ test('clears stale snapshot if a stage directory cannot be read during refresh',
   f.stages.STATUS = { invalid: true };
   expect(await load({ refresh: true })).toEqual({ status: 502, body: { error: 'CRM_READ_ERROR' } });
   expect((await load()).status).toBe(502);
+});
+
+test('API applies the November boundary in Yerevan and allowed stages after excluding converted leads', async () => {
+  const f = fixture(3);
+  f.leads[1].DATE_CREATE = '2026-10-31T19:59:59Z';
+  f.leads[2].DATE_CREATE = '2026-10-31T20:00:00Z';
+  f.deals[0].STAGE_ID = 'REJECTED';
+  f.deals[3].STAGE_ID = 'REJECTED';
+  f.stages.DEAL_STAGE.push({ STATUS_ID: 'REJECTED', NAME: 'Մերժված' });
+  const result = await createExpoLoader(f.options)();
+  expect(result.status).toBe(200);
+  expect(result.body.leads.map(row => row.id)).toEqual([3]);
+  expect(result.body.directDeals).toEqual([]);
+  expect(result.body.deals).toEqual([]);
 });
