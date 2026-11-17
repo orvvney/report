@@ -12,6 +12,23 @@ const failures = [
 beforeEach(() => jest.useFakeTimers());
 afterEach(() => jest.useRealTimers());
 
+test('default five-second timeout aborts a stalled response body and retries after two seconds', async () => {
+  const fetchImpl = jest.fn()
+    .mockResolvedValueOnce({ok:true,json:async()=>new Promise(()=>{})})
+    .mockImplementation(async()=>good());
+  const call = createClient({webhookUrl:WEBHOOK,fetchImpl,scheduleRequest:createRequestScheduler()});
+  const pending = call('crm.item.list', {});
+  await jest.advanceTimersByTimeAsync(4999);
+  expect(fetchImpl.mock.calls[0][1].signal.aborted).toBe(false);
+  await jest.advanceTimersByTimeAsync(1);
+  expect(fetchImpl.mock.calls[0][1].signal.aborted).toBe(true);
+  await jest.advanceTimersByTimeAsync(1999);
+  expect(fetchImpl).toHaveBeenCalledTimes(1);
+  await jest.advanceTimersByTimeAsync(1);
+  expect(await pending).toEqual({result:{items:[]}});
+  expect(fetchImpl).toHaveBeenCalledTimes(2);
+});
+
 test.each(failures)('%s failure retries three times with two seconds after each failure, without leaking secrets', async (_name, fail) => {
   const starts = [];
   const fetchImpl = jest.fn(async () => { starts.push(performance.now()); return fail(); });

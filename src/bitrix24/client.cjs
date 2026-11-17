@@ -41,7 +41,7 @@ function createRequestScheduler({ intervalMs = 200 } = {}) {
   };
 }
 
-function createClient({ webhookUrl, fetchImpl = globalThis.fetch, timeoutMs = 15000, scheduleRequest, batcher,
+function createClient({ webhookUrl, fetchImpl = globalThis.fetch, timeoutMs = 5000, scheduleRequest, batcher,
   retries = 3, waitRetry = () => new Promise((resolve) => setTimeout(resolve, 2000)) }) {
   const base = validateWebhook(webhookUrl);
   if (!scheduleRequest) {
