@@ -84,7 +84,7 @@ test('a complete 503-deal report stays below 4 seconds with slow CRM responses a
   expect(report.status).toBe(200);
   expect(report.body.deals).toHaveLength(503);
   expect(report.body.rooms[1]).toEqual({ category: 2, amount: '5030', count: 503 });
-  expect(fixture.state.requests).toHaveLength(15);
-  expect(fixture.state.httpRequests).toHaveLength(4);
+  expect(fixture.state.requests).toHaveLength(14);
+  expect(fixture.state.httpRequests).toHaveLength(3);
   expect(completedAt).toBeLessThanOrEqual(4000);
 });

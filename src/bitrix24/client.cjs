@@ -41,7 +41,7 @@ function createRequestScheduler({ intervalMs = 200 } = {}) {
   };
 }
 
-function createClient({ webhookUrl, fetchImpl = globalThis.fetch, timeoutMs = 15000, scheduleRequest,
+function createClient({ webhookUrl, fetchImpl = globalThis.fetch, timeoutMs = 15000, scheduleRequest, batcher,
   retries = 3, waitRetry = () => new Promise((resolve) => setTimeout(resolve, 2000)) }) {
   const base = validateWebhook(webhookUrl);
   if (!scheduleRequest) {
@@ -54,7 +54,7 @@ function createClient({ webhookUrl, fetchImpl = globalThis.fetch, timeoutMs = 15
     return retry(() => scheduleRequest(() => request(method, params)));
   }
   // Only structured, allowlisted read commands may enter a batch.
-  call.batch = async (commands) => {
+  call.batch = async (commands, { allowPartial = false } = {}) => {
     if (!Array.isArray(commands) || !commands.length || commands.length > 50
       || commands.some((command) => !isObject(command) || !METHODS.has(command.method))) {
       throw new CheckError('batch: разрешено от 1 до 50 методов чтения интеграции.');
@@ -70,24 +70,43 @@ function createClient({ webhookUrl, fetchImpl = globalThis.fetch, timeoutMs = 15
       return [`q${index}`, `${method}?${query}`];
     }));
     return retry(async () => {
-      const { result } = await scheduleRequest(() => request('batch', { halt: 1, cmd }));
+      const { result } = await scheduleRequest(() => request('batch', { halt: allowPartial ? 0 : 1, cmd }));
       const map = (value) => isObject(value) || (Array.isArray(value) && value.length === 0);
-      if (!isObject(result) || !map(result.result_error) || Object.keys(result.result_error).length
-        || !isObject(result.result)
+      if (!isObject(result) || !map(result.result_error) || (!allowPartial && Object.keys(result.result_error).length)
+        || !(allowPartial ? map(result.result) : isObject(result.result))
         || (result.result_total !== undefined && !map(result.result_total))
         || (result.result_next !== undefined && !map(result.result_next))) {
         throw new CheckError('batch: ошибка или некорректный ответ пакета; полная загрузка не подтверждена.');
       }
       return commands.map((command, index) => {
         const key = `q${index}`;
+        // Optional lookups retain successful siblings; no external error text
+        // leaves the client. Required batches remain strict by default.
+        if (allowPartial && (Object.hasOwn(result.result_error, key) || !Object.hasOwn(result.result, key))) return null;
         if (!Object.hasOwn(result.result, key)) throw new CheckError('batch: отсутствует результат запроса.');
-        validateResult(command.method, result.result[key]);
+        try { validateResult(command.method, result.result[key]); }
+        catch (error) { if (allowPartial) return null; throw error; }
         return { result: result.result[key],
           ...(Object.hasOwn(result.result_total || {}, key) ? { total: result.result_total[key] } : {}),
           ...(Object.hasOwn(result.result_next || {}, key) ? { next: result.result_next[key] } : {}) };
       });
     });
   };
+  if (batcher) {
+    const batched = async (method, params) => {
+      if (!METHODS.has(method)) return call(method, params);
+      const results = await batcher(base, [{method, params}], call.batch);
+      return results[0];
+    };
+    batched.batch = async (commands, options = {}) => {
+      if (!Array.isArray(commands) || !commands.length || commands.length > 50
+        || commands.some(command => !isObject(command) || !METHODS.has(command.method))) {
+        throw new CheckError('batch: разрешено от 1 до 50 методов чтения интеграции.');
+      }
+      return batcher(base, commands, call.batch, options);
+    };
+    return batched;
+  }
   return call;
 
   async function retry(operation) {

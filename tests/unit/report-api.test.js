@@ -39,7 +39,7 @@ test('resolves dynamic property metadata and includes apartments on later pages 
   expect(result.rooms[2]).toEqual({ category: 3, amount: '25', count: 1 });
   expect(result.months[0]).toEqual({ category: 1, amount: '25', count: 1 });
   expect(result.problems).toEqual([]);
-  expect(fixture.state.requests.filter((r) => r.method === 'crm.item.list').map((r) => r.params.start)).toEqual([-1, -1]);
+  expect(fixture.state.requests.filter((r) => r.method === 'crm.item.list').map((r) => r.params.start)).toEqual([0, 0]);
   fixture.state.items[50].ufCrmCustomType = '802';
   const empty = await (await fetch(`${base}/api/report?refresh=1`)).json();
   expect(empty.rooms).toEqual([]); expect(empty.problems).toEqual([]);
@@ -82,7 +82,7 @@ test('HTTP contract includes every CRM page, exact totals, safe links, no browse
   expect(report.deals).toHaveLength(50);
   expect(report.deals[0]).toEqual({ id: 1, url: 'https://portal.example/crm/deal/details/1/', rooms: 2, amount: '10', area: '65.5', date: '2026-01-15', complex: 'tower', customerName: null, entrance: null, floor: null, number: null });
   expect(require('../../src/report/filter.cjs').calculate(report.deals, report.year)).toEqual({ rooms: report.rooms, months: report.months });
-  expect(fixture.state.requests.filter((r) => r.method === 'crm.item.list').map((r) => r.params.start)).toEqual([-1, -1]);
+  expect(fixture.state.requests.filter((r) => r.method === 'crm.item.list').map((r) => r.params.start)).toEqual([0, 0]);
   fixture.state.items = []; fixture.state.time = '2026-12-31T20:00:00Z';
   const fresh = await (await fetch(`${base}/api/report`)).json();
   expect(fresh.year).toBe(2027); expect(fresh.rooms).toEqual([]); expect(fresh.months).toHaveLength(12); expect(fresh.problems).toEqual([]);

@@ -40,7 +40,7 @@ test('cache benchmark measures a real cold load, cache hit and fresh deals witho
     createLoader: (options) => createReportLoader({ ...fixture, ...options }) });
   expect(result.passed).toBe(true);
   expect(result.samples.map(({ scenario, requests, metadataCommands }) => ({ scenario, requests, metadataCommands })))
-    .toEqual([{ scenario: 'cold', requests: 3, metadataCommands: 3 },
+    .toEqual([{ scenario: 'cold', requests: 2, metadataCommands: 3 },
       { scenario: 'report-cache', requests: 0, metadataCommands: 0 },
       { scenario: 'fresh-deals', requests: 1, metadataCommands: 0 }]);
   expect(JSON.stringify(write.mock.calls)).not.toContain('synthetic-test-secret');
@@ -55,4 +55,11 @@ test('cache benchmark fails when a loader silently refetches on a supposed cache
       return { status: 200 };
     } });
   expect(result.passed).toBe(false);
+});
+
+test('cold-section benchmark requires all five runs at or below the unrounded maximum', () => {
+  const {summarize}=require('../../scripts/cold-performance.cjs');
+  expect(summarize([2500,1000,1000,1000,1000].map(durationMs=>({durationMs})))).toMatchObject({passed:true,maxMs:2500});
+  expect(summarize([2500.1,1000,1000,1000,1000].map(durationMs=>({durationMs})))).toMatchObject({passed:false,maxMs:2500.1});
+  expect(summarize([{durationMs:1000}]).passed).toBe(false);
 });

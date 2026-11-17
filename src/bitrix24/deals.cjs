@@ -86,7 +86,7 @@ async function listDeals(call, params) {
       const range = active[index];
       const page = checkPage(body, params, range.lower, range.upper);
       rows.push(...page);
-      if (page.length === 50) next.push({ ...range, lower: Number(page.at(-1).id) });
+      if (page.length === 50 && Number(page.at(-1).id) < range.upper) next.push({ ...range, lower: Number(page.at(-1).id) });
     });
     active = next;
   }
@@ -97,6 +97,44 @@ async function listDeals(call, params) {
     previous = Number(item.id);
   }
   return rows;
+}
+
+// For the small apartment report, exact counts allow reading only real pages.
+// The CLI retains cursor ranges for large exports without count calculation.
+async function listCountedDeals(call, params) {
+  const initial = await call.batch(['ASC', 'DESC'].map(id => ({method:'crm.item.list',
+    params:{...params, start:0, order:{id}}})));
+  const first = checkPage(initial[0], params, 0);
+  const last = checkPage(initial[1], params, 0, Number.MAX_SAFE_INTEGER, true);
+  const total = initial[0].total;
+  if (total === undefined && initial[1].total === undefined) return listDeals(call, params);
+  if (!Number.isSafeInteger(total) || total < 0 || initial[1].total !== total
+    || first.length !== Math.min(total, 50) || last.length !== first.length) invalid('crm.item.list');
+  const upper = last.length ? Number(last[0].id) : 0;
+  const byId = new Map();
+  function merge(page) {
+    for (const row of page) {
+      const id = Number(row.id), prior = byId.get(id);
+      if (prior && params.select.some(key => JSON.stringify(prior[key]) !== JSON.stringify(row[key]))) invalid('crm.item.list');
+      byId.set(id, row);
+    }
+  }
+  merge(first); merge(last);
+  const commands = [];
+  for (let start = 50; start < total - 50; start += 50) commands.push({method:'crm.item.list',
+    params:{...params, start, filter:{...params.filter, '<=id':upper}}});
+  for (let index = 0; index < commands.length; index += 50) {
+    const packet = commands.slice(index, index + 50);
+    const pages = await call.batch(packet);
+    if (pages.length !== packet.length) invalid('batch');
+    pages.forEach(body => {
+      const page = checkPage(body, params, 0, upper);
+      if (body.total !== total || page.length !== 50) invalid('crm.item.list');
+      merge(page);
+    });
+  }
+  if (byId.size !== total) invalid('crm.item.list');
+  return [...byId.values()].sort((a,b)=>Number(a.id)-Number(b.id));
 }
 
 function unique(rows, name, nameKey, idKey, kind) {
@@ -117,6 +155,7 @@ async function getMetadata(call, { additionalFields = [], optionalFields = [] } 
   const initial = call.batch ? await call.batch([
     { method: 'crm.category.list', params: { entityTypeId: 2, start: 0 } },
     { method: 'crm.item.fields', params: fieldParams },
+    { method: 'crm.status.list', params: { filter: { NAME: STAGE }, start: 0 } },
   ]) : null;
   const categories = await listAll(call, 'crm.category.list', { entityTypeId: 2 },
     (result) => result?.categories, initial?.[0]);
@@ -124,8 +163,8 @@ async function getMetadata(call, { additionalFields = [], optionalFields = [] } 
   const categoryId = Number(category.id);
   if (!/^\d+$/.test(String(category.id)) || !Number.isSafeInteger(categoryId)) invalid('crm.category.list');
   const entityId = categoryId === 0 ? 'DEAL_STAGE' : `DEAL_STAGE_${categoryId}`;
-  const stages = await listAll(call, 'crm.status.list', { filter: { ENTITY_ID: entityId } },
-    (result) => result);
+  const stages = await listAll(call, 'crm.status.list', { filter: initial ? { NAME: STAGE } : { ENTITY_ID: entityId } },
+    (result) => result, initial?.[2]);
   const stage = unique(stages.filter((row) => row.ENTITY_ID === entityId),
     STAGE, 'NAME', 'STATUS_ID', 'Стадия');
   if (typeof stage.STATUS_ID !== 'string' || !stage.STATUS_ID) invalid('crm.status.list');
@@ -155,13 +194,13 @@ async function getMetadata(call, { additionalFields = [], optionalFields = [] } 
   return { category, stage, fields: selectedFields };
 }
 
-async function getDeals(call, { additionalFields = [], metadata, extraSelect = [] } = {}) {
+async function getDeals(call, { additionalFields = [], metadata, extraSelect = [], filter = {}, counted = false } = {}) {
   const resolved = metadata || await getMetadata(call, { additionalFields });
   const { category, stage, fields } = resolved;
-  const items = await listDeals(call, {
+  const items = await (counted && call.batch ? listCountedDeals : listDeals)(call, {
     entityTypeId: 2,
     useOriginalUfNames: 'N',
-    filter: { categoryId: Number(category.id), stageId: stage.STATUS_ID },
+    filter: { ...filter, categoryId: Number(category.id), stageId: stage.STATUS_ID },
     select: [...new Set(['id', 'categoryId', 'stageId', 'opportunity', 'currencyId', ...fields.map((f) => f.code), ...extraSelect])],
     order: { id: 'ASC' },
   });

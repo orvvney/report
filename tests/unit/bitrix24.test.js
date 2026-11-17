@@ -171,7 +171,7 @@ describe('Bitrix24 complete check', () => {
     const requests = f.fetchImpl.mock.calls.map(([url, opts]) => ({ url, ...opts, params: JSON.parse(opts.body) }));
     expect(requests.every((req) => req.method === 'POST' && req.redirect === 'error')).toBe(true);
     expect(requests.find((r) => r.url.endsWith('crm.status.list.json')).params.filter)
-      .toEqual({ ENTITY_ID: 'DEAL_STAGE_3' });
+      .toEqual({ NAME: 'Կնքված' });
     expect(requests.find((r) => r.url.endsWith('crm.item.fields.json')).params)
       .toEqual({ entityTypeId: 2, useOriginalUfNames: 'N' });
     const lists = requests.filter((r) => r.url.endsWith('crm.item.list.json'));
@@ -196,7 +196,7 @@ describe('Bitrix24 complete check', () => {
     expect(result.code).toBe(0);
     expect(result.out).toContain('ID "WON"');
     const params = JSON.parse(f.fetchImpl.mock.calls.find(([url]) => url.endsWith('crm.status.list.json'))[1].body);
-    expect(params.filter).toEqual({ ENTITY_ID: 'DEAL_STAGE' });
+    expect(params.filter).toEqual({ NAME: 'Կնքված' });
   });
 
   test.each(['category', 'stage', ...codes])('missing or ambiguous %s stops before reading deals', async (target) => {

@@ -60,16 +60,25 @@ function createFixture(state = {}) {
     }
     const reply = (body) => ({ ok: true, status: 200, json: async () => body });
     if (method === 'crm.type.list') return reply({ result: { types: [{ entityTypeId: 177, title: 'Անշարժ գույք' }] } });
-    if (params.entityTypeId === 177 && method === 'crm.category.list') return reply({ result: { categories: [{ id: 5 }] } });
+    if (params.entityTypeId === 177 && method === 'crm.category.list') return reply({ result: { categories: state.propertyCategories || [{ id: 5 }] } });
+    if (method === 'crm.status.list' && state.propertyStatuses?.[params.filter.ENTITY_ID]) return reply({result:state.propertyStatuses[params.filter.ENTITY_ID]});
     if (method === 'crm.status.list' && params.filter.ENTITY_ID === 'DYNAMIC_177_STAGE_5') {
       const { STAGES } = require('../../src/report/property-stages.cjs');
       return reply({ result: (state.propertyStageNames || STAGES).map((NAME, i) => ({ NAME, STATUS_ID: `DT177_5:${i}`, ENTITY_ID: 'DYNAMIC_177_STAGE_5' })) });
     }
     if (method === 'crm.item.list' && params.entityTypeId === 177) {
       if (state.failPropertyStages) return reply({ error: 'ACCESS_DENIED' });
-      const rows = (state.propertyItems || []).filter(item => String(item.ufCrmProperty) === String(params.filter.ufCrmProperty)
-        && Number(item.id) > Number(params.filter['>id'])).sort((a,b) => Number(a.id)-Number(b.id)).slice(0,50);
-      return reply({ result: { items: rows } });
+      const matching = (state.propertyItems || []).filter(item => String(item.ufCrmProperty) === String(params.filter.ufCrmProperty)
+        && Object.entries(params.filter).every(([key,value]) => !key.startsWith('ufCrm') || String(item[key]) === String(value))
+    && (params.filter['>id'] === undefined || Number(item.id) > Number(params.filter['>id']))
+        && (!params.filter[0] || Object.entries(params.filter[0]).some(([key, condition]) =>
+          key !== 'logic' && String(item.categoryId) === String(condition.categoryId) && item.stageId === condition.stageId)))
+        .sort((a,b) => Number(a.id)-Number(b.id));
+      const start = params.start === -1 ? 0 : Number(params.start);
+      const rows = matching.slice(start, start + 50).map(item => Object.fromEntries(
+        Object.entries(item).filter(([key]) => params.select.includes(key))));
+      return reply({ result: { items: rows }, ...(params.start === -1 ? {} : { total: matching.length,
+        ...(matching.length > start + 50 ? { next: start + 50 } : {}) }) });
     }
     if (method === 'crm.category.list') {
       return reply({ result: { categories: [{ id: 3, name: 'Վաճառք' }] } });
@@ -99,7 +108,7 @@ function createFixture(state = {}) {
     }
     throw new Error('Unexpected CRM method');
   }
-  return { state, fetchImpl, scheduleRequest: (task) => task(), waitRetry: async () => { state.retryWaits = (state.retryWaits || 0) + 1; },
+  return { state, fetchImpl, batchReads: false, scheduleRequest: (task) => task(), waitRetry: async () => { state.retryWaits = (state.retryWaits || 0) + 1; },
     env: { BITRIX24_WEBHOOK_URL: WEBHOOK }, now: () => new Date(state.time || '2026-06-01T10:00:00Z') };
 }
 module.exports = { createFixture, deal, sampleItems, fields, WEBHOOK };
@@ -123,6 +132,7 @@ module.exports.filterItems = filterItems;
 function selectItems(items, params) {
   return items.filter((item) => String(item.categoryId) === String(params.filter.categoryId)
     && item.stageId === params.filter.stageId
+    && Object.entries(params.filter).every(([key,value]) => !key.startsWith('ufCrm') || String(item[key]) === String(value))
     && (params.filter['>id'] === undefined || Number(item.id) > Number(params.filter['>id']))
     && (params.filter['<=id'] === undefined || Number(item.id) <= Number(params.filter['<=id'])))
     .sort((a, b) => (Number(a.id) - Number(b.id)) * (params.order.id === 'DESC' ? -1 : 1));
@@ -144,5 +154,11 @@ function decodeCommand(command) {
 module.exports.selectItems = selectItems;
 module.exports.decodeCommand = decodeCommand;
 
-function isPropertyRequest({method, params}) { return method === 'crm.type.list' || params.entityTypeId === 177 || params.filter?.ENTITY_ID === 'DYNAMIC_177_STAGE_5'; }
+function isPropertyRequest({method, params}) {
+  if (method === 'batch') return Object.values(params.cmd || {}).every(command => {
+    const [method, params] = decodeCommand(command);
+    return isPropertyRequest({method, params});
+  });
+  return method === 'crm.type.list' || params.entityTypeId === 177 || params.filter?.ENTITY_ID === 'DYNAMIC_177_STAGE_5';
+}
 module.exports.isPropertyRequest = isPropertyRequest;

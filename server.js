@@ -1,3 +1,4 @@
+const { createReadBatcher } = require('./src/bitrix24/read-batcher.cjs');
 const { createExpoLoader } = require('./src/report/expo-load.cjs');
 const { createPropertyStagesLoader } = require('./src/report/property-stages.cjs');
 const http = require('node:http');
@@ -81,6 +82,7 @@ function createServer({ distPath = path.join(__dirname, 'dist'), dataDir = path.
   liveReload, env = process.env, envPath = path.resolve(__dirname, '.env'), auth, ...reportOptions } = {}) {
   const authConfig = auth === undefined ? loadAuthConfig({ env, envPath }) : auth;
   const authService = authConfig ? new AuthService({ dataDir, ...authConfig }) : null;
+  if (reportOptions.batchReads !== false) reportOptions.batcher = createReadBatcher();
   const loadReport = createReportLoader({ env, envPath, ...reportOptions });
   const loadPropertyStages = createPropertyStagesLoader({ env, envPath, ...reportOptions });
   const loadExpo = createExpoLoader({ env, envPath, ...reportOptions });

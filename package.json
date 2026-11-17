@@ -16,7 +16,9 @@
     "test:e2e": "jest --selectProjects e2e --runInBand",
     "test:ci": "jest --ci --runInBand",
     "test:install": "playwright install chromium",
-    "build": "vite build"
+    "build": "vite build",
+    "test:cold-performance": "node scripts/cold-performance.cjs",
+    "test:expo-cold-performance": "node scripts/cold-performance.cjs --expo"
   },
   "devDependencies": {
     "@tailwindcss/vite": "4.3.3",

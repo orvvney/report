@@ -26,19 +26,33 @@ async function addDetails(call, deals, items, fields = []) {
   const names = new Map();
   // Each group contains at most one API page. Missing/inaccessible contacts are
   // optional decoration and must never invalidate a complete deals snapshot.
-  for (let start = 0; start < ids.length; start += 50) {
-    const group = ids.slice(start, start + 50);
+  const groups = [];
+  for (let start = 0; start < ids.length; start += 50) groups.push(ids.slice(start, start + 50));
+  // Up to 50 one-page contact lookups share one HTTP request.
+  for (let start = 0; start < groups.length; start += 50) {
+    const packet = groups.slice(start, start + 50);
+    const commands = packet.map(group => ({ method: 'crm.item.list', params: {
+      entityTypeId: 3, select: ['id', 'name', 'lastName'],
+      filter: { '@id': group }, order: { id: 'ASC' }, start: -1,
+    } }));
+    let results;
     try {
-      const body = await call('crm.item.list', { entityTypeId: 3, select: ['id', 'name', 'lastName'],
-        filter: { '@id': group }, order: { id: 'ASC' }, start: -1 });
-      const rows = body.result?.items;
+      results = call.batch ? await call.batch(commands, { allowPartial: true })
+        : await Promise.all(commands.map(async ({method, params}) => {
+          try { return await call(method, params); } catch { return null; }
+        }));
+    } catch {
+      // A failed contact packet must not invalidate the deals snapshot.
+      continue;
+    }
+    for (let index = 0; index < packet.length; index++) {
+      const group = packet[index];
+      const body = results[index];
+      const rows = body?.result?.items;
       if (!Array.isArray(rows) || rows.length > group.length || body.next !== undefined
         || rows.some(row => !row || !group.includes(contactId(row.id)))
         || new Set(rows.map(row => String(row.id))).size !== rows.length) continue;
       for (const row of rows) names.set(String(row.id), [text(row.name), text(row.lastName)].filter(Boolean).join(' ') || null);
-    } catch {
-      // A deleted contact, missing permission or failed contact read uses the
-      // agreed deal-link fallback; errors reading deals remain fatal upstream.
     }
   }
   for (const deal of deals) {

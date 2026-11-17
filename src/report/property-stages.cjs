@@ -7,11 +7,12 @@ const STAGES = ['Ազատ', 'Վաճառքի ենթակա չէ', 'Ընտրված 
 // CRM uses a one dot leader in «Կնքված․»; the UI label uses an ASCII dot.
 const stageName = name => typeof name === 'string' ? name.trim().replaceAll('․', '.') : null;
 const TTL = 5 * 60 * 1000;
-async function list(call, method, params, key) {
+const METADATA_TTL = 24 * 60 * 60 * 1000;
+async function list(call, method, params, key, first) {
   const rows = [];
   let start = 0;
   while (true) {
-    const body = await call(method, { ...params, start });
+    const body = start === 0 && first ? first : await call(method, { ...params, start });
     const page = key ? body.result?.[key] : body.result;
     if (!Array.isArray(page) || page.some(row => !isObject(row))) throw new Error('Invalid metadata');
     rows.push(...page);
@@ -20,18 +21,23 @@ async function list(call, method, params, key) {
     start = body.next;
   }
 }
-async function readCounts(call) {
+async function readMetadata(call) {
   const types = await list(call, 'crm.type.list', {}, 'types');
   const matches = types.filter(type => type.title === 'Անշարժ գույք');
   const entityTypeId = Number(matches[0]?.entityTypeId);
   if (matches.length !== 1 || !Number.isSafeInteger(entityTypeId) || entityTypeId < 128) throw new Error('Invalid property process');
-  const raw = await call('crm.item.fields', { entityTypeId, useOriginalUfNames: 'N' });
+  const fieldParams = { entityTypeId, useOriginalUfNames: 'N' };
+  const initial = call.batch ? await call.batch([
+    { method: 'crm.item.fields', params: fieldParams },
+    { method: 'crm.category.list', params: { entityTypeId, start: 0 } },
+  ]) : null;
+  const raw = initial?.[0] || await call('crm.item.fields', fieldParams);
   if (!isObject(raw.result?.fields)) throw new Error('Invalid fields');
   const fields = Object.entries(raw.result.fields).map(([code, field]) => ({ ...field, code }));
   apartmentItems({ fields, items: [] });
   const property = fields.find(field => field.title === PROPERTY_TYPE);
   const apartmentId = property.items.find(item => item.VALUE === 'Բնակարան').ID;
-  const categories = await list(call, 'crm.category.list', { entityTypeId }, 'categories');
+  const categories = await list(call, 'crm.category.list', { entityTypeId }, 'categories', initial?.[1]);
   const stages = new Map();
   for (const category of categories) {
     const categoryId = Number(category.id);
@@ -44,31 +50,30 @@ async function readCounts(call) {
     }
   }
   if (STAGES.some(name => ![...stages.values()].some(stage => stage.name === name))) throw new Error('Missing stage');
-  const counts = new Map(STAGES.map(name => [name, 0]));
-  let last = 0;
-  while (true) {
-    const body = await call('crm.item.list', { entityTypeId, useOriginalUfNames: 'N', start: -1,
-      select: ['id', 'categoryId', 'stageId', property.code], order: { id: 'ASC' },
-      filter: { [property.code]: apartmentId, '>id': last } });
-    const items = body.result?.items;
-    if (!Array.isArray(items) || items.length > 50) throw new Error('Invalid items');
-    for (const item of items) {
-      const id = Number(item?.id);
-      if (!isObject(item) || !Number.isSafeInteger(id) || id <= last || !/^\d+$/.test(String(item.id))) throw new Error('Invalid item order');
-      last = id;
-      if (!apartmentItems({ fields, items: [item] }).length) throw new Error('Invalid property filter');
-      const stage = stages.get(item.stageId);
-      if (stage) {
-        if (String(stage.categoryId) !== String(item.categoryId)) throw new Error('Invalid item category');
-        counts.set(stage.name, counts.get(stage.name) + 1);
-      }
-    }
-    if (items.length < 50) break;
-  }
-  return { stages: STAGES.map(name => ({ name, count: counts.get(name) })) };
+  return { entityTypeId, propertyCode: property.code, apartmentId, stages };
 }
+async function readCounts(call, metadata) {
+  const { entityTypeId, propertyCode, apartmentId, stages } = metadata || await readMetadata(call);
+  const commands = STAGES.map(name => {
+    const matching = [...stages].filter(([, stage]) => stage.name === name);
+    // Keep category/stage pairs together, including names shared by categories.
+    const conditions = Object.fromEntries(matching.map(([stageId, stage], index) =>
+      [index, { categoryId: stage.categoryId, stageId }]));
+    return { method: 'crm.item.list', params: { entityTypeId, useOriginalUfNames: 'N',
+      start: 0, select: ['id'], filter: { [propertyCode]: apartmentId,
+        0: { logic: 'OR', ...conditions } } } };
+  });
+  const results = await call.batch(commands);
+  if (!Array.isArray(results) || results.length !== STAGES.length) throw new Error('Invalid counts');
+  return { stages: results.map((body, index) => {
+    // Missing or malformed totals must never silently become zero.
+    if (!Number.isSafeInteger(body.total) || body.total < 0) throw new Error('Invalid total');
+    return { name: STAGES[index], count: body.total };
+  }) };
+}
+
 function createPropertyStagesLoader({ env = process.env, envPath = path.resolve(__dirname, '../../.env'),
-  fetchImpl = globalThis.fetch, now = () => new Date(), scheduleRequest, waitRetry, timeoutMs } = {}) {
+  fetchImpl = globalThis.fetch, now = () => new Date(), scheduleRequest, waitRetry, timeoutMs, batcher } = {}) {
   const sources = new Map();
   return async ({ refresh = false } = {}) => {
     let config;
@@ -82,8 +87,13 @@ function createPropertyStagesLoader({ env = process.env, envPath = path.resolve(
     state.body = null;
     state.pending = (async () => {
       try {
-        const call = createClient({ ...config, fetchImpl, scheduleRequest, waitRetry, timeoutMs });
-        const body = await readCounts(call);
+        const call = createClient({ ...config, fetchImpl, scheduleRequest, waitRetry, timeoutMs, batcher });
+        if (!state.metadata || now().getTime() - state.metadataAt >= METADATA_TTL) {
+          state.metadata = null;
+          state.metadata = await readMetadata(call);
+          state.metadataAt = now().getTime();
+        }
+        const body = await readCounts(call, state.metadata);
         body.updatedAt = now().toISOString();
         state.body = body; state.at = now().getTime();
         return { status: 200, body };

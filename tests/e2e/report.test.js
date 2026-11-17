@@ -333,7 +333,7 @@ test('excluding five-room apartments survives batched refreshes while reusing me
   page.on('response', (response) => { if (new URL(response.url()).pathname === '/api/report') statuses.push(response.status()); });
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto(url); await ready();
-  expect(fixture.state.httpRequests.filter(r => !isPropertyRequest(r))).toHaveLength(4);
+  expect(fixture.state.httpRequests.filter(r => !isPropertyRequest(r))).toHaveLength(3);
   const initial = fixture.state.httpRequests.filter(r => !isPropertyRequest(r)).length;
   await room(1).click();
   for (const n of [2, 3, 4]) await room(n).click();
@@ -580,7 +580,8 @@ test('automatic retries keep loading, recover on third retry and show no data af
   // unit tests check their exact boundaries without slowing the rest of e2e.
   const starts = [];
   server = createServer({ ...fixture, waitRetry: undefined, fetchImpl: async (...args) => {
-    if (Object.values(JSON.parse(args[1].body).cmd || {}).some((cmd) => cmd.startsWith('crm.item.list?'))) starts.push(performance.now());
+    const params = JSON.parse(args[1].body);
+    if (!isPropertyRequest({method:'batch',params}) && Object.values(params.cmd || {}).some((cmd) => cmd.startsWith('crm.item.list?'))) starts.push(performance.now());
     return fixture.fetchImpl(...args);
   } });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));

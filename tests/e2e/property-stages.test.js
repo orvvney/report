@@ -95,3 +95,25 @@ async function assertLabels() {
     expect(Math.abs(label.firstLineTop-reference.firstLineTop)).toBeLessThan(1);
     expect(label.lines).toBeGreaterThanOrEqual(1);expect(label.lines).toBeLessThanOrEqual(2);expect(label.fits).toBe(true);expect(label.font).toBe('12px');});
 }
+
+test('a cold page combines independent CRM reads without losing report or stage data', async () => {
+  server.closeAllConnections();
+  await new Promise(resolve=>server.close(resolve));
+  server=createServer({...fixture,batchReads:true});
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  await page.goto(`http://127.0.0.1:${server.address().port}`);
+  await page.getByTestId('statistics-count').waitFor();
+  await page.locator('.property-stages article').first().waitFor();
+  expect(await page.locator('.property-stages article p').nth(6).innerText()).toBe('1');
+  expect(fixture.state.httpRequests.every(r=>r.method==='batch')).toBe(true);
+  const {decodeCommand}=require('../support/crm-fixture.cjs');
+  expect(fixture.state.httpRequests.some(r=>{
+    const commands=Object.values(r.params.cmd).map(decodeCommand);
+    return commands.some(([method])=>method==='crm.type.list')
+      && commands.some(([,params])=>params.entityTypeId===2);
+  })).toBe(true);
+  fixture.state.failPropertyStages=true;
+  await page.getByRole('button',{name:'Թարմացնել ամբողջ հաշվետվությունը',exact:true}).click();
+  await page.locator('.property-stages').getByRole('status').filter({hasText:'Տվյալներն անհասանելի են։'}).waitFor();
+  await page.getByTestId('statistics-count').waitFor();
+});

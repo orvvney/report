@@ -14,7 +14,7 @@ const METADATA_TTL = 24 * 60 * 60 * 1000;
 // Each HTTP server owns its cache. A separate loader is also useful for CLI
 // benchmarks, which deliberately perform entirely cold loads.
 function createReportLoader({ env = process.env, envPath = path.resolve(__dirname, '../../.env'),
-  fetchImpl = globalThis.fetch, now = () => new Date(), scheduleRequest, waitRetry, timeoutMs } = {}) {
+  fetchImpl = globalThis.fetch, now = () => new Date(), scheduleRequest, waitRetry, timeoutMs, batcher } = {}) {
   const sources = new Map();
   return async function load({ refresh = false } = {}) {
     let config;
@@ -44,7 +44,7 @@ function createReportLoader({ env = process.env, envPath = path.resolve(__dirnam
 
   async function read(state, config) {
     try {
-      const call = createClient({ ...config, fetchImpl, scheduleRequest, waitRetry, timeoutMs });
+      const call = createClient({ ...config, fetchImpl, scheduleRequest, waitRetry, timeoutMs, batcher });
       if (!state.metadata || now().getTime() - state.metadataAt >= METADATA_TTL) {
         state.metadata = null;
         const metadata = await getMetadata(call, { additionalFields: [PROPERTY_TYPE, COMPLEX], optionalFields: Object.values(DETAIL_FIELDS) });
@@ -54,7 +54,11 @@ function createReportLoader({ env = process.env, envPath = path.resolve(__dirnam
         state.metadata = metadata;
         state.metadataAt = now().getTime();
       }
-      const data = await getDeals(call, { metadata: state.metadata, extraSelect: ['contactId'] });
+      const property = state.metadata.fields.find(field => field.title === PROPERTY_TYPE);
+      const apartmentId = property.items.find(item => item.VALUE === 'Բնակարան').ID;
+      const data = await getDeals(call, { metadata: state.metadata, extraSelect: ['contactId'],
+        filter: { [property.code]: apartmentId }, counted: true });
+      if (apartmentItems(data).length !== data.items.length) throw new Error('Invalid apartment filter');
       const snapshotTime = now();
       const body = { ...aggregate(data, { portalOrigin: new URL(config.webhookUrl).origin, now: snapshotTime }),
         updatedAt: snapshotTime.toISOString() };

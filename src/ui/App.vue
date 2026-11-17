@@ -23,10 +23,15 @@ const report = ref(null), loading = ref(false), failed = ref(false);
 const propertyStages = ref(null);
 const filterHelpOpen = ref(false);
 const activeSection = ref(window.location.hash === '#toon-expo' ? 'expo' : 'apartments');
+const apartmentsVisited = ref(activeSection.value === 'apartments');
 const expoVisited = ref(activeSection.value === 'expo'), expoPanel = ref(null), expoLoading = ref(false);
 function syncSection() {
   activeSection.value = window.location.hash === '#toon-expo' ? 'expo' : 'apartments';
   if (activeSection.value === 'expo') expoVisited.value = true;
+  if (activeSection.value === 'apartments' && !apartmentsVisited.value) {
+    apartmentsVisited.value = true;
+    nextTick(() => refresh(false));
+  }
   nextTick(layoutPanels);
 }
 onMounted(() => window.addEventListener('hashchange', syncSection));
@@ -189,7 +194,7 @@ async function refresh(force = true) {
   } catch { failed.value = true; }
   finally { loading.value = false; }
 }
-onMounted(() => refresh(false));
+onMounted(() => { if (apartmentsVisited.value) refresh(false); });
 </script>
 
 <template>

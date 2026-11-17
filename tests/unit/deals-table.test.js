@@ -99,6 +99,9 @@ test('reads more than fifty distinct contacts completely with no duplicate IDs r
   const groups = fixture.state.requests.filter(row => row.params.entityTypeId === 3).map(row => row.params.filter['@id']);
   expect(groups.map(group => group.length)).toEqual([50, 50, 3]);
   expect(new Set(groups.flat()).size).toBe(103);
+  const packets = fixture.state.httpRequests.filter(row => row.method === 'batch' && row.params.halt === 0);
+  expect(packets).toHaveLength(1);
+  expect(Object.keys(packets[0].params.cmd)).toHaveLength(3);
 });
 
 test('unavailable contacts retain the complete successful report; deal failures remain fatal', async () => {
@@ -133,4 +136,46 @@ test.each([
   const deals = [{ id: 1 }];
   await addDetails(async () => ({ result }), deals, [{ id: 1, contactId: 9 }]);
   expect(deals[0].customerName).toBeNull();
+});
+
+
+test('one failed contact command preserves names in the other groups and does not retry successful groups', async () => {
+  const fixture = createFixture({items:Array.from({length:103},(_,i)=>deal(i+1,{contactId:i+1})),
+    contacts:Array.from({length:103},(_,i)=>({id:i+1,name:`Name${i+1}`}))});
+  const result = await createReportLoader({...fixture,fetchImpl:async(url,options)=>{
+    const response = await fixture.fetchImpl(url,options);
+    const body = await response.json();
+    if(JSON.parse(options.body).halt === 0){
+      delete body.result.result.q1;
+      body.result.result_error.q1 = {error:'ACCESS_DENIED'};
+    }
+    return {...response,json:async()=>body};
+  }})();
+  expect(result.status).toBe(200);
+  expect(result.body.deals).toHaveLength(103);
+  expect(result.body.deals[0].customerName).toBe('Name1');
+  expect(result.body.deals[50].customerName).toBeNull();
+  expect(result.body.deals[102].customerName).toBe('Name103');
+  expect(fixture.state.httpRequests.filter(row=>row.params.halt===0)).toHaveLength(1);
+});
+
+test('contact groups exceeding the batch limit are split without losing names', async () => {
+  const {createClient} = require('../../src/bitrix24/client.cjs');
+  const {WEBHOOK} = require('../support/crm-fixture.cjs');
+  const contacts = Array.from({length:2501},(_,i)=>({id:i+1,name:`N${i+1}`}));
+  const fixture = createFixture({contacts});
+  const rows = contacts.map(c=>({id:c.id}));
+  await addDetails(createClient({webhookUrl:WEBHOOK,...fixture}),rows,contacts.map(c=>({id:c.id,contactId:c.id})));
+  expect(rows.every((row,i)=>row.customerName===`N${i+1}`)).toBe(true);
+  expect(fixture.state.httpRequests.map(row=>Object.keys(row.params.cmd).length)).toEqual([50,1]);
+});
+
+test('transport failure of contact batches keeps the report successful with nullable names', async () => {
+  const fixture = createFixture({items:[deal(1,{contactId:9})]});
+  const result = await createReportLoader({...fixture,fetchImpl:async(url,options)=>{
+    if(JSON.parse(options.body).halt===0) throw new Error('connection lost');
+    return fixture.fetchImpl(url,options);
+  }})();
+  expect(result.status).toBe(200);
+  expect(result.body.deals[0].customerName).toBeNull();
 });

@@ -11,6 +11,7 @@ test.each([0, 1, 49, 50, 51, 100, 503, 2553])('loads every one of %i sparse deal
   expect(actual.body.deals).toHaveLength(count);
   if (count) expect(actual.body.rooms[1]).toEqual({ category: 2, amount: String(count * 10), count });
   else expect(actual.body.rooms).toEqual([]);
+  fixture.state.requests.length = 0;
   const call = createClient({ webhookUrl: WEBHOOK, ...fixture });
   const data = await getDeals(call);
   expect(data.items.map((item) => item.id)).toEqual(items.map((item) => item.id));
@@ -97,4 +98,26 @@ test('batch encodes nested parameters and returns results in command order, incl
   const query = new URLSearchParams(JSON.parse(fetchImpl.mock.calls[0][1].body).cmd.q0.split('?')[1]);
   expect(Object.fromEntries(query)).toEqual({ entityTypeId: '2', 'select[0]': 'id', 'select[1]': 'ufCrmRooms',
     'filter[stageId]': 'C3:WON & test=1', 'order[id]': 'ASC', start: '50' });
+});
+
+test('optional batches keep successful siblings and send halt=0; required batches still reject errors', async () => {
+  const fetchImpl = jest.fn(async () => ({ok:true,json:async()=>({result:{
+    result:{q0:{items:[{id:1}]},q2:{items:null}},
+    result_error:{q1:{error:'ACCESS_DENIED',error_description:WEBHOOK}},
+  }})}));
+  const call = createClient({webhookUrl:WEBHOOK,fetchImpl,scheduleRequest:task=>task(),waitRetry:async()=>{}});
+  const commands = Array.from({length:4},()=>({method:'crm.item.list',params:{entityTypeId:3}}));
+  expect(await call.batch(commands,{allowPartial:true})).toEqual([{result:{items:[{id:1}]}},null,null,null]);
+  expect(JSON.parse(fetchImpl.mock.calls[0][1].body).halt).toBe(0);
+  await expect(call.batch(commands)).rejects.toThrow('batch: ошибка');
+});
+
+test('optional batch accepts all commands denied but rejects a malformed envelope', async () => {
+  let result = {result:[],result_error:{q0:{error:'ACCESS_DENIED'}}};
+  const call = createClient({webhookUrl:WEBHOOK,fetchImpl:async()=>({ok:true,json:async()=>({result})}),
+    scheduleRequest:task=>task(),waitRetry:async()=>{}});
+  const commands = [{method:'crm.item.list',params:{entityTypeId:3}}];
+  expect(await call.batch(commands,{allowPartial:true})).toEqual([null]);
+  result = {result:[],result_error:3};
+  await expect(call.batch(commands,{allowPartial:true})).rejects.toThrow('batch: ошибка');
 });

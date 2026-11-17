@@ -8,6 +8,7 @@ const { selectExpoRows } = require('./expo-selection.cjs');
 
 const SOURCE_DIRECTORY_ID = '305';
 const TTL = 5 * 60 * 1000;
+const METADATA_TTL = 24 * 60 * 60 * 1000;
 const dateFormat = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Yerevan', year: 'numeric', month: '2-digit', day: '2-digit' });
 function dateOf(value) {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T/.test(value)) throw new Error('Invalid creation date');
@@ -19,24 +20,57 @@ function idOf(value) {
   if (!/^[1-9]\d*$/.test(String(value)) || !Number.isSafeInteger(Number(value))) throw new Error('Invalid ID');
   return Number(value);
 }
-async function list(call, method, filter, select) {
-  let start = 0;
+async function list(call, method, filter, select, first) {
+  const params = { filter, select, order: { ID: 'ASC' } };
+  const initial = first || await call(method, { ...params, start: 0 });
   const rows = [], seen = new Set();
-  while (true) {
-    const body = await call(method, { filter, select, order: { ID: 'ASC' }, start });
+  function append(body, start, total) {
     if (!Array.isArray(body.result) || body.result.length > 50) throw new Error('Invalid list');
+    if (total !== undefined && (body.total !== total || body.result.length !== Math.min(50, total - start))) throw new Error('Changing list');
+    if (body.next !== undefined && (!Number.isSafeInteger(body.next) || body.next !== start + 50 || body.result.length !== 50)) throw new Error('Invalid pagination');
     for (const row of body.result) {
       const id = idOf(row?.ID);
       if (seen.has(id) || (rows.length && id <= Number(rows.at(-1).ID))) throw new Error('Invalid order');
       seen.add(id); rows.push(row);
     }
-    if (body.next === undefined) return rows;
-    if (!Number.isSafeInteger(body.next) || body.next <= start || !body.result.length) throw new Error('Invalid pagination');
-    start = body.next;
   }
+  const total = initial.total;
+  if (total !== undefined && (!Number.isSafeInteger(total) || total < 0)) throw new Error('Invalid total');
+  append(initial, 0, total);
+  if (total !== undefined && call.batch) {
+    for (let start = 50; start < total; start += 2500) {
+      const commands = [];
+      for (let offset = start; offset < Math.min(total, start + 2500); offset += 50)
+        commands.push({ method, params: { ...params, start: offset } });
+      const pages = await call.batch(commands);
+      if (pages.length !== commands.length) throw new Error('Missing page');
+      pages.forEach((page, index) => append(page, commands[index].params.start, total));
+    }
+  } else {
+    let body = initial;
+    while (body.next !== undefined) {
+      const start = body.next;
+      body = await call(method, { ...params, start });
+      append(body, start, total);
+    }
+  }
+  if (total !== undefined && rows.length !== total) throw new Error('Incomplete list');
+  return rows;
 }
+async function listMany(call, specs) {
+  const result = [];
+  for (let index = 0; index < specs.length; index += 50) {
+    const group = specs.slice(index, index + 50);
+    const first = await call.batch(group.map(({method, filter, select}) => ({method,
+      params: {filter, select, order:{ID:'ASC'}, start:0}})));
+    if (first.length !== group.length) throw new Error('Missing list');
+    result.push(...await Promise.all(group.map((spec, i) => list(call, spec.method, spec.filter, spec.select, first[i]))));
+  }
+  return result;
+}
+
 function createExpoLoader({ env = process.env, envPath = path.resolve(__dirname, '../../.env'), fetchImpl = globalThis.fetch,
-  now = () => new Date(), scheduleRequest, waitRetry, timeoutMs } = {}) {
+  now = () => new Date(), scheduleRequest, waitRetry, timeoutMs, batcher } = {}) {
   const sources = new Map();
   return async function load({ refresh = false } = {}) {
     let config;
@@ -53,15 +87,30 @@ function createExpoLoader({ env = process.env, envPath = path.resolve(__dirname,
   };
   async function read(config, state) {
     try {
-      const call = createClient({ ...config, fetchImpl, scheduleRequest, waitRetry, timeoutMs });
+      const call = createClient({ ...config, fetchImpl, scheduleRequest, waitRetry, timeoutMs, batcher });
       const origin = new URL(config.webhookUrl).origin;
-      // Directory ID and the SOURCE_ID value stored on cards are different fields.
-      const sources = await call('crm.status.list', { filter: { ENTITY_ID: 'SOURCE' } });
-      const matches = sources.result.filter(row => String(row?.ID) === SOURCE_DIRECTORY_ID);
-      if (matches.length !== 1 || typeof matches[0].STATUS_ID !== 'string' || !matches[0].STATUS_ID.trim()) {
-        throw new Error('Source directory entry is missing or ambiguous');
+      const metadata = state.metadata ||= new Map();
+      async function directories(entityIds) {
+        const ids = [...new Set(entityIds)];
+        const missing = ids.filter(id => !metadata.has(id) || now().getTime() - metadata.get(id).at >= METADATA_TTL);
+        for (let offset = 0; offset < missing.length; offset += 50) {
+          const group = missing.slice(offset, offset + 50);
+          const pages = await call.batch(group.map(ENTITY_ID => ({method:'crm.status.list', params:{filter:{ENTITY_ID}}})));
+          if (pages.length !== group.length) throw new Error('Missing directory');
+          const values = pages.map((page, index) => {
+            if (!Array.isArray(page.result)) throw new Error('Invalid directory');
+            if (group[index] === 'SOURCE') {
+              const matches = page.result.filter(row => String(row?.ID) === SOURCE_DIRECTORY_ID);
+              if (matches.length !== 1 || typeof matches[0].STATUS_ID !== 'string' || !matches[0].STATUS_ID.trim()) throw new Error('Invalid source');
+            } else if (page.result.some(row => !row || typeof row.STATUS_ID !== 'string' || !row.STATUS_ID)
+              || new Set(page.result.map(row => row.STATUS_ID)).size !== page.result.length) throw new Error('Invalid stages');
+            return page.result;
+          });
+          group.forEach((id, index) => metadata.set(id, {value:structuredClone(values[index]), at:now().getTime()}));
+        }
+        return new Map(ids.map(id => [id, metadata.get(id).value]));
       }
-      const sourceId = matches[0].STATUS_ID;
+      const sourcePromise = directories(['SOURCE']).then(data => data.get('SOURCE').find(row => String(row.ID) === SOURCE_DIRECTORY_ID).STATUS_ID);
       const stageDirectories = new Map();
       const normalize = (row, entity) => {
         const id = idOf(row.ID);
@@ -74,48 +123,63 @@ function createExpoLoader({ env = process.env, envPath = path.resolve(__dirname,
         return result;
       };
       const select = ['ID', 'TITLE', 'SOURCE_ID', 'DATE_CREATE'];
-      const checkSource = row => {
+      const checkSource = (row, sourceId) => {
         if (String(row.SOURCE_ID) !== sourceId) throw new Error('Unexpected source');
         return row;
       };
       const fullName = row => [row.NAME, row.LAST_NAME].filter(value => typeof value === 'string').map(value => value.trim()).filter(Boolean).join(' ') || null;
-      const leads = (await list(call, 'crm.lead.list', { '=SOURCE_ID': sourceId }, [...select, 'NAME', 'LAST_NAME', 'STATUS_ID']))
-        .map(row => Object.assign(normalize(checkSource(row), 'lead'), { customerName: fullName(row) }));
-      const leadNames = new Map(leads.map(row => [row.id, row.customerName]));
       const leadIdOf = row => [undefined, null, '', 0, '0'].includes(row.LEAD_ID) ? null : idOf(row.LEAD_ID);
       const dealSelect = [...select, 'LEAD_ID', 'CONTACT_ID', 'STAGE_ID', 'CATEGORY_ID'];
-      const sourceDeals = await list(call, 'crm.deal.list', { '=SOURCE_ID': sourceId }, dealSelect);
-      const comparisonSource = sourceDeals.map(checkSource).map(row => normalize(row, 'deal'));
-      const baseline = (await list(call, 'crm.deal.list', {
+      // History is independent of SOURCE. Other initial pages start as soon as
+      // the directory resolves; the server coordinator combines ready reads.
+      const baselinePromise = list(call, 'crm.deal.list', {
         '>=DATE_CREATE': '2026-06-01T00:00:00+04:00',
         '<DATE_CREATE': '2026-11-01T00:00:00+04:00',
-      }, ['ID', 'DATE_CREATE', 'STAGE_ID', 'CATEGORY_ID'])).map(row => normalize(row, 'deal'));
-      const directDeals = sourceDeals.map(checkSource).filter(row => leadIdOf(row) === null).map(row => normalize(row, 'deal'));
-      const contactNames = directDeals.map(row => ({ id: row.id }));
-      await addDetails(call, contactNames, sourceDeals.map(row => ({ id: Number(row.ID), contactId: row.CONTACT_ID })));
-      directDeals.forEach((row, index) => { row.customerName = contactNames[index].customerName; });
-      const deals = [];
-      for (let offset = 0; offset < leads.length; offset += 50) {
-        const ids = leads.slice(offset, offset + 50).map(row => row.id);
-        const allowed = new Set(ids);
-        const linked = await list(call, 'crm.deal.list', { '@LEAD_ID': ids }, dealSelect);
-        for (const row of linked) {
-          const leadId = leadIdOf(row);
-          if (!allowed.has(leadId)) throw new Error('Unexpected lead relation');
-          deals.push(Object.assign(normalize(row, 'deal'), { leadId, customerName: leadNames.get(leadId) }));
-        }
-      }
+      }, ['ID', 'DATE_CREATE', 'STAGE_ID', 'CATEGORY_ID']).then(rows => rows.map(row => normalize(row, 'deal')));
+      const leadsPromise = sourcePromise.then(sourceId => list(call, 'crm.lead.list', { '=SOURCE_ID': sourceId },
+        [...select, 'NAME', 'LAST_NAME', 'STATUS_ID']).then(rows => rows.map(row =>
+          Object.assign(normalize(checkSource(row, sourceId), 'lead'), {customerName:fullName(row)}))));
+      const sourceDealsPromise = sourcePromise.then(sourceId => list(call, 'crm.deal.list', { '=SOURCE_ID': sourceId }, dealSelect)
+        .then(rows => rows.map(row => checkSource(row, sourceId))));
+      const directPromise = sourceDealsPromise.then(async sourceDeals => {
+        const direct = sourceDeals.filter(row => leadIdOf(row) === null).map(row => normalize(row, 'deal'));
+        const names = direct.map(row => ({id:row.id}));
+        await addDetails(call, names, sourceDeals.map(row => ({id:Number(row.ID), contactId:row.CONTACT_ID})));
+        direct.forEach((row, index) => {row.customerName = names[index].customerName;});
+        return direct;
+      });
+      const linkedPromise = leadsPromise.then(async leads => {
+        const leadNames = new Map(leads.map(row => [row.id, row.customerName]));
+        const specs = [];
+        for (let offset = 0; offset < leads.length; offset += 50) specs.push({method:'crm.deal.list',
+          filter:{'@LEAD_ID':leads.slice(offset, offset + 50).map(row => row.id)}, select:dealSelect});
+        const groups = await listMany(call, specs);
+        return groups.flatMap((rows, index) => {
+          const allowed = new Set(specs[index].filter['@LEAD_ID']);
+          return rows.map(row => {
+            const leadId = leadIdOf(row);
+            if (!allowed.has(leadId)) throw new Error('Unexpected lead relation');
+            return Object.assign(normalize(row, 'deal'), {leadId, customerName:leadNames.get(leadId)});
+          });
+        });
+      });
+      // Resolve known stage directories while linked deals are being fetched.
+      const prefetch = Promise.all([leadsPromise, sourceDealsPromise, baselinePromise]).then(([leads, raw, baseline]) => {
+        const source = raw.map(row => normalize(row, 'deal'));
+        return directories([...leads, ...source, ...baseline].filter(row => row.stageId).map(row => stageDirectories.get(row)));
+      });
+      const [sourceId, leads, sourceDeals, baseline, directDeals, deals] = await Promise.all([
+        sourcePromise, leadsPromise, sourceDealsPromise, baselinePromise, directPromise, linkedPromise, prefetch]);
+      const comparisonSource = sourceDeals.map(row => normalize(row, 'deal'));
       const convertedLeadIds = new Set(deals.map(deal => deal.leadId));
       const unconvertedLeads = leads.filter(lead => !convertedLeadIds.has(lead.id));
-      const stageNames = new Map();
-      for (const row of [...unconvertedLeads, ...directDeals, ...deals, ...baseline, ...comparisonSource]) {
+      const allRows = [...unconvertedLeads, ...directDeals, ...deals, ...baseline, ...comparisonSource];
+      const stageNames = await directories(allRows.filter(row => row.stageId).map(row => stageDirectories.get(row)));
+      for (const row of allRows) {
         if (!row.stageId) continue;
-        const entityId = stageDirectories.get(row);
-        if (!stageNames.has(entityId)) {
-          const directory = await call('crm.status.list', { filter: { ENTITY_ID: entityId } });
-          stageNames.set(entityId, new Map(directory.result.map(stage => [stage.STATUS_ID, typeof stage.NAME === 'string' ? stage.NAME.trim() : null])));
-        }
-        row.stageName = stageNames.get(entityId).get(row.stageId) || null;
+        const directory = stageNames.get(stageDirectories.get(row));
+        const stage = directory.find(stage => stage.STATUS_ID === row.stageId);
+        row.stageName = typeof stage?.NAME === 'string' ? stage.NAME.trim() : null;
       }
       state.body = { createdDealsComparison: calculateCreatedDealsComparison(baseline, comparisonSource), sourceId, leads: selectExpoRows(unconvertedLeads, 'lead'), deals: selectExpoRows(deals, 'deal'), directDeals: selectExpoRows(directDeals, 'deal'), updatedAt: now().toISOString() };
       state.at = now().getTime();
