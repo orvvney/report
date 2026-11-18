@@ -1,16 +1,22 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { afterPaint } from './after-paint.js';
 import ExpoComparison from './ExpoComparison.vue';
 import ExpoRecordsList from './ExpoRecordsList.vue';
 import selection from '../report/expo-selection.cjs';
 const listsExpanded = ref(false);
 const snapshot = ref(null), loading = ref(false), failed = ref(false);
 const helpOpen = ref(null);
+const comparison = ref(null), comparisonLoading = ref(false), comparisonFailed = ref(false);
+const detailsLoading = ref(false), detailsFailed = ref(false), detailsReady = ref(false), mobileExpanded = ref(new Set());
+let revision = 0;
+watch(listsExpanded, value => { if (value) loadDetails(); });
+const hasOpenLists = computed(() => phone.value ? mobileExpanded.value.size > 0 : listsExpanded.value);
 const phoneQuery = window.matchMedia('(max-width: 639px)');
 const phone = ref(phoneQuery.matches);
-function updatePhone(event) { phone.value = event.matches; }
+function updatePhone(event) { phone.value = event.matches; mobileExpanded.value = new Set(); }
 onMounted(() => phoneQuery.addEventListener('change', updatePhone));
-onBeforeUnmount(() => phoneQuery.removeEventListener('change', updatePhone));
+onBeforeUnmount(() => { phoneQuery.removeEventListener('change', updatePhone); revision++; });
 const vMeasureHeading = {
   mounted(element) {
     const heading = element.querySelector('h3');
@@ -42,16 +48,64 @@ const columns = computed(() => [
   { key: 'deals', title: 'Հետաքրքրությունից դեպի գործարք', rows: selectedDeals.value },
 ]);
 async function refresh(force = true) {
-  if (loading.value) return;
+  if (loading.value || comparisonLoading.value) return;
+  const current = ++revision;
+  comparison.value = null; comparisonLoading.value = true; comparisonFailed.value = false;
+  detailsReady.value = false; detailsFailed.value = false; detailsLoading.value = false;
   loading.value = true; emit('loading', true); failed.value = false; snapshot.value = null;
   try {
-    const response = await fetch(`/api/toon-expo${force ? '?refresh=1' : ''}`, { cache: 'no-store' });
-    if (response.status === 401) { emit('expired'); return; }
+    const response = await fetch(`/api/toon-expo?view=summary${force ? '&refresh=1' : ''}`, { cache: 'no-store' });
+    if (response.status === 401) { emit('expired'); comparisonLoading.value = false; emit('loading', false); return; }
     if (!response.ok) throw new Error();
     snapshot.value = await response.json();
   } catch { failed.value = true; }
-  finally { loading.value = false; emit('loading', false); }
+  finally { loading.value = false; }
+  if (current !== revision) return;
+  if (!snapshot.value) { comparisonLoading.value = false; emit('loading', false); return; }
+  await afterPaint();
+  if (current !== revision) return;
+  await loadComparison();
+  if (hasOpenLists.value) loadDetails();
 }
+async function loadComparison() {
+  if (!snapshot.value) return;
+  const current = revision, snapshotId = snapshot.value.snapshotId;
+  comparisonLoading.value = true; comparisonFailed.value = false; emit('loading', true);
+  try {
+    const response = await fetch(`/api/toon-expo?view=comparison&snapshot=${encodeURIComponent(snapshotId)}`, { cache: 'no-store' });
+    if (current !== revision) return;
+    if (response.status === 401) { emit('expired'); return; }
+    if (response.status === 409) { comparisonLoading.value = false; await refresh(false); return; }
+    if (!response.ok) throw new Error();
+    const result = await response.json();
+    if (current === revision && result.snapshotId === snapshotId) comparison.value = result.createdDealsComparison;
+  } catch { if (current === revision) comparisonFailed.value = true; }
+  finally { if (current === revision) { comparisonLoading.value = false; emit('loading', false); } }
+}
+async function loadDetails() {
+  if (!snapshot.value || detailsLoading.value || detailsReady.value) return;
+  const current = revision, snapshotId = snapshot.value.snapshotId;
+  detailsLoading.value = true; detailsFailed.value = false;
+  try {
+    const response = await fetch(`/api/toon-expo?view=details&snapshot=${encodeURIComponent(snapshotId)}`, { cache: 'no-store' });
+    if (current !== revision) return;
+    if (response.status === 401) { emit('expired'); return; }
+    if (response.status === 409) { detailsLoading.value = false; await refresh(false); return; }
+    if (!response.ok) throw new Error();
+    const result = await response.json();
+    if (current !== revision || result.snapshotId !== snapshotId) return;
+    snapshot.value = { ...snapshot.value, leads: result.leads, deals: result.deals, directDeals: result.directDeals };
+    detailsReady.value = true;
+  } catch { if (current === revision) detailsFailed.value = true; }
+  finally { if (current === revision) detailsLoading.value = false; }
+}
+function expandColumn(key, expanded) {
+  const values = new Set(mobileExpanded.value);
+  if (expanded) values.add(key); else values.delete(key);
+  mobileExpanded.value = values;
+  if (expanded) loadDetails();
+}
+
 onMounted(() => refresh(false));
 defineExpose({ refresh });
 </script>
@@ -77,7 +131,7 @@ defineExpose({ refresh });
           <div v-else><strong :data-testid="column.key === 'deals' ? 'expo-deals' : 'expo-direct-deals'">{{ column.rows.length }}</strong></div>
         </div>
         <div v-if="phone" class="deals-list expo-lists">
-          <ExpoRecordsList :rows="column.rows" :title="column.title" item-title="Ցանկ" />
+          <ExpoRecordsList :rows="column.rows" :title="column.title" :loading="detailsLoading" :failed="detailsFailed" @expand="value => expandColumn(column.key, value)" @retry="loadDetails" item-title="Ցանկ" />
         </div>
       </section>
     </div>
@@ -91,12 +145,15 @@ defineExpose({ refresh });
       <p v-else-if="failed" class="kpi-notice" role="status">Տվյալներն անհասանելի են։</p>
       <div v-else-if="snapshot" class="expo-records-columns">
         <template v-for="column in columns" :key="column.key">
-          <ExpoRecordsList :rows="column.rows" :title="column.title" :collapsible="false" />
+          <ExpoRecordsList :rows="column.rows" :title="column.title" :loading="detailsLoading" :failed="detailsFailed" @expand="value => expandColumn(column.key, value)" @retry="loadDetails" :collapsible="false" />
         </template>
       </div>
     </div>
   </section>
   </section>
-  <ExpoComparison v-if="snapshot?.createdDealsComparison && !loading && !failed" :data="snapshot.createdDealsComparison" />
+  <section v-if="snapshot && !loading && !failed && (comparisonLoading || comparisonFailed)" class="expo-comparison" aria-label="Ավելացված գործարքների համեմատություն" :aria-busy="comparisonLoading">
+    <p role="status" class="kpi-notice">{{ comparisonFailed ? 'Տվյալներն անհասանելի են։' : 'Տվյալները բեռնվում են…' }} <button v-if="comparisonFailed" type="button" @click="loadComparison">Կրկին փորձել</button></p>
+  </section>
+  <ExpoComparison v-if="comparison && !loading && !failed" :data="comparison" />
   </div>
 </template>

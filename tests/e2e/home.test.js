@@ -179,6 +179,7 @@ describe('home page', () => {
     expect(await page.getByRole('group', { name: 'Խմբավորում', exact: true }).count()).toBe(1);
     expect(await page.getByRole('button', { name: 'Սենյակներ', exact: true }).count()).toBe(1);
     expect(await page.getByRole('button', { name: 'Վաճառքի գումար', exact: true }).count()).toBe(1);
+    await page.getByLabel('Գծապատկերի տարածք', { exact: true }).waitFor();
     expect(await page.getByLabel('Գծապատկերի տարածք', { exact: true }).count()).toBe(1);
     const histogram = await page.getByRole('region', { name: 'Գործարքների հիստոգրամ', exact: true }).boundingBox();
     const pageGaps = await page.evaluate(() => {

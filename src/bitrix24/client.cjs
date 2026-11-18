@@ -41,7 +41,7 @@ function createRequestScheduler({ intervalMs = 200 } = {}) {
   };
 }
 
-function createClient({ webhookUrl, fetchImpl = globalThis.fetch, timeoutMs = 5000, scheduleRequest, batcher,
+function createClient({ webhookUrl, fetchImpl = globalThis.fetch, timeoutMs = 5000, scheduleRequest, batcher, metadataCache,
   retries = 3, waitRetry = () => new Promise((resolve) => setTimeout(resolve, 2000)) }) {
   const base = validateWebhook(webhookUrl);
   if (!scheduleRequest) {
@@ -105,9 +105,9 @@ function createClient({ webhookUrl, fetchImpl = globalThis.fetch, timeoutMs = 50
       }
       return batcher(base, commands, call.batch, options);
     };
-    return batched;
+    return metadataCache ? metadataCache.wrap(batched, base) : batched;
   }
-  return call;
+  return metadataCache ? metadataCache.wrap(call, base) : call;
 
   async function retry(operation) {
     for (let attempt = 0; ; attempt++) {

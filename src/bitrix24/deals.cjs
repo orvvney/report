@@ -150,7 +150,7 @@ function unique(rows, name, nameKey, idKey, kind) {
   return matches[0];
 }
 
-async function getMetadata(call, { additionalFields = [], optionalFields = [] } = {}) {
+async function getMetadata(call, { additionalFields = [], optionalFields = [], requiredFields = FIELD_NAMES } = {}) {
   const fieldParams = { entityTypeId: 2, useOriginalUfNames: 'N' };
   const initial = call.batch ? await call.batch([
     { method: 'crm.category.list', params: { entityTypeId: 2, start: 0 } },
@@ -181,7 +181,7 @@ async function getMetadata(call, { additionalFields = [], optionalFields = [] } 
         ...(additionalFields.includes(field.title) || optionalFields.some(original => fieldKey(original) === fieldKey(code))
           ? { items: field.items, isMultiple: field.isMultiple } : {}) };
     });
-  const selectedFields = [...FIELD_NAMES, ...additionalFields].map((name) => {
+  const selectedFields = [...requiredFields, ...additionalFields].map((name) => {
     const field = unique(fields, name, 'title', 'code', 'Поле');
     if (typeof field.type !== 'string' || !field.type) invalid('crm.item.fields');
     return field;

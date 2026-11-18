@@ -265,3 +265,39 @@ async function expectTurquoiseOrder(panel){
   expect(await slice.locator('path,circle').evaluate(e=>getComputedStyle(e).fill)).toBe(await panel.locator(`.statistics-legend [data-key="${key}"] i`).evaluate(e=>getComputedStyle(e).backgroundColor));
  }
 }
+
+test.each(['', '#parking'])('pie tooltip stays centered at the lower chart edge inside the panel in %s', async (hash) => {
+ fixture.state.items.push(...fixture.state.items.map(item => ({ ...item, id:item.id+100, ufCrmProperty:'72' })));
+ await page.goto(`${url}/${hash}`);
+ await page.getByTestId('statistics-count').waitFor();
+ const panel = page.getByRole('region', {name:'Վիճակագրություն', exact:true});
+ for (const width of [1440, 375, 320]) {
+  await page.setViewportSize({width, height:1100});
+  await page.waitForTimeout(100);
+  const pie = panel.locator('.statistics-pie');
+  const slice = pie.locator('g').first();
+  const before = await panel.locator('.statistics-legend').boundingBox();
+  const pieBox = await pie.boundingBox();
+  for (const activate of [() => pie.hover({position:{x:pieBox.width*.7,y:pieBox.height*.3}}), () => slice.focus()]) {
+   await activate();
+   const tip = pie.getByRole('tooltip');
+   await tip.waitFor();
+   const [chart, bubble, legend] = await Promise.all([pie.boundingBox(), tip.boundingBox(), panel.locator('.statistics-legend').boundingBox()]);
+   expect(Math.abs(bubble.x+bubble.width/2-chart.x-chart.width/2)).toBeLessThan(1);
+   expect(bubble.y+bubble.height-chart.y-chart.height).toBeCloseTo(0, 0);
+   if (width >= 1100) {
+    const card = await panel.locator('.statistics-totals article').last().boundingBox();
+    expect(bubble.y+bubble.height).toBeCloseTo(card.y+card.height, 0);
+   }
+   expect(bubble.y).toBeLessThan(chart.y+chart.height);
+   expect(bubble.x).toBeGreaterThanOrEqual(0);
+   expect(bubble.x+bubble.width).toBeLessThanOrEqual(width);
+   const panelBox = await panel.boundingBox();
+   expect(bubble.y+bubble.height).toBeLessThanOrEqual(panelBox.y+panelBox.height-8);
+   if (width < 640) expect(bubble.y+bubble.height).toBeLessThanOrEqual(legend.y-6);
+   expect(legend).toEqual(before);
+   expect(await tip.innerText()).toContain('%');
+  }
+  await page.screenshot({path:`test-results/statistics-tooltip-${hash ? 'parking' : 'apartments'}-${width}.png`, fullPage:true});
+ }
+});

@@ -99,14 +99,14 @@ function filterDeals(deals, { rooms, amount, area, date, dateRanges, complexes }
     && (!dateRanges || dateRanges.some(range => within(deal.date, range, 'date')))
     && (!complexes || complexes.includes(deal.complex)));
 }
-function calculate(deals, year, { rooms = roomOptions(deals), ...options } = {}) {
+function calculate(deals, year, { rooms, ...options } = {}) {
   const bucket = (category) => ({ category, amount: { coefficient: 0n, scale: 0 }, count: 0 });
-  const roomBuckets = new Map([...rooms].sort((a, b) => a - b).map((room) => [room, bucket(room)]));
+  const roomBuckets = new Map([...(rooms || roomOptions(deals))].sort((a, b) => a - b).map((room) => [room, bucket(room)]));
   const months = Array.from({ length: 12 }, (_, i) => bucket(i + 1));
   const include = (entry, value) => { entry.amount = add(entry.amount, value); entry.count++; };
   for (const deal of filterDeals(deals, { ...options, rooms })) {
     const value = decimal(deal.amount);
-    include(roomBuckets.get(deal.rooms), value);
+    if (roomBuckets.has(deal.rooms)) include(roomBuckets.get(deal.rooms), value);
     if (Number(deal.date.slice(0, 4)) === year) include(months[Number(deal.date.slice(5, 7)) - 1], value);
   }
   const serialize = (entry) => ({ ...entry, amount: decimalText(entry.amount) });

@@ -3,9 +3,12 @@ import { computed, ref, watch } from 'vue';
 import CustomerName from './CustomerName.vue';
 import ReportDate from './ReportDate.vue';
 import table from '../report/deals-table.cjs';
-const props = defineProps({ deals: { type: Array, default: () => [] }, filters: Object, loading: Boolean, failed: Boolean });
+const props = defineProps({ deals: { type: Array, default: () => [] }, parking: Boolean, detailsLoading: Boolean, detailsFailed: Boolean, filters: Object, loading: Boolean, failed: Boolean });
+const columns = computed(() => table.columns.filter(([key]) => !props.parking || !['entrance', 'rooms', 'area'].includes(key)));
+const emit = defineEmits(['expand', 'retry']);
 const expanded = ref(false), page = ref(1), sortKey = ref('date'), direction = ref('desc');
 const sectionHelpOpen = ref(false);
+watch(expanded, value => emit('expand', value));
 const unavailable = computed(() => props.loading || props.failed);
 const sorted = computed(() => table.sortRows(props.deals, sortKey.value, direction.value));
 const paged = computed(() => table.paginate(sorted.value, page.value));
@@ -39,19 +42,20 @@ function sort(key) {
         </svg>
     </div>
     <div v-show="expanded" id="deals-list-content" class="deals-list-content">
-      <p v-if="loading" class="kpi-notice" role="status">Տվյալները բեռնվում են…</p>
+      <p v-if="loading || detailsLoading" class="kpi-notice" role="status">Տվյալները բեռնվում են…</p>
       <p v-else-if="failed" class="kpi-notice" role="status">Տվյալներն անհասանելի են։</p>
+      <p v-else-if="detailsFailed" class="kpi-notice" role="status">Տվյալներն անհասանելի են։ <button type="button" @click="emit('retry')">Կրկին փորձել</button></p>
       <template v-else-if="deals.length">
         <div class="deals-list-scroll" role="region" aria-label="Գործարքների աղյուսակ" tabindex="0">
           <table>
             <thead><tr>
-              <th v-for="[key, label] in table.columns" :key="key" scope="col"
+              <th v-for="[key, label] in columns" :key="key" scope="col"
                 :aria-sort="sortKey === key ? (direction === 'asc' ? 'ascending' : 'descending') : 'none'">
                 <button type="button" @click="sort(key)"><template v-if="key === 'date'"><span class="desktop-text">{{ label }}</span><span class="mobile-text">Կնքված՝</span></template><template v-else>{{ label }}</template><span aria-hidden="true">{{ sortKey === key ? (direction === 'asc' ? ' ↑' : ' ↓') : ' ↕' }}</span></button>
               </th>
             </tr></thead>
             <tbody><tr v-for="row in paged.rows" :key="row.id">
-              <td v-for="[key] in table.columns" :key="key">
+              <td v-for="[key] in columns" :key="key">
                 <a v-if="key === 'customerName'" :href="row.url" target="_blank" rel="noopener noreferrer"><CustomerName :name="table.cellText(row, key)" /></a>
                 <ReportDate v-else-if="key === 'date'" :text="table.cellText(row, key)" />
                 <template v-else>{{ table.cellText(row, key) }}</template>

@@ -174,3 +174,74 @@ test.each([
   expect(await response.json()).toEqual({ error: 'CRM_READ_ERROR' });
   expect(fixture.state.requests.filter((r) => r.method === 'crm.item.list')).toHaveLength(0);
 });
+
+test('parking API isolates property types and validates date, amount and currency without rooms or area', async () => {
+  const fixture = createFixture({ items: [deal(1),
+    deal(2, { ufCrmProperty: '72', ufCrmRooms: null, ufCrmArea: null, opportunity: '25.5' }),
+    deal(3, { ufCrmProperty: '72', ufCrmRooms: 0, ufCrmArea: '', ufCrmDate: null }),
+    deal(4, { ufCrmProperty: '72', currencyId: 'USD' }),
+    deal(5, { ufCrmProperty: '72', opportunity: 'bad' }),
+  ] });
+  delete fixture.state.fields.ufCrmRooms;
+  delete fixture.state.fields.ufCrmArea;
+  await start(fixture);
+  const response = await fetch(`${base}/api/parking-report`);
+  expect(response.status).toBe(200);
+  const body = await response.json();
+  expect(body.deals.map(d => d.id)).toEqual([2]);
+  expect(body.deals[0]).toMatchObject({ amount: '25.5', rooms: null, area: null });
+  expect(body.problems.map(d => d.id)).toEqual([3, 4, 5]);
+  expect(body.months[0]).toEqual({ category: 1, amount: '25.5', count: 1 });
+  const reads = fixture.state.reads;
+  expect((await fetch(`${base}/api/parking-report`)).status).toBe(200);
+  expect(fixture.state.reads).toBe(reads);
+  fixture.state.items.push(deal(6, { ufCrmProperty: '72' }));
+  const refreshed = await (await fetch(`${base}/api/parking-report?refresh=1`)).json();
+  expect(refreshed.deals.map(d => d.id)).toEqual([2, 6]);
+});
+
+test('progressive reports skip contacts until details are requested and reject superseded snapshots', async () => {
+ const fixture=createFixture({items:[deal(1,{contactId:8}),deal(2,{ufCrmProperty:'72',contactId:8})],contacts:[{id:8,name:'Անի',lastName:'Պետրոսյան'}]});
+ await start(fixture);
+ const first=await (await fetch(`${base}/api/parking-report?view=summary`)).json();
+ expect(first.snapshotId).toEqual(expect.any(String));expect(first.deals[0].customerName).toBeUndefined();
+ expect(fixture.state.requests.filter(r=>r.params.entityTypeId===3)).toHaveLength(0);
+ const details=await (await fetch(`${base}/api/parking-report?view=details&snapshot=${first.snapshotId}`)).json();
+ expect(details.details[0]).toMatchObject({id:2,customerName:'Անի Պետրոսյան'});
+ const count=fixture.state.requests.length;
+ await fetch(`${base}/api/parking-report?view=details&snapshot=${first.snapshotId}`);expect(fixture.state.requests).toHaveLength(count);
+ const next=await (await fetch(`${base}/api/parking-report?view=summary&refresh=1`)).json();expect(next.snapshotId).not.toBe(first.snapshotId);
+ expect((await fetch(`${base}/api/parking-report?view=details&snapshot=${first.snapshotId}`)).status).toBe(409);
+});
+test('apartment and parking reports share metadata while preserving distinct record snapshots', async () => {
+ const fixture=createFixture({items:[deal(1),deal(2,{ufCrmProperty:'72'})]});await start(fixture);
+ expect((await fetch(`${base}/api/report?view=summary`)).status).toBe(200);
+ const meta=()=>fixture.state.requests.filter(r=>r.method!=='crm.item.list').length;
+ const before=meta();const parking=await (await fetch(`${base}/api/parking-report?view=summary`)).json();
+ expect(parking.deals.map(row=>row.id)).toEqual([2]);expect(meta()).toBe(before);
+});
+
+test('stage metadata are shared across property types and stale in-flight details cannot replace a refreshed snapshot', async () => {
+ let release;
+ const fixture=createFixture({items:[deal(1,{contactId:8})],contacts:[{id:8,name:'Old'}]});await start(fixture);
+ await fetch(`${base}/api/property-stages`);
+ const meta=()=>fixture.state.requests.filter(r=>r.method!=='crm.item.list').length;
+ const before=meta();await fetch(`${base}/api/parking-stages`);expect(meta()).toBe(before);
+ const first=await (await fetch(`${base}/api/report?view=summary`)).json();
+ fixture.state.contactGate=new Promise(resolve=>{release=resolve;});
+ const old=fetch(`${base}/api/report?view=details&snapshot=${first.snapshotId}`);
+ // Wait for the artificial CRM boundary without timers or relying on request ordering.
+ while(!fixture.state.requests.some(r=>r.params.entityTypeId===3)) await new Promise(resolve=>setImmediate(resolve));
+ fixture.state.items=[deal(2)];const next=await (await fetch(`${base}/api/report?view=summary&refresh=1`)).json();
+ release();expect((await old).status).toBe(409);
+ const latest=await (await fetch(`${base}/api/report?view=summary`)).json();
+ expect(latest.snapshotId).toBe(next.snapshotId);expect(latest.deals.map(row=>row.id)).toEqual([2]);
+});
+
+test('invalid stage directories do not poison the shared metadata cache after CRM is corrected', async () => {
+ const {STAGES}=require('../../src/report/property-stages.cjs');
+ const fixture=createFixture({propertyStageNames:STAGES.slice(0,-1)});await start(fixture);
+ expect((await fetch(`${base}/api/property-stages`)).status).toBe(502);
+ fixture.state.propertyStageNames=[...STAGES];
+ expect((await fetch(`${base}/api/property-stages`)).status).toBe(200);
+});

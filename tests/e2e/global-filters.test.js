@@ -26,7 +26,7 @@ const count = async value => {
   expect(await page.getByTestId('statistics-count').innerText()).toBe(String(value));
   expect(await page.getByTestId('deals-list-count').innerText()).toBe(String(value));
 };
-const ready = async () => page.getByTestId('statistics-count').waitFor();
+const ready = async () => { await page.getByTestId('statistics-count').waitFor(); await page.waitForFunction(() => document.querySelector('.report-header .refresh-button')?.disabled === false); };
 beforeEach(async () => {
   await page.clock.setFixedTime(new Date('2026-11-15T10:00:00Z'));
   fixture = createFixture({ items: [

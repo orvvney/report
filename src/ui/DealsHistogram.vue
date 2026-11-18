@@ -11,14 +11,15 @@ import roomsIcon from '../../images/rooms.png';
 const props = defineProps({
   deals: { type: Array, required: true }, filters: { type: Object, required: true },
   months: { type: Array, required: true }, year: { type: Number, required: true },
-  loading: Boolean, failed: Boolean, wide: Boolean, data: Object, period: String,
+  parking: Boolean, loading: Boolean, failed: Boolean, wide: Boolean, data: Object, period: String,
 });
 const { fullAmount, shortAmount } = chart;
 const { monthlyRoomTotals, roomColor, histogramScale, comparisonMonths } = histogram;
 const mode = ref('count');
 const compare = ref(false);
 const sectionHelpOpen = ref(false);
-const modes = [['count', 'Բն. քանակ', buildingIcon], ['months', 'Վաճառքի գումար', walletIcon], ['rooms', 'Սենյակներ', roomsIcon]];
+const modes = computed(() => [['count', props.parking ? 'Կայ. քանակ' : 'Բն. քանակ', buildingIcon], ['months', 'Վաճառքի գումար', walletIcon], ['rooms', 'Սենյակներ', roomsIcon]].filter(([value]) => !props.parking || value !== 'rooms'));
+const propertyLabel = computed(() => props.parking ? 'կայանատեղի' : 'բնակարան');
 const isCount = computed(() => mode.value === 'count');
 const plotStyle = { paddingLeft: '0px', paddingRight: '21px' };
 const metric = computed(() => isCount.value ? 'count' : 'amount');
@@ -34,9 +35,9 @@ const axisTitle = 'Կնքման ամիս';
 const label = entry => props.months[entry.category - 1];
 const totalCount = computed(() => categories.value.reduce((sum, entry) => sum + entry.count, 0));
 const scale = computed(() => histogramScale([
-  ...(isCount.value ? counted.value : stacked.value.months), ...(comparing.value ? previous.value : []),
+  ...(isCount.value ? counted.value : props.parking ? grouped.value.months : stacked.value.months), ...(comparing.value ? previous.value : []),
 ].map(entry => isCount.value ? entry.count : entry.amount), { integer: isCount.value }));
-const yTitle = computed(() => isCount.value ? 'Բնակարանների քանակ' : 'Ընդհանուր արժեք (֏)');
+const yTitle = computed(() => isCount.value ? (props.parking ? 'Կայանատեղիների քանակ' : 'Բնակարանների քանակ') : 'Ընդհանուր արժեք (֏)');
 const tickY = index => 310 - index * 260 / (scale.value.ticks.length - 1);
 const yAxis = ref(null);
 const tickLabelWidth = computed(() => {
@@ -108,7 +109,7 @@ function showSegment(event, entry, segment) {
   tooltip.value = { text: segmentText(entry, segment) };
   positionTooltip();
 }
-const countText = entry => `${label(entry)} · ${entry.count} բնակարան · ${fullAmount(entry.amount)} ֏`;
+const countText = entry => `${label(entry)} · ${entry.count} ${propertyLabel.value} · ${fullAmount(entry.amount)} ֏`;
 const previousPeriod = entry => `Համեմատություն՝ ${kpi.rangeText(entry.ranges) || 'Տվյալներ չկան'}`;
 const previousText = entry => `${previousPeriod(entry)} · ${entry.count} գործարք · ${fullAmount(entry.amount)} ֏`;
 function showPrevious(event, entry, segment) {
@@ -137,7 +138,7 @@ watch([() => JSON.stringify(categories.value), () => comparing.value ? JSON.stri
           @focus="sectionHelpOpen = true" @blur="sectionHelpOpen = false" @click="sectionHelpOpen = true">!</button>
         <div v-show="sectionHelpOpen" id="histogram-help-text" class="filter-help-tooltip" role="tooltip">Այս բաժինը նախատեսված է վիճակագրությունը մանրամասն դիտելու համար՝ տարբեր բաժինների միջոցով, ինչպես նաև այն նախորդ ժամանակահատվածների հետ համեմատելու համար:</div>
       </div>
-      <div role="group" aria-label="Խմբավորում" class="histogram-modes">
+      <div role="group" aria-label="Խմբավորում" class="histogram-modes" :style="{ '--histogram-mode-count': modes.length }">
         <button v-for="[item, title, icon] in modes" :key="item" type="button"
           :aria-pressed="mode === item" :disabled="loading || failed" @click="mode = item">
           <span>{{ title }}</span><img :src="icon" alt="" width="40" height="40" />
@@ -156,12 +157,12 @@ watch([() => JSON.stringify(categories.value), () => comparing.value ? JSON.stri
       <div v-if="data" class="histogram-kpi" aria-live="polite">
         <template v-if="mode !== 'rooms'">
         <p class="histogram-kpi-value" data-testid="histogram-kpi-value">{{ isCount ? kpi.valueText(data.current.count, 'count') : kpi.fullKpiAmount(data.current.amount) }}</p>
-        <h3>{{ isCount ? 'բնակարան' : 'ընդհանուր արժեք' }}</h3>
-        <p v-if="change" class="histogram-kpi-change" data-testid="histogram-kpi-change">
+        <h3>{{ isCount ? propertyLabel : 'ընդհանուր արժեք' }}</h3>
+        <p v-if="comparing && change" class="histogram-kpi-change" data-testid="histogram-kpi-change">
           <span>{{ change.direction === 'up' ? '+' : '' }}{{ kpi.valueText(change.delta, metric) }}</span>
           <span :class="`kpi-${change.direction}`"><span v-if="change.direction !== 'flat'" class="histogram-change-arrow">{{ change.direction === 'up' ? '↑' : change.direction === 'down' ? '↓' : '' }}</span> {{ change.percentage ?? '—' }}</span>
         </p>
-        <p v-else-if="period === 'custom'">Համեմատության համար նշեք երկու ամսաթվերը։</p>
+        <p v-if="period === 'custom' && !change">Համեմատության համար նշեք երկու ամսաթվերը։</p>
         </template>
         <ul v-else class="histogram-legend" aria-label="Սենյակների քանակ">
           <li v-for="room in stacked.rooms" :key="room"><i :style="{ background: roomColor(room) }" aria-hidden="true"></i>{{ room }} սենյակ</li>
@@ -254,7 +255,7 @@ watch([() => JSON.stringify(categories.value), () => comparing.value ? JSON.stri
 .histogram-year-legend span { display: flex; align-items: center; gap: 6px; }
 .histogram-year-legend i { display: inline-block; width: 14px; height: 10px; border-radius: 2px; background: var(--brand); }
 .histogram-year-legend .previous-year-marker { background: #1d283e59; border: 1px dashed var(--ink); }
-.histogram-modes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: min(100%, 720px); padding: 4px; border-radius: 12px; background: var(--brand-tint); }
+.histogram-modes { display: grid; grid-template-columns: repeat(var(--histogram-mode-count, 3), minmax(0, 1fr)); width: min(100%, calc(var(--histogram-mode-count, 3) * 240px)); padding: 4px; border-radius: 12px; background: var(--brand-tint); }
 .histogram-modes button { display: flex; align-items: center; justify-content: center; gap: 4px; width: 100%; min-width: 0; padding: 6px 12px; border-radius: 8px; font-size: 12px; color: #000; overflow-wrap: anywhere; }
 .histogram-modes button img { flex: 0 0 40px; width: 40px; height: 40px; object-fit: contain; filter: brightness(0); opacity: .55; }
 .histogram-modes button[aria-pressed="true"] { background: white; color: #000; box-shadow: 0 1px 3px #1d283e1a; }

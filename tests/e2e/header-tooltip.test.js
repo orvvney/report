@@ -1,4 +1,4 @@
-beforeEach(async () => { await page.clock.install(); await page.goto('/'); await page.getByTestId('statistics-count').waitFor();
+beforeEach(async () => { await page.clock.install(); await page.goto('/'); await page.getByTestId('statistics-count').waitFor(); await page.waitForFunction(() => document.querySelector('.report-header .refresh-button')?.disabled === false);
   // Freeze automatic clock advancement so hover processing cannot consume part
   // of the 400 ms delay before the explicit boundary assertions.
   await page.clock.pauseAt(await page.evaluate(() => Date.now()));

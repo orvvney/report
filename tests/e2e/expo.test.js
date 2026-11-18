@@ -3,7 +3,7 @@ const ids = ['expo-leads', 'expo-direct-deals', 'expo-deals'];
 const makeRows = (entity, offset) => ['2026-10-31', '2026-11-01', '2026-11-13', '2026-11-14'].map((date, i) => ({ id: offset + i, date, title: 'Internal title', customerName: `Person ${offset + i}`, stageId: 'NEW', stageName: entity === 'lead' ? 'Նոր լիդ' : 'Նոր գործարք', url: `https://portal.example/crm/${entity}/details/${offset + i}/` }));
 const data = { sourceId: 'UC_TOON_EXPO', updatedAt: '2026-11-13T10:00:00Z', leads: makeRows('lead', 1), directDeals: makeRows('deal', 11), deals: makeRows('deal', 21) };
 const column = index => page.locator('.expo-column').filter({ has: page.getByRole('heading', { name: titles[index], exact: true }) });
-const openLists = async () => { await page.locator('.expo-panel > .expo-lists > button').click(); };
+const openLists = async () => { await page.locator('.expo-panel > .expo-lists > button').click(); await page.locator('.expo-records .deals-list-scroll').first().waitFor({state:'visible'}); };
 const list = index => page.getByRole('region', { name: `${titles[index]}՝ ցանկ`, exact: true });
 beforeEach(async () => { await page.clock.setFixedTime(new Date('2026-11-13T10:00:00Z')); await page.route('**/api/toon-expo*', route => route.fulfill({ json: data })); });
 
@@ -85,7 +85,7 @@ test.each([640, 900, 1440])('toggles all desktop tables together with one keyboa
   expect(arrow.x - label.x - label.width).toBeCloseTo(12, 0);
   expect((label.x + arrow.x + arrow.width) / 2).toBeCloseTo(bounds.x + bounds.width / 2, 0);
   for (let i = 0; i < 3; i++) expect(await list(i).locator('table').isVisible()).toBe(false);
-  await toggle.focus(); await page.keyboard.press('Enter');
+  await toggle.focus(); await page.keyboard.press('Enter'); await list(0).locator('.deals-list-scroll').waitFor({state:'visible'});
   expect(await toggle.getAttribute('aria-expanded')).toBe('true');
   for (let i = 0; i < 3; i++) expect(await list(i).locator('table').isVisible()).toBe(true);
   await page.keyboard.press('Space');
@@ -187,7 +187,7 @@ test.each([320, 375, 1440])('comparison shows monthly average and total after li
   } }));
   await page.goto('/#toon-expo');
   const chart = page.locator('.expo-comparison');
-  await chart.waitFor();
+  await chart.getByTestId('expo-comparison-value').first().waitFor();
   expect(await chart.getByTestId('expo-comparison-value').allTextContents()).toEqual([await page.evaluate(() => new Intl.NumberFormat('hy-AM', { maximumFractionDigits: 2 }).format(2.2)), '7']);
   expect(await chart.locator('.expo-comparison-labels').innerText()).toBe('Միջին ամսական գործարքների քանակ\nՏուն Էքսպո · ընդհանուր գործարքների քանակ');
   expect(await chart.innerText()).not.toContain('01.06.2026–31.10.2026');
@@ -260,7 +260,7 @@ test('comparison hides stale values during refresh and errors and recovers with 
   await page.route('**/api/toon-expo*', route => route.fulfill({ json: { ...data,
     createdDealsComparison: { baselineCount: 11, baselineMonths: 5, baselineMonthlyAverage: 2.2, expoCount: 7 },
   } }));
-  await page.goto('/#toon-expo'); await page.locator('.expo-comparison').waitFor();
+  await page.goto('/#toon-expo'); await page.getByTestId('expo-comparison-value').first().waitFor();
   await page.route('**/api/toon-expo*', async route => {
     await new Promise(resolve => { release = resolve; }); await route.fulfill({ status: 502, json: { error: 'CRM_READ_ERROR' } });
   });
@@ -274,7 +274,7 @@ test('comparison hides stale values during refresh and errors and recovers with 
     createdDealsComparison: { baselineCount: 0, baselineMonths: 5, baselineMonthlyAverage: 0, expoCount: 0 },
   } }));
   await page.getByRole('button', { name: 'Կրկին փորձել', exact: true }).click();
-  await page.locator('.expo-comparison').waitFor();
+  await page.getByTestId('expo-comparison-value').first().waitFor();
   expect(await page.getByTestId('expo-comparison-value').allTextContents()).toEqual(['0', '0']);
 });
 

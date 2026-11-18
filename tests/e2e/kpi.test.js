@@ -2,7 +2,7 @@ const { createServer } = require('../../server.js');
 const { createFixture, deal } = require('../support/crm-fixture.cjs');
 let fixture, server, url, release, errors;
 const button = name => page.getByRole('button', { name, exact: true });
-const ready = () => page.getByTestId('statistics-count').waitFor();
+const ready = async () => { await page.getByTestId('statistics-count').waitFor(); await page.waitForFunction(() => document.querySelector('.report-header .refresh-button')?.disabled === false); };
 const value = () => page.getByTestId('histogram-kpi-value');
 const change = () => page.getByTestId('histogram-kpi-change');
 beforeEach(async () => {
@@ -34,6 +34,8 @@ test.each([1440, 375])('only chart KPIs remain and update with periods and filte
   expect(await value().innerText()).toBe('450,00 ֏');
   await page.getByRole('combobox', { name: 'Կնքման ժամանակահատված', exact: true }).selectOption('month');
   expect(await value().innerText()).toBe('300,00 ֏');
+  expect(await change().count()).toBe(0);
+  await page.getByRole('checkbox', { name: 'Ցուցադրել համեմատական հիստոգրամը', exact: true }).check();
   expect(await change().innerText()).toContain('+150 ֏');
   expect(await change().innerText()).toContain('+100%');
   await button('Բն. քանակ').click();

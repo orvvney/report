@@ -59,3 +59,18 @@ test('four categories need no group; ranking uses counts and deterministic natur
  const weighted=rows.map((row,index)=>({...row,count:[1,2,8,9,10][index]}));
  expect(groupCategories(weighted,'amount').slice(0,4).map(row=>row.key)).toEqual(['2','3','4','5']);
 });
+
+test('exact amounts group equal prices and sort distinct decimal values without ranges or rounding', () => {
+ const prices = ['4000000', '2000000.50', '2000000.5', '9007199254740993.01', '9007199254740993.02', '30', '9'];
+ const records = prices.map((amount, index) => ({ ...deals[0], id:index+1, amount }));
+ const result = statistics(records, {}, 'exactAmount');
+ expect(result.rows.map(row => row.label)).toEqual([
+  '9 ֏', '30 ֏', '2 000 000,5 ֏', '4 000 000 ֏',
+  '9 007 199 254 740 993,01 ֏', '9 007 199 254 740 993,02 ֏',
+ ]);
+ expect(result.rows.map(row => row.count)).toEqual([1, 1, 2, 1, 1, 1]);
+ expect(groupCategories(result.rows, 'exactAmount')).toBe(result.rows);
+ expect(statistics(records, { amount: { min: '2000000', max: '4000000' } }, 'exactAmount').count).toBe(3);
+ // Apartment statistics keep their existing interval grouping.
+ expect(statistics(records.slice(0, 3), {}, 'amount').rows[0].label).toBe('0 մլն–10 մլն ֏');
+});

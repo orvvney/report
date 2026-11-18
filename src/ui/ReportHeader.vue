@@ -35,7 +35,7 @@ onBeforeUnmount(() => { observer?.disconnect(); hideTooltip(); });
 </script>
 
 <template>
-      <header class="report-header" :class="{ 'header-wide': wide, 'header-with-subtitle': section === 'apartments' || section === 'expo' }" ref="header">
+      <header class="report-header" :class="{ 'header-wide': wide, 'header-with-subtitle': ['apartments', 'parking', 'expo'].includes(section) }" ref="header">
         <div class="report-header-row">
           <div class="report-brand">
             <img :src="milonLogo" alt="Milon Mining" class="report-logo">
@@ -43,7 +43,7 @@ onBeforeUnmount(() => { observer?.disconnect(); hideTooltip(); });
           </div>
           <div class="report-header-copy">
             <h1>Հաշվետվություն</h1>
-            <p v-if="section === 'apartments' || section === 'expo'" class="report-header-subtitle"><span>{{ section === 'expo' ? 'Տուն Էքսպո Նոյեմբեր 2026' : 'Կնքված բնակարաններ' }}</span></p>
+            <p v-if="['apartments', 'parking', 'expo'].includes(section)" class="report-header-subtitle"><span>{{ section === 'expo' ? 'Տուն Էքսպո Նոյեմբեր 2026' : section === 'parking' ? 'Կնքված կայանատեղիներ' : 'Կնքված բնակարաններ' }}</span></p>
           </div>
           <div class="header-actions">
             <span class="header-tooltip-anchor" @pointerenter="event => { if (event.pointerType === 'mouse') showTooltip('refresh'); }" @pointerleave="hideTooltip">

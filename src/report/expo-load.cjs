@@ -1,9 +1,11 @@
+const { randomUUID } = require('node:crypto');
 const path = require('node:path');
 const { loadConfig } = require('../bitrix24/config.cjs');
 const { addDetails } = require('../bitrix24/details.cjs');
 const { createClient } = require('../bitrix24/client.cjs');
 
 const { calculateCreatedDealsComparison } = require('./expo-comparison.cjs');
+const { apartmentItems, PROPERTY_TYPE } = require('./apartments.cjs');
 const { selectExpoRows } = require('./expo-selection.cjs');
 
 const SOURCE_DIRECTORY_ID = '305';
@@ -70,24 +72,60 @@ async function listMany(call, specs) {
 }
 
 function createExpoLoader({ env = process.env, envPath = path.resolve(__dirname, '../../.env'), fetchImpl = globalThis.fetch,
-  now = () => new Date(), scheduleRequest, waitRetry, timeoutMs, batcher } = {}) {
+  now = () => new Date(), scheduleRequest, waitRetry, timeoutMs, batcher, metadataCache } = {}) {
   const sources = new Map();
-  return async function load({ refresh = false } = {}) {
+  return async function load({ refresh = false, view = 'full', snapshotId } = {}) {
     let config;
     try { config = loadConfig({ env, envPath }); }
     catch { return { status: 500, body: { error: 'CONFIGURATION_ERROR' } }; }
     if (!sources.has(config.webhookUrl)) sources.set(config.webhookUrl, {});
     const state = sources.get(config.webhookUrl);
-    if (state.pending) return structuredClone(await state.pending);
-    if (!refresh && state.body && now().getTime() - state.at < TTL) return { status: 200, body: structuredClone(state.body) };
-    state.body = null;
-    state.pending = read(config, state);
-    try { return structuredClone(await state.pending); }
+    if (['details', 'comparison'].includes(view)) {
+      if (!state.body || state.snapshotId !== snapshotId) return { status: 409, body: { error: 'SNAPSHOT_EXPIRED' } };
+      return extra(state, view, snapshotId);
+    }
+    if (state.pending) {
+      const result = await state.pending;
+      if (result.status !== 200) return result;
+      return present(state, view);
+    }
+    if (!refresh && state.body && now().getTime() - state.at < TTL) return present(state, view);
+    state.body = null; state.snapshotId = randomUUID();
+    state.pending = read(config, state, view === 'full');
+    try { const result = await state.pending; return result.status === 200 ? present(state, view) : result; }
     finally { state.pending = null; }
   };
-  async function read(config, state) {
+  async function extra(state, view, snapshotId) {
+    const target = state.body;
+    const key = view === 'details' ? 'details' : 'comparison';
+    if (!state[`${key}Loaded`]) {
+      if (!state[`${key}Pending`]) {
+        const pending = state.loadExtra(view, target).then(patch => {
+          if (state.body !== target || state.snapshotId !== snapshotId) return false;
+          Object.assign(target, patch); state[`${key}Loaded`] = true; return true;
+        });
+        state[`${key}Pending`] = pending;
+        pending.finally(() => { if (state[`${key}Pending`] === pending) state[`${key}Pending`] = null; }).catch(() => {});
+      }
+      try { if (!await state[`${key}Pending`]) return { status: 409, body: { error: 'SNAPSHOT_EXPIRED' } }; }
+      catch { return { status: 502, body: { error: 'CRM_READ_ERROR' } }; }
+    }
+    if (state.body !== target || state.snapshotId !== snapshotId) return { status: 409, body: { error: 'SNAPSHOT_EXPIRED' } };
+    return { status: 200, body: structuredClone(view === 'comparison'
+      ? { snapshotId, createdDealsComparison: target.createdDealsComparison }
+      : { snapshotId, leads: target.leads, deals: target.deals, directDeals: target.directDeals }) };
+  }
+  async function present(state, view) {
+    if (view === 'full') {
+      for (const kind of ['comparison', 'details']) { const result = await extra(state, kind, state.snapshotId); if (result.status !== 200) return result; }
+    }
+    const body = structuredClone(state.body);
+    if (view === 'summary') { delete body.createdDealsComparison; body.snapshotId = state.snapshotId; }
+    return { status: 200, body };
+  }
+  async function read(config, state, includeExtras) {
     try {
-      const call = createClient({ ...config, fetchImpl, scheduleRequest, waitRetry, timeoutMs, batcher });
+      const call = createClient({ ...config, fetchImpl, scheduleRequest, waitRetry, timeoutMs, batcher, metadataCache });
       const origin = new URL(config.webhookUrl).origin;
       const metadata = state.metadata ||= new Map();
       async function directories(entityIds) {
@@ -130,12 +168,48 @@ function createExpoLoader({ env = process.env, envPath = path.resolve(__dirname,
       const fullName = row => [row.NAME, row.LAST_NAME].filter(value => typeof value === 'string').map(value => value.trim()).filter(Boolean).join(' ') || null;
       const leadIdOf = row => [undefined, null, '', 0, '0'].includes(row.LEAD_ID) ? null : idOf(row.LEAD_ID);
       const dealSelect = [...select, 'LEAD_ID', 'CONTACT_ID', 'STAGE_ID', 'CATEGORY_ID'];
-      // History is independent of SOURCE. Other initial pages start as soon as
-      // the directory resolves; the server coordinator combines ready reads.
-      const baselinePromise = list(call, 'crm.deal.list', {
-        '>=DATE_CREATE': '2026-06-01T00:00:00+04:00',
-        '<DATE_CREATE': '2026-11-01T00:00:00+04:00',
-      }, ['ID', 'DATE_CREATE', 'STAGE_ID', 'CATEGORY_ID']).then(rows => rows.map(row => normalize(row, 'deal')));
+      // The historical average covers apartments in the sales pipeline, across sources.
+      const loadComparisonMetadata = async () => {
+        const cacheKey = 'comparisonMetadata';
+        let cached = metadata.get(cacheKey);
+        if (!cached || now().getTime() - cached.at >= METADATA_TTL) {
+          const categories = [];
+          let start = 0;
+          while (true) {
+            const page = await call('crm.category.list', { entityTypeId: 2, start });
+            if (!Array.isArray(page.result?.categories)) throw new Error('Invalid categories');
+            categories.push(...page.result.categories);
+            if (page.next === undefined) break;
+            if (!Number.isSafeInteger(page.next) || page.next <= start || !page.result.categories.length) throw new Error('Invalid pagination');
+            start = page.next;
+          }
+          const matches = categories.filter(row => row?.name === 'Վաճառք');
+          const categoryId = matches[0]?.id;
+          if (matches.length !== 1 || !/^\d+$/.test(String(categoryId)) || !Number.isSafeInteger(Number(categoryId))) throw new Error('Invalid sales pipeline');
+          const body = await call('crm.item.fields', { entityTypeId: 2, useOriginalUfNames: 'Y' });
+          if (!body.result?.fields || typeof body.result.fields !== 'object' || Array.isArray(body.result.fields)) throw new Error('Invalid fields');
+          const fields = Object.entries(body.result.fields).map(([code, field]) => ({ ...field, code }));
+          apartmentItems({ fields, items: [] });
+          const property = fields.find(field => field.title === PROPERTY_TYPE);
+          const apartmentId = property.items.find(item => item.VALUE === 'Բնակարան').ID;
+          cached = { value: { categoryId, fields, propertyCode: property.code, apartmentId }, at: now().getTime() };
+          metadata.set(cacheKey, cached);
+        }
+        return cached.value;
+      };
+      const loadBaseline = async () => {
+        const { categoryId, fields, propertyCode, apartmentId } = await loadComparisonMetadata();
+        const rows = await list(call, 'crm.deal.list', {
+          '>=DATE_CREATE': '2026-06-01T00:00:00+04:00',
+          '<DATE_CREATE': '2026-11-01T00:00:00+04:00',
+          '=CATEGORY_ID': categoryId, ['=' + propertyCode]: apartmentId,
+        }, ['ID', 'DATE_CREATE', 'STAGE_ID', 'CATEGORY_ID', propertyCode]);
+        return apartmentItems({ fields, items: rows }).filter(row => String(row.CATEGORY_ID) === String(categoryId))
+          .map(row => normalize(row, 'deal'));
+      };
+      const backgroundBaseline = includeExtras ? null : loadBaseline();
+      backgroundBaseline?.catch(() => { metadataCache?.invalidate(config.webhookUrl); });
+      const baselinePromise = includeExtras ? loadBaseline() : Promise.resolve([]);
       const leadsPromise = sourcePromise.then(sourceId => list(call, 'crm.lead.list', { '=SOURCE_ID': sourceId },
         [...select, 'NAME', 'LAST_NAME', 'STATUS_ID']).then(rows => rows.map(row =>
           Object.assign(normalize(checkSource(row, sourceId), 'lead'), {customerName:fullName(row)}))));
@@ -144,7 +218,7 @@ function createExpoLoader({ env = process.env, envPath = path.resolve(__dirname,
       const directPromise = sourceDealsPromise.then(async sourceDeals => {
         const direct = sourceDeals.filter(row => leadIdOf(row) === null).map(row => normalize(row, 'deal'));
         const names = direct.map(row => ({id:row.id}));
-        await addDetails(call, names, sourceDeals.map(row => ({id:Number(row.ID), contactId:row.CONTACT_ID})));
+        if (includeExtras) await addDetails(call, names, sourceDeals.map(row => ({id:Number(row.ID), contactId:row.CONTACT_ID})));
         direct.forEach((row, index) => {row.customerName = names[index].customerName;});
         return direct;
       });
@@ -181,10 +255,27 @@ function createExpoLoader({ env = process.env, envPath = path.resolve(__dirname,
         const stage = directory.find(stage => stage.STATUS_ID === row.stageId);
         row.stageName = typeof stage?.NAME === 'string' ? stage.NAME.trim() : null;
       }
-      state.body = { createdDealsComparison: calculateCreatedDealsComparison(baseline, comparisonSource), sourceId, leads: selectExpoRows(unconvertedLeads, 'lead'), deals: selectExpoRows(deals, 'deal'), directDeals: selectExpoRows(directDeals, 'deal'), updatedAt: now().toISOString() };
+      state.body = { ...(includeExtras ? {createdDealsComparison: calculateCreatedDealsComparison(baseline, comparisonSource)} : {}), sourceId, leads: selectExpoRows(unconvertedLeads, 'lead'), deals: selectExpoRows(deals, 'deal'), directDeals: selectExpoRows(directDeals, 'deal'), updatedAt: now().toISOString() };
+      state.detailsLoaded = includeExtras; state.comparisonLoaded = includeExtras;
+      let comparisonAttempted = false;
+      state.detailsPending = null; state.comparisonPending = null;
+      state.loadExtra = async (view, target) => {
+        if (view === 'details') {
+          const direct = structuredClone(target.directDeals);
+          await addDetails(call, direct, sourceDeals.map(row => ({ id: Number(row.ID), contactId: row.CONTACT_ID })));
+          return { directDeals: direct };
+        }
+        const historical = await (comparisonAttempted ? loadBaseline() : backgroundBaseline || loadBaseline()).finally(() => { comparisonAttempted = true; });
+        const directoriesById = await directories(historical.filter(row => row.stageId).map(row => stageDirectories.get(row)));
+        for (const row of historical) {
+          const stage = directoriesById.get(stageDirectories.get(row))?.find(stage => stage.STATUS_ID === row.stageId);
+          row.stageName = typeof stage?.NAME === 'string' ? stage.NAME.trim() : null;
+        }
+        return { createdDealsComparison: calculateCreatedDealsComparison(historical, comparisonSource) };
+      };
       state.at = now().getTime();
       return { status: 200, body: state.body };
-    } catch { return { status: 502, body: { error: 'CRM_READ_ERROR' } }; }
+    } catch { metadataCache?.invalidate(config.webhookUrl); return { status: 502, body: { error: 'CRM_READ_ERROR' } }; }
   }
 }
 module.exports = { createExpoLoader };

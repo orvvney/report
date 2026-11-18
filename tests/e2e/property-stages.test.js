@@ -96,7 +96,7 @@ async function assertLabels() {
     expect(label.lines).toBeGreaterThanOrEqual(1);expect(label.lines).toBeLessThanOrEqual(2);expect(label.fits).toBe(true);expect(label.font).toBe('12px');});
 }
 
-test('a cold page combines independent CRM reads without losing report or stage data', async () => {
+test('a cold page combines independent directory reads without losing report or stage data', async () => {
   server.closeAllConnections();
   await new Promise(resolve=>server.close(resolve));
   server=createServer({...fixture,batchReads:true});

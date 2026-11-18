@@ -3,14 +3,14 @@ import { computed, ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import model from '../report/statistics.cjs';
 import kpi from '../report/kpi.cjs';
 import icon from '../../images/statistics.png';
-const props=defineProps({ deals:Array, filters:Object, period:String, loading:Boolean, failed:Boolean, resetRevision:Number });
+const props=defineProps({ parking:Boolean, deals:Array, filters:Object, period:String, loading:Boolean, failed:Boolean, resetRevision:Number });
 const totals=ref(null), totalsStyle=ref({}), totalObserver=new ResizeObserver(fitTotals);
 const sectionHelpOpen=ref(false);
-const selected=ref('rooms'), popup=ref(null), trigger=ref(null), open=ref(false), tip=ref(null), money=ref(false), otherExpanded=ref(false);
-const type=computed(()=>selected.value==='time'?model.timeType(props.period):selected.value);
-const short={month:'Ամիս',quarter:'Եռամսյակ',year:'Տարի',complex:'Համալիր',rooms:'Սենյակ',area:'Մակերես',amount:'Բն. Արժեք'};
-const genitive={month:'ամսվա',quarter:'եռամսյակի',year:'տարվա',complex:'համալիրի',rooms:'սենյակի',area:'մակերեսի',amount:'բն. արժեքի'};
-const options=computed(()=>[['time',`Կնքման ${{month:'ամիս',quarter:'եռամսյակ',year:'տարի'}[model.timeType(props.period)]}`],['complex','Համալիր'],['rooms','Սենյակ'],['area','Մակերես'],['amount','Բն. Արժեք']]);
+const selected=ref(props.parking ? 'complex' : 'rooms'), popup=ref(null), trigger=ref(null), open=ref(false), tip=ref(null), money=ref(false), otherExpanded=ref(false);
+const type=computed(()=>selected.value==='time'?model.timeType(props.period):props.parking && selected.value==='amount' ? 'exactAmount' : selected.value);
+const short={month:'Ամիս',quarter:'Եռամսյակ',year:'Տարի',complex:'Համալիր',rooms:'Սենյակ',area:'Մակերես',exactAmount:'Կայ. Արժեք',amount:'Բն. Արժեք'};
+const genitive={month:'ամսվա',quarter:'եռամսյակի',year:'տարվա',complex:'համալիրի',rooms:'սենյակի',area:'մակերեսի',exactAmount:'կայ. արժեքի',amount:'բն. արժեքի'};
+const options=computed(()=>[['time',`Կնքման ${{month:'ամիս',quarter:'եռամսյակ',year:'տարի'}[model.timeType(props.period)]}`],['complex','Համալիր'],['rooms','Սենյակ'],['area','Մակերես'],['amount',props.parking ? 'Կայ. Արժեք' : 'Բն. Արժեք']].filter(([value])=>!props.parking || !['rooms','area'].includes(value)));
 const data=computed(()=>model.statistics(props.deals||[],props.filters,type.value));
 const groupedRows=computed(()=>model.groupCategories(data.value.rows,type.value));
 const chartRows=computed(()=>model.colorRows(groupedRows.value.flatMap(row=>row.children&&otherExpanded.value?row.children.map(child=>({...child,groupKey:row.key})):row)));
@@ -46,7 +46,7 @@ async function show(){if(disabled.value||open.value)return;open.value=true;await
 function leave(e){if(e.pointerType==='mouse'&&!trigger.value?.contains(e.relatedTarget)&&!popup.value?.contains(e.relatedTarget))close();}
 function outside(e){if(!trigger.value?.contains(e.target)&&!popup.value?.contains(e.target))close(); if(!e.target.closest('.statistics-money'))money.value=false;}
 function key(e){if(e.key==='Escape'&&open.value){e.preventDefault();close(true);}}
-watch(()=>props.resetRevision,()=>{selected.value='rooms';close();});
+watch(()=>props.resetRevision,()=>{selected.value=props.parking ? 'complex' : 'rooms';close();});
 watch(disabled,v=>{if(v){close();tip.value=null;money.value=false;}});
 watch(data,()=>{tip.value=null;otherExpanded.value=false;});
 onMounted(()=>{document.addEventListener('pointerdown',outside);document.addEventListener('keydown',key);window.addEventListener('resize',position);window.addEventListener('scroll',position,true);});
@@ -65,8 +65,8 @@ onBeforeUnmount(()=>{totalObserver.disconnect();document.removeEventListener('po
  <button v-for="[value,label] in options" :key="value" type="button" :aria-pressed="selected===value" @click="selected=value;close(true)">{{label}}</button></div>
  <p v-if="disabled" class="statistics-status" role="status">{{failed?'Տվյալներն անհասանելի են։':'Տվյալները բեռնվում են…'}}</p>
  <div v-else class="statistics-body" :class="{'statistics-intervals':intervals}">
- <div ref="totals" class="statistics-totals" :style="totalsStyle"><article><p data-testid="statistics-count">{{data.count}}</p><h3>բնակարան</h3></article><article><div class="statistics-money"><span tabindex="0" aria-describedby="statistics-money-tip" @mouseenter="money=true" @mouseleave="money=false" @focus="money=true" @blur="money=false" @click="money=true" data-testid="statistics-amount">~{{kpi.compactAmount(data.amount)}}</span><span v-if="money" id="statistics-money-tip" role="tooltip">{{kpi.fullKpiAmount(data.amount)}}</span></div><h3>ընդհանուր արժեք</h3></article></div>
- <template v-if="data.count"><div class="statistics-pie"><svg viewBox="0 0 200 200" aria-label="Բնակարանների բաշխում"><g v-for="row in slices" :key="row.key" :class="{'is-active':tip?.key===row.key || (tip?.key==='other' && row.groupKey==='other')}" :data-key="row.key" tabindex="0" role="img" :aria-label="`${row.label}՝ ${row.count}, ${row.percent}`" @mouseenter="tip=row" @mouseleave="tip=null" @focus="tip=row" @blur="tip=null"><circle v-if="slices.length===1" cx="100" cy="100" r="90" :fill="row.color"/><path v-else :d="row.path" :fill="row.color"/></g></svg><p v-if="tip" role="tooltip">{{tip.label}}՝ {{tip.count}}, {{tip.percent}}</p></div>
+ <div ref="totals" class="statistics-totals" :style="totalsStyle"><article><p data-testid="statistics-count">{{data.count}}</p><h3>{{parking ? 'կայանատեղի' : 'բնակարան'}}</h3></article><article><div class="statistics-money"><span tabindex="0" aria-describedby="statistics-money-tip" @mouseenter="money=true" @mouseleave="money=false" @focus="money=true" @blur="money=false" @click="money=true" data-testid="statistics-amount">~{{kpi.compactAmount(data.amount)}}</span><span v-if="money" id="statistics-money-tip" role="tooltip">{{kpi.fullKpiAmount(data.amount)}}</span></div><h3>ընդհանուր արժեք</h3></article></div>
+ <template v-if="data.count"><div class="statistics-pie"><svg viewBox="0 0 200 200" :aria-label="parking ? 'Կայանատեղիների բաշխում' : 'Բնակարանների բաշխում'"><g v-for="row in slices" :key="row.key" :class="{'is-active':tip?.key===row.key || (tip?.key==='other' && row.groupKey==='other')}" :data-key="row.key" tabindex="0" role="img" :aria-label="`${row.label}՝ ${row.count}, ${row.percent}`" @mouseenter="tip=row" @mouseleave="tip=null" @focus="tip=row" @blur="tip=null"><circle v-if="slices.length===1" cx="100" cy="100" r="90" :fill="row.color"/><path v-else :d="row.path" :fill="row.color"/></g></svg><p v-if="tip" role="tooltip">{{tip.label}}՝ {{tip.count}}, {{tip.percent}}</p></div>
  <div class="statistics-legend" role="table" aria-label="Վիճակագրության բացատրություն">
  <div class="statistics-legend-header" role="row"><span role="columnheader">{{short[type]}}</span><span role="columnheader">Քանակ</span><span role="columnheader">Տոկոս</span></div>
  <div v-for="row in legendRows" :key="row.key" role="row" :tabindex="row.children?-1:0" :data-key="row.key" :class="{'is-active':tip?.key===row.key,'statistics-other-child':row.isChild}" @mouseenter="tip=row" @mouseleave="tip=null" @focusin="tip=row" @focusout="tip=null"><span role="cell" class="statistics-category"><i :style="{background:row.color}" aria-hidden="true"></i><button v-if="row.children" type="button" class="statistics-other-toggle" :aria-expanded="otherExpanded" @click="otherExpanded=!otherExpanded;tip=null">{{row.label}}<span aria-hidden="true">{{otherExpanded?'▴':'▾'}}</span></button><template v-else>{{row.label}}</template></span><b role="cell">{{row.count}}</b><span role="cell">{{row.percent}}</span></div>

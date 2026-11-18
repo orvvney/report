@@ -166,6 +166,7 @@ for (const endpoint of ['report', 'toon-expo']) {
       await page.getByRole('menuitem', { name: 'Տուն Էքսպո Նոյեմբեր 2026', exact: true }).click();
       await page.getByTestId('expo-leads').waitFor();
     }
+    await page.waitForFunction(() => document.querySelector('.report-header .refresh-button')?.disabled === false);
     await page.context().clearCookies();
     await page.getByRole('button', { name: 'Թարմացնել ամբողջ հաշվետվությունը', exact: true }).click();
     await card().waitFor({ state: 'visible' });

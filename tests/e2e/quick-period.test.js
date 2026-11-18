@@ -5,7 +5,7 @@ const period = () => page.getByRole('combobox', { name: 'Կնքման ժաման
 const quick = () => page.getByRole('combobox', { name: 'Արագ ընտրություն', exact: true });
 const year = () => page.getByRole('combobox', { name: 'Տարի', exact: true });
 const button = name => page.getByRole('button', { name, exact: true });
-const ready = () => page.getByTestId('statistics-count').waitFor();
+const ready = async () => { await page.getByTestId('statistics-count').waitFor(); await page.waitForFunction(() => document.querySelector('.report-header .refresh-button')?.disabled === false); };
 const count = async n => {
   expect(await page.getByTestId('statistics-count').innerText()).toBe(String(n));
   expect(await page.getByTestId('histogram-kpi-value').innerText()).toBe(String(n));

@@ -3,7 +3,7 @@ const { createFixture, deal } = require('../support/crm-fixture.cjs');
 let fixture, server, url, release;
 const period = () => page.getByRole('combobox', { name: 'Կնքման ժամանակահատված', exact: true });
 const panel = () => page.getByRole('form', { name: 'Զտիչներ', exact: true });
-const ready = () => page.getByTestId('statistics-count').waitFor();
+const ready = async () => { await page.getByTestId('statistics-count').waitFor(); await page.waitForFunction(() => document.querySelector('.report-header .refresh-button')?.disabled === false); };
 const near = (a, b) => expect(Math.abs(a - b)).toBeLessThan(1);
 beforeEach(async () => {
   await page.clock.setFixedTime(new Date('2026-11-15T10:00:00Z'));

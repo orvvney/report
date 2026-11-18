@@ -1,44 +1,7 @@
 const { createExpoLoader } = require('../../src/report/expo-load.cjs');
 const { createServer } = require('../../server.js');
 const env = { BITRIX24_WEBHOOK_URL: 'https://portal.example/rest/1/expo-test-secret/' };
-function fixture(count = 51) {
-  const leads = Array.from({ length: count }, (_, i) => ({ ID: String(i + 1), TITLE: `Lead ${i + 1}`, STATUS_ID: 'NEW', NAME: 'Արամ', LAST_NAME: `Ազգանուն ${i + 1}`, SOURCE_ID: 'UC_TOON_EXPO', STAGE_ID: 'NEW', DATE_CREATE: '2026-10-31T23:00:00+00:00' }));
-  const deals = [{ ID: '71', LEAD_ID: '0', CONTACT_ID: '8', SOURCE_ID: 'UC_TOON_EXPO', STAGE_ID: 'NEW', DATE_CREATE: '2026-10-31T22:00:00Z', TITLE: 'Deal A' }, { ID: '72', LEAD_ID: '999', SOURCE_ID: 'UC_TOON_EXPO', STAGE_ID: 'NEW', DATE_CREATE: '2026-11-02T10:00:00Z', TITLE: 'Deal B' }, { ID: '73', LEAD_ID: '51', SOURCE_ID: 'UC_TOON_EXPO', STAGE_ID: 'NEW', DATE_CREATE: '2026-11-02T10:00:00Z', TITLE: 'Deal C' }];
-  deals.push({ ID: '74', LEAD_ID: '1', SOURCE_ID: 'OTHER', STAGE_ID: 'NEW', DATE_CREATE: '2026-11-01T10:00:00Z', TITLE: 'Converted with another source' });
-  const stages = { SOURCE:[{ ID: '305', STATUS_ID: 'UC_TOON_EXPO', NAME: 'Toon Expo' }], STATUS: [{ STATUS_ID: 'NEW', NAME: 'Նոր լիդ' }], DEAL_STAGE: [{ STATUS_ID: 'NEW', NAME: 'Նոր գործարք' }], DEAL_STAGE_3: [{ STATUS_ID: 'C3:WON', NAME: 'Կնքված' }] };
-  const requests = [], httpRequests = [];
-  const options = { env, batchReads:false, scheduleRequest:task=>task(), waitRetry:async()=>{}, fetchImpl:async(url,init)=>{
-    const method = new URL(url).pathname.split('/').at(-1).replace('.json','');
-    const params = JSON.parse(init.body); httpRequests.push({method,params});
-    return execute(method,params);
-  }};
-  async function execute(method,params) {
-    if(method === 'batch') {
-      const result = {result:{},result_error:{},result_total:{},result_next:{}};
-      for(const [key,command] of Object.entries(params.cmd)) {
-        const [method,values] = require('../support/crm-fixture.cjs').decodeCommand(command);
-        const body = await (await execute(method,values)).json();
-        if(body.error){result.result_error[key]=body;if(params.halt)break;}
-        else {result.result[key]=body.result;if(body.total!==undefined)result.result_total[key]=body.total;if(body.next!==undefined)result.result_next[key]=body.next;}
-      }
-      return {ok:true,json:async()=>({result})};
-    }
-    requests.push({method,params});
-    if (method === 'crm.status.list') return { ok: true, json: async () => ({ result: (stages[params.filter.ENTITY_ID] || []) }) };
-    if (method === 'crm.item.list') return { ok: true, json: async () => ({ result: { items: [{ id: 8, name: 'Անի', lastName: 'Պետրոսյան' }] } }) };
-    let rows;
-    if (method === 'crm.lead.list') {
-      expect(params.filter).toEqual({ '=SOURCE_ID': 'UC_TOON_EXPO' }); rows = leads;
-    } else {
-      expect(method).toBe('crm.deal.list');
-      rows = params.filter['>=DATE_CREATE'] ? deals.filter(row => new Date(row.DATE_CREATE) >= new Date(params.filter['>=DATE_CREATE']) && new Date(row.DATE_CREATE) < new Date(params.filter['<DATE_CREATE'])) : params.filter['@LEAD_ID'] ? deals.filter(row => params.filter['@LEAD_ID'].map(String).includes(String(row.LEAD_ID))) : deals.filter(row => row.SOURCE_ID !== 'OTHER' && row.SOURCE_ID !== '');
-      expect(params.filter).not.toHaveProperty('STAGE_ID');
-    }
-    const page = rows.slice(params.start, params.start + 50);
-    return { ok: true, json: async () => ({ result: page, total:rows.length, ...(params.start + 50 < rows.length ? { next: params.start + 50 } : {}) }) };
-  }
-  return { options, leads, deals, stages, requests, httpRequests };
-}
+const { fixture } = require('../support/expo-fixture.cjs');
 test('loads all source 305 leads and independent deals, with Yerevan creation dates and safe links', async () => {
   const f = fixture(), load = createExpoLoader(f.options);
   const result = await load();
@@ -72,9 +35,9 @@ test('reads every page of source deals even with no leads', async () => {
 test('empty leads still read deals; cache expires after five minutes and coalesces simultaneous reads', async () => {
   const f = fixture(0); let time = 0;
   const load = createExpoLoader({ ...f.options, now: () => new Date(time) });
-  await Promise.all([load(), load()]); expect(f.requests).toHaveLength(6);
+  await Promise.all([load(), load()]); expect(f.requests).toHaveLength(8);
   expect((await load()).body.leads).toEqual([]);
-  time = 300000; await load(); expect(f.requests).toHaveLength(10);
+  time = 300000; await load(); expect(f.requests).toHaveLength(12);
 });
 test.each(['source', 'date', 'deal-source', 'deal-date', 'page'])('fails closed on invalid %s and clears stale data after a failed refresh', async kind => {
   const f = fixture(), load = createExpoLoader(f.options);
@@ -174,19 +137,20 @@ test('comparison reads all historical sources, Yerevan boundaries and own-source
     ['2026-10-31T20:00:00Z', 'UC_TOON_EXPO'],
     ['2027-01-01T00:00:00Z', 'UC_TOON_EXPO'],
     ['2026-11-01T00:00:00Z', 'OTHER'],
-  ].map(([DATE_CREATE, SOURCE_ID], i) => ({ ID: String(100 + i), DATE_CREATE, SOURCE_ID, STAGE_ID: 'NEW', LEAD_ID: '999' })));
+  ].map(([DATE_CREATE, SOURCE_ID], i) => ({ ID: String(100 + i), DATE_CREATE, SOURCE_ID, STAGE_ID: 'NEW', LEAD_ID: '999', CATEGORY_ID: 0, UF_CRM_PROPERTY: '71' })));
   const result = await createExpoLoader(f.options)();
   expect(result.status).toBe(200);
   expect(result.body.createdDealsComparison).toEqual({ baselineCount: 2, baselineMonths: 5, baselineMonthlyAverage: 0.4, expoCount: 2 });
   expect(result.body.directDeals).toEqual([]);
 });
 
-test('comparison paginates historical deals, resolves other funnels and excludes unknown stages', async () => {
+test('comparison paginates historical apartments in the resolved sales funnel and excludes unknown stages', async () => {
   const f = fixture(0);
   f.deals.splice(0, f.deals.length, ...Array.from({ length: 55 }, (_, i) => ({
     ID: String(100 + i), DATE_CREATE: '2026-06-01T00:00:00+04:00', SOURCE_ID: 'OTHER',
-    CATEGORY_ID: 3, STAGE_ID: i < 51 ? 'C3:WON' : 'UNKNOWN', LEAD_ID: '0',
+    CATEGORY_ID: 3, UF_CRM_PROPERTY: '71', STAGE_ID: i < 51 ? 'C3:WON' : 'UNKNOWN', LEAD_ID: '0',
   })));
+  f.categories[0].id = 3;
   let time=0; f.options.now=()=>new Date(time);
   const load = createExpoLoader(f.options);
   expect((await load()).body.createdDealsComparison).toEqual({ baselineCount: 51, baselineMonths: 5, baselineMonthlyAverage: 10.2, expoCount: 0 });
@@ -217,7 +181,7 @@ test('comparison failures clear the entire cached snapshot', async () => {
 test('batches counted historical pages and all lead relation groups without dropping converted leads', async () => {
   const f=fixture(103);
   f.deals.push(...Array.from({length:155},(_,i)=>({ID:String(1000+i),DATE_CREATE:'2026-07-01T00:00:00+04:00',
-    SOURCE_ID:'OTHER',STAGE_ID:'NEW',CATEGORY_ID:0,LEAD_ID:'0'})));
+    SOURCE_ID:'OTHER',STAGE_ID:'NEW',CATEGORY_ID:0,UF_CRM_PROPERTY:'71',LEAD_ID:'0'})));
   const result=await createExpoLoader(f.options)();
   expect(result.status).toBe(200);
   expect(result.body.leads).toHaveLength(101);
@@ -301,4 +265,47 @@ test('invalid source metadata is not cached and is retried after correction', as
   expect((await load()).status).toBe(502);
   f.stages.SOURCE=[{ID:'305',STATUS_ID:'UC_TOON_EXPO'}];
   expect((await load()).status).toBe(200);
+});
+
+ test('historical average includes every source but only sales apartments; Expo totals stay independent', async () => {
+  const f = fixture(0);
+  f.categories[0].id = 3;
+  const base = { DATE_CREATE: '2026-07-01T00:00:00+04:00', CATEGORY_ID: 3, UF_CRM_PROPERTY: '71', STAGE_ID: 'C3:WON', LEAD_ID: '999' };
+  f.deals.splice(0, f.deals.length, ...[
+    { ...base, ID: '100', SOURCE_ID: 'OTHER' },
+    { ...base, ID: '101', SOURCE_ID: '' },
+    { ...base, ID: '102', SOURCE_ID: 'UC_TOON_EXPO' },
+    { ...base, ID: '103', SOURCE_ID: 'OTHER', CATEGORY_ID: 0 },
+    { ...base, ID: '104', SOURCE_ID: 'OTHER', UF_CRM_PROPERTY: '72' },
+    { ...base, ID: '105', SOURCE_ID: 'OTHER', UF_CRM_PROPERTY: null },
+    { ...base, ID: '106', SOURCE_ID: 'UC_TOON_EXPO', CATEGORY_ID: 0, UF_CRM_PROPERTY: '72', DATE_CREATE: '2026-11-02T00:00:00+04:00', STAGE_ID: 'NEW' },
+  ]);
+  const result = await createExpoLoader(f.options)();
+  expect(result.status).toBe(200);
+  expect(result.body.createdDealsComparison).toEqual({ baselineCount: 3, baselineMonths: 5, baselineMonthlyAverage: 0.6, expoCount: 1 });
+  const request = f.requests.find(r => r.method === 'crm.deal.list' && r.params.filter['>=DATE_CREATE']);
+  expect(request.params.filter).toMatchObject({ '=CATEGORY_ID': 3, '=UF_CRM_PROPERTY': '71' });
+  expect(request.params.filter).not.toHaveProperty('=SOURCE_ID');
+ });
+ test.each(['missing-pipeline', 'ambiguous-pipeline', 'missing-apartment', 'invalid-field'])('rejects invalid comparison metadata: %s', async kind => {
+   const f = fixture(0);
+   if (kind === 'missing-pipeline') f.categories.length = 0;
+   if (kind === 'ambiguous-pipeline') f.categories.push({ id: 4, name: 'Վաճառք' });
+   if (kind === 'missing-apartment') f.fields.UF_CRM_PROPERTY.items = [];
+   if (kind === 'invalid-field') f.fields.UF_CRM_PROPERTY.isMultiple = true;
+   expect((await createExpoLoader(f.options)()).status).toBe(502);
+ });
+
+test('progressive Expo publishes counts before history and contacts, with versioned extra views', async () => {
+ const f=fixture(3),load=createExpoLoader(f.options);
+ const first=await load({view:'summary'});expect(first.status).toBe(200);
+ expect(first.body.createdDealsComparison).toBeUndefined();expect(first.body.snapshotId).toEqual(expect.any(String));
+ expect(f.requests.filter(r=>r.method==='crm.item.list')).toHaveLength(0);
+ const comparison=await load({view:'comparison',snapshotId:first.body.snapshotId});
+ expect(comparison.status).toBe(200);expect(comparison.body.createdDealsComparison).toBeDefined();
+ expect(f.requests.filter(r=>r.method==='crm.item.list')).toHaveLength(0);
+ const details=await load({view:'details',snapshotId:first.body.snapshotId});
+ expect(details.body.directDeals[0].customerName).toBe('Անի Պետրոսյան');
+ const before=f.requests.length;await load({view:'details',snapshotId:first.body.snapshotId});expect(f.requests).toHaveLength(before);
+ await load({view:'summary',refresh:true});expect((await load({view:'comparison',snapshotId:first.body.snapshotId})).status).toBe(409);
 });

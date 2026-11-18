@@ -21,7 +21,7 @@ async function list(call, method, params, key, first) {
     start = body.next;
   }
 }
-async function readMetadata(call) {
+async function readMetadata(call, propertyType = 'Բնակարան') {
   const types = await list(call, 'crm.type.list', {}, 'types');
   const matches = types.filter(type => type.title === 'Անշարժ գույք');
   const entityTypeId = Number(matches[0]?.entityTypeId);
@@ -34,9 +34,9 @@ async function readMetadata(call) {
   const raw = initial?.[0] || await call('crm.item.fields', fieldParams);
   if (!isObject(raw.result?.fields)) throw new Error('Invalid fields');
   const fields = Object.entries(raw.result.fields).map(([code, field]) => ({ ...field, code }));
-  apartmentItems({ fields, items: [] });
+  apartmentItems({ fields, items: [] }, propertyType);
   const property = fields.find(field => field.title === PROPERTY_TYPE);
-  const apartmentId = property.items.find(item => item.VALUE === 'Բնակարան').ID;
+  const apartmentId = property.items.find(item => item.VALUE === propertyType).ID;
   const categories = await list(call, 'crm.category.list', { entityTypeId }, 'categories', initial?.[1]);
   const stages = new Map();
   for (const category of categories) {
@@ -73,7 +73,7 @@ async function readCounts(call, metadata) {
 }
 
 function createPropertyStagesLoader({ env = process.env, envPath = path.resolve(__dirname, '../../.env'),
-  fetchImpl = globalThis.fetch, now = () => new Date(), scheduleRequest, waitRetry, timeoutMs, batcher } = {}) {
+  fetchImpl = globalThis.fetch, now = () => new Date(), scheduleRequest, waitRetry, timeoutMs, batcher, metadataCache, propertyType = 'Բնակարան' } = {}) {
   const sources = new Map();
   return async ({ refresh = false } = {}) => {
     let config;
@@ -87,17 +87,17 @@ function createPropertyStagesLoader({ env = process.env, envPath = path.resolve(
     state.body = null;
     state.pending = (async () => {
       try {
-        const call = createClient({ ...config, fetchImpl, scheduleRequest, waitRetry, timeoutMs, batcher });
+        const call = createClient({ ...config, fetchImpl, scheduleRequest, waitRetry, timeoutMs, batcher, metadataCache });
         if (!state.metadata || now().getTime() - state.metadataAt >= METADATA_TTL) {
           state.metadata = null;
-          state.metadata = await readMetadata(call);
+          state.metadata = await readMetadata(call, propertyType);
           state.metadataAt = now().getTime();
         }
         const body = await readCounts(call, state.metadata);
         body.updatedAt = now().toISOString();
         state.body = body; state.at = now().getTime();
         return { status: 200, body };
-      } catch { return { status: 502, body: { error: 'CRM_READ_ERROR' } }; }
+      } catch { metadataCache?.invalidate(config.webhookUrl); return { status: 502, body: { error: 'CRM_READ_ERROR' } }; }
     })();
     try { return structuredClone(await state.pending); }
     finally { state.pending = null; }

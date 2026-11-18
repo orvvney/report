@@ -112,3 +112,17 @@ test('does not cache incomplete metadata and recovers after the directory is cor
   fixture.state.propertyStageNames = STAGES;
   expect((await load()).status).toBe(200);
 });
+
+test('parking stages use their own property type and snapshot and preserve all eight stages', async () => {
+ const fixture = createFixture({ propertyItems: [item(1, 0), item(2, 1, '72'), item(3, 7, '72')] });
+ const apartments = createPropertyStagesLoader(fixture);
+ const parking = createPropertyStagesLoader({ ...fixture, propertyType: 'Ավտոկայանատեղի' });
+ expect((await apartments()).body.stages.map(stage => stage.count)).toEqual([1,0,0,0,0,0,0,0]);
+ const first = await parking();
+ expect(first.status).toBe(200);
+ expect(first.body.stages).toEqual(STAGES.map((name,index) => ({name,count:[0,1,0,0,0,0,0,1][index]})));
+ fixture.state.propertyItems.push(item(4, 7, '72'));
+ expect(await parking()).toEqual(first);
+ expect((await parking({refresh:true})).body.stages[7].count).toBe(2);
+ expect((await apartments()).body.stages[0].count).toBe(1);
+});

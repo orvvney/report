@@ -309,6 +309,7 @@ dialog::backdrop { background: rgb(29 40 62 / 45%); }
 .statistics-money [role=tooltip], .statistics-pie [role=tooltip] { position: absolute; z-index: 5; background: var(--ink); color: white; border-radius: 6px; padding: 6px; max-width: 250px; }
 .statistics-money [role=tooltip] { width: max-content; max-width: none; white-space: nowrap; overflow-wrap: normal; left: 0; top: 100%; }
 .statistics-pie { position: relative; min-width: 0; width: var(--statistics-content-height, 168px); height: var(--statistics-content-height, 168px); }
+.statistics-pie [role=tooltip] { bottom: 0; left: 50%; transform: translateX(-50%); width: max-content; max-width: min(250px, calc(100vw - 32px)); margin: 0; text-align: center; overflow-wrap: anywhere; pointer-events: none; }
 .statistics-pie svg { width: 100%; height: 100%; display: block; }
 .statistics-pie svg, .statistics-pie g { outline: none; }
 .statistics-pie g.is-active { stroke: var(--ink); stroke-width: 2; }
@@ -366,6 +367,7 @@ dialog::backdrop { background: rgb(29 40 62 / 45%); }
 /* White surfaces stay distinct against the page background. */
 .report-top-panels, .kpi-container, .deals-histogram { box-shadow: var(--card-shadow); }
 .filter-heading h2 .filter-icon { color: var(--brand-strong); }
+.filter-container .filter-heading h2 .filter-icon { color: #000; }
 
 .header-actions { --header-icon-size: 17px; display: flex; justify-self: end; align-items: center; gap: 8px; }
 .header-icon-button { display: grid; place-items: center; width: 40px; height: 40px; min-width: 40px; padding: 0; border: 1px solid var(--border); border-radius: var(--radius-button); background: white; color: var(--ink); }
@@ -506,9 +508,27 @@ dialog::backdrop { background: rgb(29 40 62 / 45%); }
   .filter-panel .room-buttons button, .filter-panel .room-buttons .all-rooms { width: 100%; min-width: 0; padding-inline: 0; }
   .filter-panel .room-values { display: grid; grid-template-columns: repeat(var(--room-count), minmax(0, 1fr)); width: 100%; max-width: 100%; gap: 4px; }
   .filter-panel .quarter-room-row { display: contents; }
+
+  /* The filters size both rows. Statistics scrolls its legend within that space. */
+  .report-top-panels.panels-stacked { display: grid; grid-template-rows: repeat(2, 1fr); }
+  .panels-stacked > .statistics-panel {
+    container-type: size;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .statistics-status { min-height: 0; }
+  .statistics-body {
+    --statistics-legend-gap: 10px;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 3fr) minmax(0, 2fr);
+    height: auto;
+    padding-bottom: 0;
+  }
   .statistics-totals { width: 100% !important; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: 1fr; min-height: 90px; }
   .statistics-totals article { min-width: 0; }
   .statistics-totals h3 { white-space: normal; }
+  .statistics-pie { width: auto; height: 100%; max-height: 180px; aspect-ratio: 1; justify-self: center; }
+  .statistics-legend { min-height: 0; max-height: none; align-self: stretch; }
   .desktop-text { display: none; }
   .mobile-text { display: inline; }
   .deals-list td:first-child { min-width: 0; max-width: none; }
@@ -577,4 +597,18 @@ dialog::backdrop { background: rgb(29 40 62 / 45%); }
 }
 @media (max-width: 639px) {
   .property-stages-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Parking shares two equal columns between the period, complex and price fields. */
+.parking-filters .filter-row { display: block; }
+.parking-filters .filter-first-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.parking-filters .filter-second-row { display: grid; grid-template-columns: minmax(0, 1fr); margin-top: 16px; }
+.parking-filters .filter-second-row .range-inputs { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.parking-filters .report-top-panels .complex-filter,
+.parking-filters .report-top-panels .filter-second-row > .range-filter:last-child { position: static; left: 0; }
+.parking-filters .filter-panel .complex-buttons { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: repeat(2, 32px); gap: 8px; height: auto; }
+.parking-filters .filter-panel .complex-buttons button { width: 100%; height: 32px; }
+@media (max-width: 639px) {
+  .parking-filters .filter-first-row { grid-template-columns: minmax(0, 1fr); }
+  .parking-filters .filter-first-row > fieldset { grid-column: 1; }
 }

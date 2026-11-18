@@ -1,4 +1,4 @@
-const { filterDeals, decimal, decimalText, add } = require('./filter.cjs');
+const { filterDeals, decimal, decimalText, add, compare } = require('./filter.cjs');
 const months = ['Հունվար','Փետրվար','Մարտ','Ապրիլ','Մայիս','Հունիս','Հուլիս','Օգոստոս','Սեպտեմբեր','Հոկտեմբեր','Նոյեմբեր','Դեկտեմբեր'];
 function timeType(period) { return period === 'year' ? 'year' : period === 'quarter' ? 'quarter' : 'month'; }
 function interval(value, step) { const d = decimal(value); const index = d.coefficient / (10n ** BigInt(d.scale) * BigInt(step)); return [index * BigInt(step), (index + 1n) * BigInt(step)]; }
@@ -9,10 +9,11 @@ function colorRows(rows) {
  const colors = new Map(counts.map((count,index)=>[count, index === 0 ? '#00a387' : `hsl(170 100% ${32 + index/(counts.length-1)*50}%)`]));
  return rows.map(row=>({...row,color:colors.get(row.count)||'hsl(170 100% 82%)'}));
 }
-const orderRows = (a,b) => a.order < b.order ? -1 : a.order > b.order ? 1 : 0;
+const orderRows = (a,b) => typeof a.order === 'object' && typeof b.order === 'object' ? compare(a.order, b.order) : a.order < b.order ? -1 : a.order > b.order ? 1 : 0;
 function category(deal, type) {
  let key, label, order;
- if (type === 'area' || type === 'amount') { const [a,b] = interval(deal[type], type === 'area' ? 10 : 10000000); key = String(a); label = type === 'area' ? `${grouped(a)}–${grouped(b)} մ²` : `${grouped(a / 1000000n)} մլն–${grouped(b / 1000000n)} մլն ֏`; order = a; }
+ if (type === 'exactAmount') { order = decimal(deal.amount); key = decimalText(order); const [whole, fraction] = key.split('.'); label = `${grouped(whole)}${fraction ? `,${fraction}` : ''} ֏`; }
+  else if (type === 'area' || type === 'amount') { const [a,b] = interval(deal[type], type === 'area' ? 10 : 10000000); key = String(a); label = type === 'area' ? `${grouped(a)}–${grouped(b)} մ²` : `${grouped(a / 1000000n)} մլն–${grouped(b / 1000000n)} մլն ֏`; order = a; }
   else if (type === 'complex') { key = deal.complex; label = key === 'tower' ? 'Թաուեր' : 'Հիլլս'; order = key === 'tower' ? 0 : 1; }
   else if (type === 'rooms') { key = String(deal.rooms); label = `${key} սենյակ`; order = deal.rooms; }
   else { const year = deal.date.slice(0,4), month = Number(deal.date.slice(5,7)), quarter = Math.ceil(month/3); key = type === 'year' ? year : `${year}-${String(type === 'quarter' ? quarter : month).padStart(2,'0')}`; label = type === 'year' ? year : type === 'quarter' ? `${['I','II','III','IV'][quarter-1]} ${year}` : `${months[month-1]} ${year}`; order = key; }

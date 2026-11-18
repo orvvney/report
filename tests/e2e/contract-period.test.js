@@ -18,7 +18,7 @@ const selectPeriod = async value => {
 const selectYear = async value => { await year().selectOption(value); await openMonths(); };
 
 const button = name => page.getByRole('button', { name, exact: true });
-const ready = () => page.getByTestId('statistics-count').waitFor();
+const ready = async () => { await page.getByTestId('statistics-count').waitFor(); await page.waitForFunction(() => document.querySelector('.report-header .refresh-button')?.disabled === false); };
 const count = async n => expect(await page.getByTestId('statistics-count').innerText()).toBe(String(n));
 const refresh = async () => { await button('Թարմացնել ամբողջ հաշվետվությունը').click(); await ready(); };
 const selected = async (name, value = true) => { await openMonths(); expect(await button(name).getAttribute('aria-pressed')).toBe(String(value)); };

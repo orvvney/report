@@ -2,8 +2,10 @@
 import { computed, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue';
 import CustomerName from './CustomerName.vue';
 import ReportDate from './ReportDate.vue';
-const props = defineProps({ rows: Array, title: String, itemTitle: String, collapsible: { type: Boolean, default: true } });
+const props = defineProps({ rows: Array, title: String, itemTitle: String, loading: Boolean, failed: Boolean, collapsible: { type: Boolean, default: true } });
 const expanded = ref(false);
+const emit = defineEmits(['expand', 'retry']);
+watch(expanded, value => emit('expand', value));
 const scrollArea = ref(null);
 let frame = null, observer;
 function updateHeading() {
@@ -60,7 +62,9 @@ function sort(key) {
           </svg>
         </button>
         <div v-show="expanded || !collapsible" :id="contentId" class="expo-records-content">
-        <div ref="scrollArea" class="deals-list-scroll" role="region" :aria-label="title" tabindex="0">
+        <p v-if="loading" class="kpi-notice" role="status">Տվյալները բեռնվում են…</p>
+        <p v-else-if="failed" class="kpi-notice" role="status">Տվյալներն անհասանելի են։ <button type="button" @click="emit('retry')">Կրկին փորձել</button></p>
+        <div v-show="!loading && !failed" ref="scrollArea" class="deals-list-scroll" role="region" :aria-label="title" tabindex="0">
           <table><thead><tr><th v-for="[key, label] in [['customerName', 'Հաճախորդ'], ['date', 'Ստեղծված՝'], ['stageName', 'Կարգավիճակ']]" :key="key" scope="col" :aria-sort="sortKey === key ? (direction === 'asc' ? 'ascending' : 'descending') : 'none'"><button type="button" @click="sort(key)">{{ label }}<span aria-hidden="true">{{ sortKey === key ? (direction === 'asc' ? ' ↑' : ' ↓') : ' ↕' }}</span></button></th></tr></thead>
             <tbody><tr v-if="!rows.length" class="expo-empty-row"><td colspan="3"><p class="kpi-notice" role="status">Տվյալներ չկան</p></td></tr><tr v-for="row in visible" :key="row.id" class="expo-record-row"><td><a :href="row.url" target="_blank" rel="noopener noreferrer"><CustomerName :name="row.customerName || 'Անունը նշված չէ'" /></a></td><td><ReportDate :text="formatDate(row.date)" /></td><td>{{ row.stageName || row.stageId || '—' }}</td></tr><tr v-for="slot in emptySlots" :key="`empty-${slot}`" class="expo-placeholder-row" aria-hidden="true"><td v-for="cell in 3" :key="cell"></td></tr></tbody>
           </table>

@@ -18,6 +18,7 @@
     "test:install": "playwright install chromium",
     "build": "vite build",
     "test:cold-performance": "node scripts/cold-performance.cjs",
+    "test:parking-cold-performance": "node scripts/cold-performance.cjs --parking",
     "test:expo-cold-performance": "node scripts/cold-performance.cjs --expo"
   },
   "devDependencies": {

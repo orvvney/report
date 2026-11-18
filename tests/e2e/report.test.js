@@ -4,7 +4,7 @@ const { createServer } = require('../../server.js');
 const { createFixture, deal } = require('../support/crm-fixture.cjs');
 let fixture, server, url, release;
 const refresh = () => page.getByRole('button', { name: 'Թարմացնել ամբողջ հաշվետվությունը', exact: true });
-const ready = async () => { await page.getByTestId('statistics-count').waitFor(); };
+const ready = async () => { await page.getByTestId('statistics-count').waitFor(); await page.waitForFunction(() => document.querySelector('.report-header .refresh-button')?.disabled === false); };
 async function reloadReport() { await refresh().click(); await ready(); }
 beforeEach(async () => {
   await page.setViewportSize({ width: 1024, height: 1100 });
@@ -48,6 +48,7 @@ test('header refresh hides old data, disables during loading, recovers from last
   expect(await refresh().isDisabled()).toBe(true);
   expect(await page.getByTestId('statistics-count').count()).toBe(0);
   release(); fixture.state.gate = null; await failedStatus().waitFor();
+  await page.waitForFunction(() => document.querySelector('.report-header .refresh-button')?.disabled === false);
   expect(await heading.isVisible()).toBe(true); expect(await refresh().isEnabled()).toBe(true);
   expect(await page.locator('.statistics-panel svg, .kpi-container svg, .deals-histogram svg').count()).toBe(0);
   fixture.state.failPage = undefined; await reloadReport(); await expectTotals(51, '510 ֏');
@@ -483,6 +484,7 @@ test.each([1440, 375])('filter panel shows only a centered notice on load/failur
   expect(await page.getByTestId('statistics-count').count()).toBe(0);
   await page.screenshot({ path: `test-results/filters-loading-${width}.png`, fullPage: true });
   release(); fixture.state.gate = null; await failedStatus().waitFor();
+  await page.waitForFunction(() => document.querySelector('.report-header .refresh-button')?.disabled === false);
   await onlyNotice();
   await page.screenshot({ path: `test-results/filters-unavailable-${width}.png`, fullPage: true });
   fixture.state.failPage = undefined; await reloadReport(); expect(await input('amount', 'min').inputValue()).toBe('200.2');

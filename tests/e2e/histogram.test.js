@@ -6,7 +6,7 @@ const histogram = () => page.getByRole('region', { name: 'Գործարքների
 const months = () => histogram().getByRole('button', { name: 'Վաճառքի գումար', exact: true });
 const rooms = () => histogram().getByRole('button', { name: 'Սենյակներ', exact: true });
 const counts = () => histogram().getByRole('button', { name: 'Բն. քանակ', exact: true });
-const ready = () => page.getByTestId('statistics-count').waitFor();
+const ready = async () => { await page.getByTestId('statistics-count').waitFor(); await page.waitForFunction(() => document.querySelector('.report-header .refresh-button')?.disabled === false); };
 const refresh = () => page.getByRole('button', { name: 'Թարմացնել ամբողջ հաշվետվությունը', exact: true }).click();
 
 beforeEach(async () => {
@@ -237,6 +237,8 @@ test.each([1440, 375, 320])('chart modes keep the count layout and sales KPI at 
   }
   await months().click();
   expect(await histogram().getByRole('heading', { name: 'ընդհանուր արժեք', exact: true }).isVisible()).toBe(true);
+  expect(await histogram().getByTestId('histogram-kpi-change').count()).toBe(0);
+  await histogram().getByRole('checkbox', { name: 'Ցուցադրել համեմատական հիստոգրամը', exact: true }).check();
   const data = '+276,5 ֏';
   expect(await histogram().getByTestId('histogram-kpi-value').innerText()).toBe('326,50 ֏');
   expect(await histogram().getByTestId('histogram-kpi-change').locator('span').first().innerText()).toBe(data);
@@ -270,13 +272,14 @@ test.each([1440, 375])('count mode shares KPI totals and changes, shows 12 month
   const legend = histogram().getByLabel('Համեմատվող ժամանակահատվածներ', { exact: true });
   expect(await legend.evaluate(el => getComputedStyle(el).fontSize)).toBe('14px');
   expect(await histogram().locator('.histogram-kpi').evaluate(el => getComputedStyle(el).textAlign)).toBe('center');
-  expect(await histogram().getByTestId('histogram-kpi-change').evaluate(el => getComputedStyle(el).justifyContent)).toBe('center');
+  expect(await histogram().getByTestId('histogram-kpi-change').count()).toBe(0);
   expect(await legend.locator('span').count()).toBe(1);
   expect(await legend.innerText()).toContain('Ընտրված՝');
   expect(await histogram().locator('.histogram-kpi').innerText()).not.toMatch(/Ընտրված՝|Համեմատություն՝/);
   const selectedRange = await legend.locator('span').first().innerText();
   const compareToggle = histogram().getByRole('checkbox', { name: 'Ցուցադրել համեմատական հիստոգրամը', exact: true });
   await compareToggle.check();
+  expect(await histogram().getByTestId('histogram-kpi-change').evaluate(el => getComputedStyle(el).justifyContent)).toBe('center');
   expect(await histogram().getByTestId('bar-amount').first().evaluate(el => getComputedStyle(el).fontSize)).toBe('12px');
   expect(await histogram().getByTestId('comparison-amount').first().evaluate(el => getComputedStyle(el).fontSize)).toBe('12px');
   expect(await legend.locator('span').count()).toBe(2);
@@ -292,6 +295,8 @@ test.each([1440, 375])('count mode shares KPI totals and changes, shows 12 month
   expect(await apartmentLabel.isVisible()).toBe(true);
   const valueBox = await value.boundingBox(), labelBox = await apartmentLabel.boundingBox();
   expect(valueBox.y + valueBox.height).toBeLessThanOrEqual(labelBox.y);
+  expect(await histogram().getByTestId('histogram-kpi-change').count()).toBe(0);
+  await compareToggle.check();
   const change = histogram().getByTestId('histogram-kpi-change');
   const changeBox = await change.boundingBox();
   const statisticsValue = await page.getByTestId('statistics-count').boundingBox();
@@ -309,6 +314,7 @@ test.each([1440, 375])('count mode shares KPI totals and changes, shows 12 month
   expect(await histogram().getByTestId('bar-amount').allTextContents()).toEqual(['2', '1', ...Array(10).fill('0')]);
   expect(await histogram().getByTestId('y-tick').allTextContents()).toEqual(['0', '1', '2', '3', '4']);
   const january = histogram().getByRole('button', { name: 'Հունվար · 2 բնակարան · 126 ֏', exact: true });
+  await page.mouse.move(0, 0);
   await january.focus();
   expect(await histogram().getByRole('tooltip').innerText()).toBe('Հունվար · 2 բնակարան · 126 ֏');
   await page.keyboard.press('Escape');
