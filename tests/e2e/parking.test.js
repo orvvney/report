@@ -127,17 +127,57 @@ test.each([
   const initialHeight = await height(form);
   expect(await height(panel)).toBeCloseTo(initialHeight, 0);
 
-  await panel.locator('.statistics-trigger').click();
-  const groups = page.getByRole('dialog', { name: 'Վիճակագրության խմբավորում' });
-  await groups.getByRole('button', { name: hash ? 'Կայ. Արժեք' : 'Համալիր', exact: true }).click();
-  expect(await height(panel)).toBeCloseTo(initialHeight, 0);
   const legend = panel.getByRole('table');
-  expect(await legend.evaluate(el => el.getBoundingClientRect().bottom <= el.closest('section').getBoundingClientRect().bottom)).toBe(true);
+  const amountMin = form.locator('#amount-min');
+  const amountMax = form.locator('#amount-max');
+  const firstCard = panel.locator('.statistics-totals article').first();
+  const expectMatchingInset = async () => {
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    const [filterBox, minBox, maxBox, panelBox, legendBox, cardBox] = await Promise.all(
+      [form, amountMin, amountMax, panel, legend, firstCard].map(locator => locator.boundingBox()),
+    );
+    expect(legendBox.x).toBeCloseTo(cardBox.x, 0);
+    expect(legendBox.x + legendBox.width).toBeCloseTo(maxBox.x + maxBox.width, 0);
+    expect(panelBox.y + panelBox.height - legendBox.y - legendBox.height)
+      .toBeCloseTo(filterBox.y + filterBox.height - minBox.y - minBox.height, 0);
+  };
+  const groups = page.getByRole('dialog', { name: 'Վիճակագրության խմբավորում' });
+  const choices = hash
+    ? ['Կնքման տարի', 'Համալիր', 'Կայ. Արժեք']
+    : ['Կնքման տարի', 'Համալիր', 'Սենյակ', 'Մակերես', 'Բն. Արժեք'];
+  for (const choice of choices) {
+    await panel.locator('.statistics-trigger').click();
+    await groups.getByRole('button', { name: choice, exact: true }).click();
+    expect(await height(panel)).toBeCloseTo(initialHeight, 0);
+    await expectMatchingInset();
+    const group = await legend.evaluate(el => {
+      const box = el.getBoundingClientRect();
+      const first = el.firstElementChild.getBoundingClientRect();
+      const last = el.lastElementChild.getBoundingClientRect();
+      return {
+        rowsFillWidth: Array.from(el.children).every(row => {
+          const bounds = row.getBoundingClientRect();
+          return Math.abs(bounds.left - box.left - el.clientLeft) < 1 && Math.abs(bounds.width - el.clientWidth) < 1;
+        }),
+        top: first.top - box.top,
+        bottom: box.bottom - last.bottom,
+        scrolls: el.scrollHeight > el.clientHeight,
+      };
+    });
+    expect(group.rowsFillWidth).toBe(true);
+    expect(group.top).toBeCloseTo(group.scrolls ? 0 : group.bottom, 0);
+  }
   if (hash) {
     expect(await legend.evaluate(el => el.scrollHeight > el.clientHeight)).toBe(true);
   }
 
-  await form.locator('#amount-min').fill('999999999');
+  await amountMin.fill('1');
+  await amountMax.fill('0');
+  await amountMin.and(form.locator('[aria-invalid="true"]')).waitFor();
+  await expectMatchingInset();
+  await amountMax.fill('');
+
+  await amountMin.fill('999999999');
   await page.waitForFunction(() => document.querySelector('[data-testid="statistics-count"]')?.textContent === '0');
   expect(await height(panel)).toBeCloseTo(initialHeight, 0);
   await form.getByRole('combobox', { name: 'Կնքման ժամանակահատված', exact: true }).selectOption('quarter');
@@ -186,6 +226,8 @@ test('parking stages and two histogram modes show parking data and respond to fi
  for (const width of [1024,375,320]) {
   await page.setViewportSize({width,height:1100});
   await page.waitForTimeout(100);
+  const countTitle = width < 640 ? 'Կայ. քանակ' : 'Կայանատեղիների քանակ';
+  expect(await chart.locator('.histogram-axis').innerText()).toBe(`Y · ${countTitle} · 2026`);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
  }
  fixture.state.propertyItems.push({id:3,categoryId:5,stageId:'DT177_5:7',ufCrmProperty:'72'});

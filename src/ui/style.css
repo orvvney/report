@@ -516,19 +516,36 @@ dialog::backdrop { background: rgb(29 40 62 / 45%); }
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
   }
+  .panels-stacked > .statistics-panel:has(.statistics-legend) {
+    padding-bottom: var(--statistics-bottom-inset, 8px);
+  }
   .statistics-status { min-height: 0; }
   .statistics-body {
     --statistics-legend-gap: 10px;
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 3fr) minmax(0, 2fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: min(180px, 42cqi) minmax(0, 1fr);
     height: auto;
     padding-bottom: 0;
   }
-  .statistics-totals { width: 100% !important; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: 1fr; min-height: 90px; }
+  .statistics-totals { width: 100% !important; grid-template-rows: repeat(2, minmax(0, 1fr)); min-height: 0; }
   .statistics-totals article { min-width: 0; }
   .statistics-totals h3 { white-space: normal; }
-  .statistics-pie { width: auto; height: 100%; max-height: 180px; aspect-ratio: 1; justify-self: center; }
-  .statistics-legend { min-height: 0; max-height: none; align-self: stretch; }
+  .statistics-pie {
+    width: auto;
+    height: 100%;
+    aspect-ratio: 1;
+    justify-self: end;
+    /* The circle ends at x=190 in the 200-unit SVG. */
+    translate: 5% 0;
+  }
+  .statistics-legend {
+    grid-column: 1 / -1;
+    align-content: safe center;
+    min-height: 0;
+    max-height: none;
+    align-self: stretch;
+  }
+  .statistics-intervals .statistics-legend { padding-right: 0; scrollbar-gutter: auto; }
   .desktop-text { display: none; }
   .mobile-text { display: inline; }
   .deals-list td:first-child { min-width: 0; max-width: none; }

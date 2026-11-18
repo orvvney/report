@@ -48,6 +48,9 @@ function layoutPanels() {
       const statTitle = heading.querySelector('h2');
       const desired = statTitle.getBoundingClientRect().bottom + legend.getBoundingClientRect().top - title.getBoundingClientRect().bottom;
       row.style.setProperty('--statistics-content-gap', `${Math.max(0, desired - heading.getBoundingClientRect().bottom)}px`);
+      const amountMin = form.querySelector('#amount-min');
+      const bottomInset = form.getBoundingClientRect().bottom - amountMin.getBoundingClientRect().bottom;
+      row.style.setProperty('--statistics-bottom-inset', `${Math.max(0, bottomInset)}px`);
       const amountMax = form.querySelector('#amount-max');
       if (!row.classList.contains('panels-stacked') && amountMax) {
         row.style.setProperty('--statistics-content-height', `${Math.max(100, amountMax.getBoundingClientRect().bottom - desired)}px`);

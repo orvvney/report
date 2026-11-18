@@ -224,10 +224,13 @@ test.each([1440, 375, 320])('chart modes keep the count layout and sales KPI at 
     return { height: box.height, plotTop: plot.y - box.y, plotHeight: plot.height };
   });
   const baseline = await layout();
+  const countTitle = width < 640 ? 'Բն. քանակ' : 'Բնակարանների քանակ';
   for (const select of [months, rooms, counts]) {
     await select().click();
     expect(await layout()).toEqual(baseline);
-    const titleBox = await histogram().locator('.histogram-axis').boundingBox();
+    const axis = histogram().locator('.histogram-axis');
+    expect(await axis.innerText()).toBe(`Y · ${select === counts ? countTitle : 'Ընդհանուր արժեք (֏)'} · 2026`);
+    const titleBox = await axis.boundingBox();
     const tickBoxes = await histogram().getByTestId('y-tick').locator('text').evaluateAll(els => els.map(el => el.getBoundingClientRect().x));
     expect(Math.min(...tickBoxes)).toBeCloseTo(titleBox.x + 21, 0);
     expect(await histogram().getByTestId('bar-month').evaluateAll(els => els.map(el => getComputedStyle(el).fontSize)))

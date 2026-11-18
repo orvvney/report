@@ -18,7 +18,8 @@ const { monthlyRoomTotals, roomColor, histogramScale, comparisonMonths } = histo
 const mode = ref('count');
 const compare = ref(false);
 const sectionHelpOpen = ref(false);
-const modes = computed(() => [['count', props.parking ? 'Կայ. քանակ' : 'Բն. քանակ', buildingIcon], ['months', 'Վաճառքի գումար', walletIcon], ['rooms', 'Սենյակներ', roomsIcon]].filter(([value]) => !props.parking || value !== 'rooms'));
+const countTitle = computed(() => props.parking ? 'Կայ. քանակ' : 'Բն. քանակ');
+const modes = computed(() => [['count', countTitle.value, buildingIcon], ['months', 'Վաճառքի գումար', walletIcon], ['rooms', 'Սենյակներ', roomsIcon]].filter(([value]) => !props.parking || value !== 'rooms'));
 const propertyLabel = computed(() => props.parking ? 'կայանատեղի' : 'բնակարան');
 const isCount = computed(() => mode.value === 'count');
 const plotStyle = { paddingLeft: '0px', paddingRight: '21px' };
@@ -37,7 +38,8 @@ const totalCount = computed(() => categories.value.reduce((sum, entry) => sum + 
 const scale = computed(() => histogramScale([
   ...(isCount.value ? counted.value : props.parking ? grouped.value.months : stacked.value.months), ...(comparing.value ? previous.value : []),
 ].map(entry => isCount.value ? entry.count : entry.amount), { integer: isCount.value }));
-const yTitle = computed(() => isCount.value ? (props.parking ? 'Կայանատեղիների քանակ' : 'Բնակարանների քանակ') : 'Ընդհանուր արժեք (֏)');
+const amountTitle = 'Ընդհանուր արժեք (֏)';
+const yTitle = computed(() => isCount.value ? (props.parking ? 'Կայանատեղիների քանակ' : 'Բնակարանների քանակ') : amountTitle);
 const tickY = index => 310 - index * 260 / (scale.value.ticks.length - 1);
 const yAxis = ref(null);
 const tickLabelWidth = computed(() => {
@@ -146,7 +148,9 @@ watch([() => JSON.stringify(categories.value), () => comparing.value ? JSON.stri
       </div>
     </div>
     <div class="histogram-graph-toolbar">
-      <p class="histogram-axis">Y · {{ yTitle }} · {{ year }}</p>
+      <p class="histogram-axis" :data-amount-label="`Y · ${amountTitle} · ${year}`">
+        <span>Y · <template v-if="isCount"><span class="desktop-text">{{ yTitle }}</span><span class="mobile-text">{{ countTitle }}</span></template><template v-else>{{ yTitle }}</template> · {{ year }}</span>
+      </p>
       <label class="histogram-comparison-toggle"><input v-model="compare" type="checkbox"
         aria-label="Ցուցադրել համեմատական հիստոգրամը" :disabled="loading || failed || !canCompare"
         :title="!canCompare ? 'Համեմատության համար ընտրեք համեմատելի ժամանակահատված' : undefined">Համեմատել</label>
@@ -286,5 +290,12 @@ watch([() => JSON.stringify(categories.value), () => comparing.value ? JSON.stri
 .histogram-empty { position: absolute; left: 0; right: 0; margin-top: 8px; text-align: center; color: var(--muted); }
 .histogram-summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 20px; font-size: 14px; color: var(--muted); }
 @media (min-width: 640px) { .histogram-modes button { font-size: 14px; } }
-@media (max-width: 639px) { .histogram-modes { grid-template-columns: minmax(0, 1fr); width: min(100%, 360px); } }
+@media (max-width: 639px) {
+  .histogram-modes { grid-template-columns: minmax(0, 1fr); width: min(100%, 360px); }
+  .histogram-graph-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+  .histogram-axis { display: grid; align-items: center; }
+  /* Reserve the amount label's height in both chart modes. */
+  .histogram-axis::before { content: attr(data-amount-label); visibility: hidden; }
+  .histogram-axis::before, .histogram-axis > span { grid-area: 1 / 1; }
+}
 </style>

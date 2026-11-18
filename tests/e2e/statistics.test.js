@@ -149,10 +149,7 @@ test('short card labels, approximate total and horizontal full amount tooltip',a
    })};
   });
   if(width>=640) expect(sizing.width).toBe(sizing.originalWidth);
-  else {
-   const cards=await panel.locator('.statistics-totals article').evaluateAll(els=>els.map(el=>{const r=el.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width};}));
-   expect(cards[0].y).toBe(cards[1].y);expect(cards[0].width).toBe(cards[1].width);expect(cards[1].x).toBeGreaterThan(cards[0].x);
-  }expect(sizing.sizes[0]).toBe(sizing.sizes[1]);expect(sizing.sizes[0]).toBeGreaterThan(14);expect(sizing.fits).toBe(true);
+  expect(sizing.sizes[0]).toBe(sizing.sizes[1]);expect(sizing.sizes[0]).toBeGreaterThan(14);expect(sizing.fits).toBe(true);
   for(const heading of await panel.locator('article h3').all()){
    expect(await heading.evaluate(e=>e.getBoundingClientRect().height/parseFloat(getComputedStyle(e).lineHeight))).toBeCloseTo(1,0);
   }
@@ -278,6 +275,23 @@ test.each(['', '#parking'])('pie tooltip stays centered at the lower chart edge 
   const slice = pie.locator('g').first();
   const before = await panel.locator('.statistics-legend').boundingBox();
   const pieBox = await pie.boundingBox();
+  if (width < 640) {
+   const cards = panel.locator('.statistics-totals article');
+   const first = await cards.first().boundingBox();
+   const second = await cards.last().boundingBox();
+   expect(first.x).toBe(second.x);
+   expect(first.width).toBe(second.width);
+   expect(second.y).toBeGreaterThan(first.y + first.height);
+   expect(pieBox.x).toBeGreaterThan(first.x + first.width);
+   expect(pieBox.y).toBeCloseTo(first.y, 0);
+   expect(pieBox.y + pieBox.height).toBeCloseTo(second.y + second.height, 0);
+   expect(before.y).toBeGreaterThan(pieBox.y + pieBox.height);
+   const rightEdge = await pie.locator('svg g').evaluateAll(slices => Math.max(...slices.map(part => {
+    const box = part.getBBox();
+    return new DOMPoint(box.x + box.width, box.y).matrixTransform(part.getScreenCTM()).x;
+   })));
+   expect(rightEdge).toBeCloseTo(before.x + before.width, 0);
+  }
   for (const activate of [() => pie.hover({position:{x:pieBox.width*.7,y:pieBox.height*.3}}), () => slice.focus()]) {
    await activate();
    const tip = pie.getByRole('tooltip');

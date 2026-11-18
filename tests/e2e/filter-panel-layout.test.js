@@ -276,8 +276,5 @@ test.each([320, 375, 430])('phone aligns complex and equal room buttons to the a
     buttons.forEach(box => { near(box.width, buttons[0].width); near(box.y, buttons[0].y); expect(box.y).toBeGreaterThanOrEqual(all.y + all.height); });
     near(buttons[0].x, all.x); near(buttons.at(-1).right, all.x + all.width);
     await page.screenshot({ path: `test-results/phone-rooms-${width}-${value}.png` });
-    const totals = await page.locator('.statistics-totals article').all();
-    const count = await totals[0].boundingBox(), amount = await totals[1].boundingBox();
-    near(count.y, amount.y); expect(amount.x).toBeGreaterThan(count.x);
   }
 });
