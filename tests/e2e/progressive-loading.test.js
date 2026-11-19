@@ -5,7 +5,7 @@ let server, releases=[];
 function gate(){let release;const promise=new Promise(resolve=>{release=resolve;});releases.push(release);return {promise,release};}
 async function start(options){server=createServer(options);await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));return `http://127.0.0.1:${server.address().port}`;}
 afterEach(async()=>{releases.forEach(release=>release());releases=[];server?.closeAllConnections();if(server?.listening)await new Promise(resolve=>server.close(resolve));});
-test.each(['apartments','parking'])('%s paints statistics before stage results, then charts, with details only on expansion',async(section)=>{
+test.each(['apartments','parking'])('%s paints statistics and charts while header stages load, with details only on expansion',async(section)=>{
  const stageGate=gate(),contacts=gate();let stageStarted;
  const stageRead=new Promise(resolve=>{stageStarted=resolve;});
  const fixture=createFixture({items:[deal(1,{contactId:8,ufCrmProperty:section==='parking'?'72':'71'})],contacts:[{id:8,name:'Անի',lastName:'Պետրոսյան'}],contactGate:contacts.promise});
@@ -18,9 +18,10 @@ test.each(['apartments','parking'])('%s paints statistics before stage results, 
  await page.getByTestId('statistics-count').waitFor();await stageRead;
  expect(await page.getByTestId('statistics-count').innerText()).toBe('1');
  expect(await page.locator('.filter-panel select').first().isEnabled()).toBe(true);
- expect(await page.getByTestId('histogram-kpi-value').count()).toBe(0);
+ await page.getByTestId('histogram-kpi-value').waitFor();
+ expect(await page.locator('.property-stage-panels-inline article').count()).toBe(0);
  expect(fixture.state.requests.filter(r=>r.params.entityTypeId===3)).toHaveLength(0);
- stageGate.release();await page.locator('.property-stages article').first().waitFor();await page.getByTestId('histogram-kpi-value').waitFor();
+ stageGate.release();await page.locator('.property-stage-panels-inline .property-stages article').last().waitFor();
  expect(fixture.state.requests.filter(r=>r.params.entityTypeId===3)).toHaveLength(0);
  const request=page.waitForRequest(r=>new URL(r.url()).searchParams.get('view')==='details');
  await page.getByRole('button',{name:'Գործարքների ցանկ',exact:true}).click();await request;

@@ -2,7 +2,7 @@
 import { computed, ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue';
 import model from '../report/statistics.cjs';
 import kpi from '../report/kpi.cjs';
-import icon from '../../images/statistics.png';
+import icon from '../../images/statistics.avif';
 const props=defineProps({ parking:Boolean, deals:Array, filters:Object, period:String, loading:Boolean, failed:Boolean, resetRevision:Number });
 const totals=ref(null), totalsStyle=ref({}), totalObserver=new ResizeObserver(fitTotals);
 const sectionHelpOpen=ref(false);

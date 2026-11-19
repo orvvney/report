@@ -12,14 +12,14 @@ const { loadAuthConfig } = require('./src/auth/config.cjs');
 const { AuthService } = require('./src/auth/service.cjs');
 const { createAuthRouter, createRateLimiter, requireSession, audit } = require('./src/auth/routes.cjs');
 
-const ASSET = /^\/assets\/[a-zA-Z0-9_-]+\.(?:js|css|png|jpg)$/;
+const ASSET = /^\/assets\/[a-zA-Z0-9_-]+\.(?:js|css|png|jpg|avif|ico)$/;
 
 // Запрещающий список путей сохранён: раздаются только HTML сборки и assets.
 function createStaticHandler({ distPath, liveReload }) {
   return async (request, response) => {
     const pathname = request.url.split('?')[0];
     const isIndex = ['/', '/index.html'].includes(pathname);
-    const isFavicon = ['/favicon.ico', '/favicon.png'].includes(pathname);
+    const isFavicon = ['/favicon.ico', '/favicon.png', '/favicon.avif'].includes(pathname);
     const isAsset = ASSET.test(pathname);
     if (!['GET', 'HEAD'].includes(request.method) || (!isIndex && !isAsset && !isFavicon)) {
       response.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
@@ -32,7 +32,7 @@ function createStaticHandler({ distPath, liveReload }) {
       if (!file.startsWith(`${root}${path.sep}`)) throw new Error('Outside public build');
       let contents = await readFile(file);
       if (isFavicon) {
-        const icon = contents.toString('utf8').match(/href="(\/assets\/[\w-]+\.png)"/);
+        const icon = contents.toString('utf8').match(/href="(\/assets\/favicon-[\w-]+\.(?:png|ico))"/);
         if (!icon) throw new Error('Favicon is not built');
         response.writeHead(302, { Location: icon[1], 'Cache-Control': 'no-store' });
         response.end();
@@ -41,6 +41,8 @@ function createStaticHandler({ distPath, liveReload }) {
       if (isIndex && liveReload) contents = Buffer.from(liveReload.inject(contents.toString('utf8')));
       response.writeHead(200, {
         'Content-Type': isIndex ? 'text/html; charset=utf-8'
+          : pathname.endsWith('.ico') ? 'image/x-icon'
+          : pathname.endsWith('.avif') ? 'image/avif'
           : pathname.endsWith('.png') ? 'image/png'
             : pathname.endsWith('.jpg') ? 'image/jpeg'
             : pathname.endsWith('.js') ? 'text/javascript; charset=utf-8' : 'text/css; charset=utf-8',

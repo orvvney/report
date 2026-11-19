@@ -1,8 +1,9 @@
 <script setup>
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import milonLogo from '../../images/logo_milon.png';
-import resetIcon from '../../images/reset.png';
-const props = defineProps({ loading: Boolean, account: { type: String, default: '' }, section: { type: String, default: 'apartments' } });
+import milonLogo from '../../images/logo_milon.avif';
+import resetIcon from '../../images/reset.avif';
+import menuIcon from '../../images/menu.avif';
+const props = defineProps({ loading: Boolean, sectionTitle: String, account: { type: String, default: '' }, section: { type: String, default: 'apartments' } });
 const emit = defineEmits(['refresh', 'navigate', 'logout']);
 const header = ref(null), propertyMenu = ref(null), wide = ref(false);
 let observer, tooltipTimer;
@@ -43,7 +44,7 @@ onBeforeUnmount(() => { observer?.disconnect(); hideTooltip(); });
           </div>
           <div class="report-header-copy">
             <h1>Հաշվետվություն</h1>
-            <p v-if="['apartments', 'parking', 'expo'].includes(section)" class="report-header-subtitle"><span>{{ section === 'expo' ? 'Տուն Էքսպո Նոյեմբեր 2026' : section === 'parking' ? 'Կնքված կայանատեղիներ' : 'Կնքված բնակարաններ' }}</span></p>
+            <p v-if="['apartments', 'parking', 'expo'].includes(section)" class="report-header-subtitle"><span>{{ sectionTitle }}</span></p>
           </div>
           <div class="header-actions">
             <span class="header-tooltip-anchor" @pointerenter="event => { if (event.pointerType === 'mouse') showTooltip('refresh'); }" @pointerleave="hideTooltip">
@@ -53,7 +54,7 @@ onBeforeUnmount(() => { observer?.disconnect(); hideTooltip(); });
             </span>
             <span class="header-tooltip-anchor" @pointerenter="event => { if (event.pointerType === 'mouse') showTooltip('menu'); }" @pointerleave="hideTooltip">
             <button type="button" class="header-icon-button property-menu-trigger" aria-label="Հաշվետվությունների տեսակ" :aria-describedby="tooltip === 'menu' ? 'menu-tooltip' : undefined" @focus="showTooltip('menu')" @blur="hideTooltip" @keydown.esc="hideTooltip" @click="hideTooltip" popovertarget="property-menu" aria-haspopup="menu">
-              <span class="header-menu-icon" aria-hidden="true"><span></span><span></span><span></span></span>
+              <span class="filter-icon header-menu-icon" :style="{ maskImage: `url(${menuIcon})` }" aria-hidden="true"></span>
             </button>
             <span v-if="tooltip === 'menu'" id="menu-tooltip" class="header-tooltip" role="tooltip">Հաշվետվությունների տեսակ</span>
             </span>

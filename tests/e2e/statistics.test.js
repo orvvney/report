@@ -66,10 +66,18 @@ test('joined frame, spacing, centered 12px labels and ranked turquoise room colo
 test('adaptive equal input widths, equal cards, matching pie extent and shared legend tracks',async()=>{
  await page.setViewportSize({width:1920,height:1200});await page.goto(url);await page.getByTestId('statistics-count').waitFor();
  const panel=page.getByRole('region',{name:'Վիճակագրություն',exact:true});
- const a=await panel.locator('article').first().boundingBox(),b=await panel.locator('article').last().boundingBox(),pie=await panel.locator('.statistics-pie').boundingBox();
+ await page.waitForFunction(() => {
+  const frame = document.querySelector('.report-top-panels.top-wide');
+  const amount = frame?.querySelector('#amount-max');
+  const total = frame?.querySelector('.statistics-totals article:last-child');
+  return amount && total && Math.abs(amount.getBoundingClientRect().bottom - total.getBoundingClientRect().bottom) < 1;
+ });
+ const [a,b,pie,end]=await page.locator('.report-top-panels').evaluate(frame =>
+  ['.statistics-totals article:first-child','.statistics-totals article:last-child','.statistics-pie','#amount-max']
+   .map(selector=>frame.querySelector(selector).getBoundingClientRect().toJSON()));
  expect(a.width).toBe(b.width);expect(Math.abs(a.height-b.height)).toBeLessThan(1);
  expect(Math.abs(pie.y-a.y)).toBeLessThan(1);expect(Math.abs(pie.y+pie.height-b.y-b.height)).toBeLessThan(1);
- const end=await page.locator('#amount-max').boundingBox();expect(Math.abs(end.y+end.height-b.y-b.height)).toBeLessThan(1);
+ expect(Math.abs(end.y+end.height-b.y-b.height)).toBeLessThan(1);
  const inputWidth=(await page.locator('#area-min').boundingBox()).width;
  for(const id of ['area-min','area-max','amount-min','amount-max'])expect((await page.locator(`#${id}`).boundingBox()).width).toBe(inputWidth);
  expect(await panel.locator('article').last().locator('h3 br').count()).toBe(0);
@@ -81,7 +89,8 @@ test('adaptive equal input widths, equal cards, matching pie extent and shared l
 });
 test.each([1440,1920])('desktop keeps equal halves with statistics on the right at %i',async width=>{
  await page.setViewportSize({width,height:1200});await page.goto(url);await page.getByTestId('statistics-count').waitFor();
- const filter=await page.locator('.filter-panel').boundingBox(),stats=await page.locator('.statistics-panel').boundingBox();
+ const [filter,stats]=await page.locator('.report-top-panels').evaluate(frame =>
+  ['.filter-panel','.statistics-panel'].map(selector=>frame.querySelector(selector).getBoundingClientRect().toJSON()));
  expect(Math.abs(filter.width-stats.width)).toBeLessThan(1);expect(Math.abs(filter.y-stats.y)).toBeLessThan(1);expect(Math.abs(stats.x-filter.x-filter.width)).toBeLessThan(1);
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  await page.screenshot({path:`test-results/statistics-right-${width}.png`,fullPage:true});
@@ -112,17 +121,18 @@ test('legend headings, compact cards and shared hover and keyboard highlighting'
  await row.focus();expect(await slice.getAttribute('class')).toContain('is-active');
  await page.screenshot({path:'test-results/statistics-hover-1440.png',fullPage:true});
 });
-test('year statistics include actual data for all loaded years regardless of the selected year',async()=>{
+test.each(['', '#parking'])('year statistics apply the selected year in %s',async(hash)=>{
  fixture.state.items=[2023,2024,2025,2026].map((year,i)=>deal(i+1,{ufCrmDate:`${year}-01-10`}));
- await page.goto(url);await page.getByTestId('statistics-count').waitFor();
+ if(hash) fixture.state.items=fixture.state.items.map(item=>({...item,ufCrmProperty:'72'}));
+ await page.goto(`${url}/${hash}`);await page.getByTestId('statistics-count').waitFor();
  const panel=page.getByRole('region',{name:'Վիճակագրություն',exact:true});
  await panel.locator('.statistics-trigger').click();
  await page.getByRole('dialog',{name:'Վիճակագրության խմբավորում'}).getByRole('button',{name:'Կնքման տարի',exact:true}).click();
  expect(await panel.locator('.statistics-trigger').innerText()).toBe('Ըստ տարվա');
  expect(await panel.getByRole('columnheader').allTextContents()).toEqual(['Տարի','Քանակ','Տոկոս']);
- expect(await panel.getByRole('cell').allTextContents()).toEqual(['2023','1','25%','2024','1','25%','2025','1','25%','2026','1','25%']);
- expect(await panel.getByTestId('statistics-count').innerText()).toBe('4');
- expect(await panel.locator('svg g').count()).toBe(4);
+ expect(await panel.getByRole('cell').allTextContents()).toEqual(['2026','1','100%']);
+ expect(await panel.getByTestId('statistics-count').innerText()).toBe('1');
+ expect(await panel.locator('svg g').count()).toBe(1);
 });
 test('short card labels, approximate total and horizontal full amount tooltip',async()=>{
  fixture.state.items=[deal(1,{opportunity:'4180000000',ufCrmDate:'2026-01-10'})];

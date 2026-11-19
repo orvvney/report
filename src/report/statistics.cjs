@@ -20,21 +20,9 @@ function category(deal, type) {
  return { key, label, order };
 }
 function statistics(deals, filters = {}, type) {
- const {date, dateRanges, ...otherFilters} = filters;
- const selected = filterDeals(deals, type === 'year' ? otherFilters : filters);
- const buckets = new Map(), domain = new Map();
+ const selected = filterDeals(deals, filters);
+ const buckets = new Map();
  let amount = decimal('0', true);
- for (const deal of deals) {
-  const row = category(deal, type);
-  domain.set(row.key, row);
- }
- if (type === 'year' && domain.size) {
-  const years = [...domain.keys()].map(Number);
-  for (let year = Math.min(...years); year <= Math.max(...years); year++) {
-   const key = String(year), row = { key, label:key, order:key };
-   domain.set(key, row); buckets.set(key, {...row, count:0});
-  }
- }
  for (const deal of selected) {
   amount = add(amount, decimal(deal.amount));
   const row = category(deal, type);

@@ -127,10 +127,18 @@ test.each([1440, 1920])('errors, initial loading, refresh failure and recovery p
   for (const [kind, start, end] of [['area', '100', '50'], ['amount', '1000', '500'], ['date', '2026-11-10', '2026-10-01']]) {
     await input(kind, 'Սկսած').fill(start); await input(kind, 'Մինչև').fill(end);
   }
-  expect(await panel().getByRole('alert').count()).toBe(3); size(await panel().boundingBox(), reference);
-  for (const error of await panel().getByRole('alert').all()) {
-    const b = await error.boundingBox(); expect(b.y + b.height).toBeLessThanOrEqual(reference.y + reference.height);
-    expect(await error.evaluate(el => el.scrollHeight <= el.clientHeight)).toBe(true);
+  const errorLayout = await panel().evaluate(form => ({
+    frame: form.getBoundingClientRect().toJSON(),
+    alerts: [...form.querySelectorAll('[role="alert"]')].map(alert => ({
+      bottom: alert.getBoundingClientRect().bottom,
+      fits: alert.scrollHeight <= alert.clientHeight,
+    })),
+  }));
+  size(errorLayout.frame, reference);
+  expect(errorLayout.alerts).toHaveLength(3);
+  for (const alert of errorLayout.alerts) {
+    expect(alert.bottom).toBeLessThanOrEqual(errorLayout.frame.bottom);
+    expect(alert.fits).toBe(true);
   }
   await page.screenshot({ path: `test-results/stable-panel-${width}-errors.png`, fullPage: true });
   fixture.state.gate = new Promise(resolve => { release = resolve; }); fixture.state.failPage = 0;

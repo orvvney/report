@@ -18,7 +18,7 @@ test('parking has its own header, working filters and restricted statistics, wit
   await page.goto(`${url}/#parking`);
   await page.waitForFunction(() => document.querySelector('[data-testid="statistics-count"]')?.textContent === '2');
   expect(requests.some(r => /\/api\/report(?:\?|$)/.test(r))).toBe(false);
-  expect(requests.some(r => r.includes('property-stages'))).toBe(false);
+  expect(requests.filter(r => r.includes('property-stages'))).toHaveLength(0);
   expect(await page.locator('.report-header-subtitle').innerText()).toBe('Կնքված կայանատեղիներ');
   const form = page.getByRole('form', { name: 'Զտիչներ', exact: true });
   expect(await form.locator('.room-filter').count()).toBe(0);
@@ -197,7 +197,7 @@ test('parking stages and two histogram modes show parking data and respond to fi
  const chart = page.locator('.deals-histogram');
  await stages.locator('article').first().waitFor();
  await chart.getByTestId('histogram-kpi-value').waitFor();
- expect(await stages.locator('article p').allTextContents()).toEqual(['0','0','0','0','0','0','0','1']);
+ expect(await stages.locator('article p').evaluateAll(values => values.map(value => value.firstChild.textContent.trim()))).toEqual(['0','0','0','1']);
  expect(await chart.locator('.histogram-modes button').allTextContents()).toEqual(['Կայ. քանակ','Վաճառքի գումար']);
  expect(await chart.getByTestId('histogram-kpi-value').innerText()).toBe('2');
  expect(await chart.getByTestId('histogram-kpi-change').count()).toBe(0);
@@ -207,13 +207,13 @@ test('parking stages and two histogram modes show parking data and respond to fi
  expect(modeBoxes[0].x-modeGroup.x).toBeCloseTo(modeGroup.x+modeGroup.width-modeBoxes[1].x-modeBoxes[1].width, 0);
  expect(await chart.locator('.histogram-kpi h3').innerText()).toBe('կայանատեղի');
  const [top, stageBox, chartBox] = await Promise.all([page.locator('.report-top-panels').boundingBox(),stages.boundingBox(),chart.boundingBox()]);
- expect(stageBox.y).toBeGreaterThan(top.y+top.height);
- expect(chartBox.y).toBeGreaterThan(stageBox.y+stageBox.height);
+ expect(top.y).toBeGreaterThan(stageBox.y+stageBox.height);
+ expect(chartBox.y).toBeGreaterThan(top.y+top.height);
  await chart.getByRole('button',{name:'Վաճառքի գումար',exact:true}).click();
  expect((await chart.getByTestId('histogram-kpi-value').innerText()).replace(/\s/g,' ')).toBe('6 000 000,00 ֏');
  await page.locator('#amount-min').fill('3000000');
  await page.waitForFunction(() => document.querySelector('.histogram-kpi-value')?.textContent.replace(/\s/g,' ') === '4 000 000,00 ֏');
- expect(await stages.locator('article p').last().innerText()).toBe('1');
+ expect(await stages.locator('article p').last().evaluate(value => value.firstChild.textContent.trim())).toBe('1');
  expect(requests.filter(r => r.includes('parking-report'))).toHaveLength(1);
  expect(requests.filter(r => r.includes('parking-stages'))).toHaveLength(1);
  await chart.getByRole('button',{name:'Կայ. քանակ',exact:true}).click();
@@ -232,7 +232,7 @@ test('parking stages and two histogram modes show parking data and respond to fi
  }
  fixture.state.propertyItems.push({id:3,categoryId:5,stageId:'DT177_5:7',ufCrmProperty:'72'});
  await page.getByRole('button',{name:'Թարմացնել ամբողջ հաշվետվությունը',exact:true}).click();
- await page.waitForFunction(() => document.querySelector('.property-stages article:last-child p')?.textContent === '2');
+ await page.waitForFunction(() => document.querySelector('.property-stage-panels-inline .property-stages article:last-child p')?.firstChild.textContent.trim() === '2');
  expect(requests.filter(r => r.includes('parking-stages'))).toHaveLength(2);
  await page.screenshot({path:'test-results/parking-stages-charts-320.png',fullPage:true});
 });

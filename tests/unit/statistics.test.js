@@ -26,17 +26,18 @@ test('Other is shaded by its combined share and expanded children are ranked ind
  expect(expanded.at(-1).color).toBe('hsl(170 100% 82%)');
  expect(raw).toEqual(original);
 });
-test('year statistics ignore date filters but retain missing years and other filters',()=>{
+test('year statistics apply date ranges and other filters before grouping',()=>{
  const history=[2023,2025,2026].map(year=>({...deals[0],date:`${year}-01-10`}));
- const result=statistics(history,{date:{min:'2026-01-01',max:'2026-12-31'}},'year');
- expect(result.rows.map(({key,count,percent})=>({key,count,percent}))).toEqual([
-  {key:'2023',count:1,percent:'33,3%'},{key:'2024',count:0,percent:'0%'},
-  {key:'2025',count:1,percent:'33,3%'},{key:'2026',count:1,percent:'33,3%'}
- ]);
- expect(result.count).toBe(3);expect(result.amount).toBe('90000000');
- expect(statistics(history,{dateRanges:[]},'year').count).toBe(3);
- expect(statistics(history,{complexes:['hills']},'year').count).toBe(0);
- expect(statistics(history,{rooms:[9]},'year').rows.every(row=>row.share===0&&row.percent==='0%')).toBe(true);
+ const date={min:'2026-01-01',max:'2026-12-31'};
+ const result=statistics(history,{date},'year');
+ expect(result.rows).toMatchObject([{key:'2026',count:1,percent:'100%'}]);
+ expect(result.count).toBe(1);
+ expect(result.amount).toBe('30000000');
+
+ const dateRanges=[{min:'2023-01-01',max:'2023-12-31'},date];
+ expect(statistics(history,{dateRanges},'year').rows.map(row=>row.key)).toEqual(['2023','2026']);
+ expect(statistics(history,{dateRanges,complexes:['hills']},'year')).toEqual({count:0,amount:'0',rows:[]});
+ expect(statistics(history,{dateRanges:[]},'year').count).toBe(0);
 });
 
 test('area and amount keep four largest categories and aggregate all remaining counts',()=>{

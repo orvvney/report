@@ -3,8 +3,14 @@ const { loadConfig } = require('../bitrix24/config.cjs');
 const { createClient, isObject } = require('../bitrix24/client.cjs');
 const { apartmentItems, PROPERTY_TYPE } = require('./apartments.cjs');
 
-const STAGES = ['Ազատ', 'Վաճառքի ենթակա չէ', 'Ընտրված է գործարքում', 'Տեղեկանք', 'Ամրագրված', 'Վաճառված', 'Կնքված.', 'Կնքված'];
-// CRM uses a one dot leader in «Կնքված․»; the UI label uses an ASCII dot.
+const STAGE_GROUPS = [
+  { name: 'Ազատ', stages: ['Ազատ'] },
+  { name: 'Ռեզերվ', stages: ['Վաճառքի ենթակա չէ'] },
+  { name: 'Վաճառքի ընթացքում', stages: ['Ընտրված է գործարքում', 'Տեղեկանք', 'Ամրագրված', 'Վաճառված'] },
+  { name: 'Վաճառված', stages: ['Կնքված.', 'Կնքված'] },
+];
+const STAGES = STAGE_GROUPS.flatMap(group => group.stages);
+// Normalize the one dot leader used in CRM stage names.
 const stageName = name => typeof name === 'string' ? name.trim().replaceAll('․', '.') : null;
 const TTL = 5 * 60 * 1000;
 const METADATA_TTL = 24 * 60 * 60 * 1000;
@@ -54,8 +60,8 @@ async function readMetadata(call, propertyType = 'Բնակարան') {
 }
 async function readCounts(call, metadata) {
   const { entityTypeId, propertyCode, apartmentId, stages } = metadata || await readMetadata(call);
-  const commands = STAGES.map(name => {
-    const matching = [...stages].filter(([, stage]) => stage.name === name);
+  const commands = STAGE_GROUPS.map(group => {
+    const matching = [...stages].filter(([, stage]) => group.stages.includes(stage.name));
     // Keep category/stage pairs together, including names shared by categories.
     const conditions = Object.fromEntries(matching.map(([stageId, stage], index) =>
       [index, { categoryId: stage.categoryId, stageId }]));
@@ -64,11 +70,11 @@ async function readCounts(call, metadata) {
         0: { logic: 'OR', ...conditions } } } };
   });
   const results = await call.batch(commands);
-  if (!Array.isArray(results) || results.length !== STAGES.length) throw new Error('Invalid counts');
+  if (!Array.isArray(results) || results.length !== STAGE_GROUPS.length) throw new Error('Invalid counts');
   return { stages: results.map((body, index) => {
     // Missing or malformed totals must never silently become zero.
     if (!Number.isSafeInteger(body.total) || body.total < 0) throw new Error('Invalid total');
-    return { name: STAGES[index], count: body.total };
+    return { name: STAGE_GROUPS[index].name, count: body.total };
   }) };
 }
 

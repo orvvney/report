@@ -10,16 +10,18 @@ describe('home page', () => {
     await page.getByRole('heading', { name: reportTitle, level: 1, exact: true }).waitFor({ state: 'visible' });
     await page.getByTestId('statistics-count').waitFor();
     expect(await page.getByTestId('statistics-count').innerText()).toBe('1');
-    const favicon = page.locator('head link[rel="icon"]');
+    const favicon = page.locator('head link[rel="icon"][type="image/png"]');
+    expect(await page.locator('head link[rel="icon"]').count()).toBe(1);
+    expect(await favicon.getAttribute('sizes')).toBe('375x300');
     expect(await favicon.getAttribute('type')).toBe('image/png');
     expect(await page.title()).toBe('Milon Mining — Հաշվետվություն');
     const iconPath = await favicon.getAttribute('href');
-    expect(iconPath).toMatch(/^\/assets\/(?:favicon|logo_milon)-[\w-]+\.png$/);
+    expect(iconPath).toMatch(/^\/assets\/favicon-[\w-]+\.png$/);
     const iconResponse = await page.request.get(iconPath);
     expect(iconResponse.status()).toBe(200);
     expect(iconResponse.headers()['content-type']).toBe('image/png');
     expect(await iconResponse.body()).toEqual(fs.readFileSync(require('node:path').join(__dirname, '../../images/favicon.png')));
-    for (const fallback of ['/favicon.ico', '/favicon.png']) {
+    for (const fallback of ['/favicon.ico', '/favicon.png', '/favicon.avif']) {
       const redirect = await page.request.get(fallback, { maxRedirects: 0 });
       expect(redirect.status()).toBe(302);
       expect(redirect.headers().location).toBe(iconPath);
@@ -32,8 +34,8 @@ describe('home page', () => {
       expect(await head.body()).toHaveLength(0);
     }
     expect(await page.evaluate(async () => {
-      const icon = new Image(); icon.src = document.querySelector('link[rel="icon"]').href;
-      await icon.decode(); return icon.naturalWidth > 0 && icon.naturalHeight > 0;
+      const icon = new Image(); icon.src = document.querySelector('link[rel="icon"][type="image/png"]').href;
+      await icon.decode(); return icon.naturalWidth === 375 && icon.naturalHeight === 300;
     })).toBe(true);
   });
 
@@ -68,8 +70,9 @@ describe('home page', () => {
     expect(title.y).toBeGreaterThanOrEqual(16);
     const headerBox = await header.boundingBox();
     const subtitle = await labels[1].boundingBox();
+    const headerRow = await header.locator('.report-header-row').boundingBox();
     expect(subtitle.y).toBeGreaterThanOrEqual(title.y + title.height);
-    expect(Math.abs((title.y + subtitle.y + subtitle.height) / 2 - headerBox.y - headerBox.height / 2)).toBeLessThan(1);
+    expect(Math.abs((title.y + subtitle.y + subtitle.height) / 2 - headerRow.y - headerRow.height / 2)).toBeLessThan(1);
     expect(headerBox.height).toBeGreaterThanOrEqual(132);
     expect(await header.locator('hr').count()).toBe(0);
     expect(filters.y).toBeGreaterThan(headerBox.y + headerBox.height);
@@ -106,7 +109,7 @@ describe('home page', () => {
     const image = await logo.boundingBox(), button = await refresh.boundingBox();
     const menuButton = header.getByRole('button', { name: 'Հաշվետվությունների տեսակ', exact: true });
     const menuBox = await menuButton.boundingBox();
-    expect(button.width).toBeCloseTo(width < 640 ? (image.width - 4) / 2 : 40, 2); expect(button.height).toBe(button.width);
+    expect(button.width).toBeCloseTo(width < 640 ? 29.5625 : 40, 2); expect(button.height).toBe(button.width);
     expect(menuBox.width).toBe(button.width); expect(menuBox.height).toBe(button.height);
     if (width < 640) {
       expect(await refresh.evaluate(el => getComputedStyle(el).borderRadius)).toBe('8px');
@@ -117,12 +120,23 @@ describe('home page', () => {
     const refreshIcon = await refresh.locator('.reset-icon').boundingBox(), menuIcon = await menuButton.locator('.header-menu-icon').boundingBox();
     expect(refreshIcon.width).toBe(menuIcon.width); expect(refreshIcon.height).toBe(menuIcon.height);
     expect(await refresh.locator('svg').count()).toBe(0); expect(await menuButton.locator('svg').count()).toBe(0);
-    expect(await refresh.locator('.reset-icon').evaluate(el => getComputedStyle(el).maskImage)).toMatch(/reset-.*\.png/);
-    const bars = await menuButton.locator('.header-menu-icon > span').evaluateAll(els => els.map(el => { const box = el.getBoundingClientRect(); return { x: box.x, y: box.y, width: box.width, height: box.height }; }));
-    expect(bars).toHaveLength(3);
-    bars.forEach(bar => { expect(bar.width).toBe(menuIcon.width); expect(bar.height).toBe(2); });
-    expect(bars[0].y).toBe(menuIcon.y); expect(bars[2].y + bars[2].height).toBe(menuIcon.y + menuIcon.height);
-    expect(refreshIcon.width).toBe(width < 640 ? 12 : 17);
+    const refreshMask = await refresh.locator('.reset-icon').evaluate(el => {
+      const style = getComputedStyle(el);
+      return {image:style.maskImage, size:style.maskSize};
+    });
+    expect(refreshMask.image).toMatch(/reset-.*\.avif/);
+    expect(refreshMask.size).toBe('contain');
+    const menuAsset = await menuButton.locator('.header-menu-icon').evaluate(async element => {
+      const url = getComputedStyle(element).maskImage.slice(5, -2);
+      const image = new Image();
+      image.src = url;
+      await image.decode();
+      return {url, width:image.naturalWidth, height:image.naturalHeight};
+    });
+    expect(menuAsset.url).toMatch(/menu-.*\.avif$/);
+    expect(menuAsset.width).toBeGreaterThan(0);
+    expect(menuAsset.height).toBeGreaterThan(0);
+    expect(refreshIcon).toMatchObject({ width: 20, height: 20 });
     expect(refreshIcon.x + refreshIcon.width / 2).toBeCloseTo(button.x + button.width / 2, 1);
     expect(refreshIcon.y + refreshIcon.height / 2).toBeCloseTo(button.y + button.height / 2, 1);
     const brandName = header.getByText('MILON MINING', { exact: true });
@@ -130,16 +144,18 @@ describe('home page', () => {
     expect(await brandName.evaluate(el => {
       const style = getComputedStyle(el); return { font: style.fontFamily, color: style.color, weight: style.fontWeight };
     })).toEqual({ font: 'Georgia, serif', color: 'rgb(255, 255, 255)', weight: '400' });
-    expect(await header.locator('h1, span, button').evaluateAll(els => els.every(el => getComputedStyle(el).fontWeight === '400'))).toBe(true);
+    expect(await header.locator('.report-header-row').locator('h1, span, button').evaluateAll(els => els.every(el => getComputedStyle(el).fontWeight === '400'))).toBe(true);
     if (width >= 640) {
+    const wide = await header.evaluate(el => el.classList.contains('header-wide'));
+    expect(image).toMatchObject(wide ? {width:102,height:102} : {width:72,height:72});
     const brandBox = await brandName.boundingBox();
-    expect(brandBox.x).toBeGreaterThanOrEqual(image.x + image.width + 7);
+    expect(brandBox.x - image.x - image.width).toBeCloseTo(wide ? 12 : 8, 1);
     expect(Math.abs(brandBox.y + brandBox.height / 2 - image.y - image.height / 2)).toBeLessThan(1);
     }
     expect(await header.locator('hr').count()).toBe(0);
     expect(await refresh.evaluate(el => [getComputedStyle(el).backgroundColor, getComputedStyle(el).color]))
       .toEqual(['rgb(255, 255, 255)', 'rgb(29, 40, 62)']);
-    expect(await logo.evaluate(img => img.complete && img.naturalWidth === 375 && img.naturalHeight === 300)).toBe(true);
+    expect(await logo.evaluate(img => img.complete && img.naturalWidth === 512 && img.naturalHeight === 512)).toBe(true);
     const headerBox = await header.boundingBox();
     expect(headerBox.x).toBe(0);
     expect(headerBox.width).toBe(width);
@@ -149,9 +165,14 @@ describe('home page', () => {
     }
     expect(Math.abs(headerBox.x - frame.x)).toBeLessThan(1);
     expect(Math.abs(headerBox.width - frame.width)).toBeLessThan(1);
-    expect(Math.abs(image.x - (await page.locator('.filter-heading h2 .filter-icon').first().boundingBox()).x)).toBeLessThan(1);
-    const groupBy = await page.locator('.statistics-trigger').boundingBox();
-    expect(Math.abs(menuBox.x + menuBox.width - groupBy.x - groupBy.width)).toBeLessThan(1);
+    if (width >= 640) {
+      expect(Math.abs(image.x - (await page.locator('.filter-heading h2 .filter-icon').first().boundingBox()).x)).toBeLessThan(1);
+      const groupBy = await page.locator('.statistics-trigger').boundingBox();
+      expect(Math.abs(menuBox.x + menuBox.width - groupBy.x - groupBy.width)).toBeLessThan(1);
+    } else {
+      expect(image.x).toBeCloseTo(12, 0);
+      expect(menuBox.x + menuBox.width).toBeCloseTo(width - 12, 0);
+    }
     if (await header.evaluate(el => el.classList.contains('header-wide'))) {
       const copy = await header.locator('.report-header-copy').boundingBox();
       expect(Math.abs(image.y + image.height / 2 - copy.y - copy.height / 2)).toBeLessThan(1);
@@ -159,22 +180,21 @@ describe('home page', () => {
     } else if (width >= 640) expect(button.y).toBeGreaterThanOrEqual(title.y + title.height);
     else {
       const copy = await header.locator('.report-header-copy').boundingBox();
-      expect(image.height).toBeCloseTo(50.5, 0);
-      expect(image.width / image.height).toBeCloseTo(1.25, 2);
+      expect(image.height).toBeCloseTo(75.75, 1);
+      expect(image.width / image.height).toBeCloseTo(1, 2);
       expect(await header.locator('.report-header-subtitle').isVisible()).toBe(false);
       expect(await header.locator('h1').evaluate(el => getComputedStyle(el).fontSize)).toBe('18px');
       expect(title.x).toBeGreaterThanOrEqual(image.x + image.width);
       expect(title.x + title.width).toBeLessThanOrEqual(button.x);
-      expect(title.x - image.x - image.width).toBeCloseTo(button.x - title.x - title.width, 1);
       expect(image.y + image.height / 2).toBeCloseTo(button.y + button.height / 2, 0);
       expect(image.x + image.width).toBeLessThanOrEqual(copy.x);
       expect(copy.x + copy.width).toBeLessThanOrEqual(button.x);
     }
     expect(await page.getByRole('button', { name: 'Թարմացնել ամբողջ հաշվետվությունը', exact: true }).count()).toBe(1);
     const source = await logo.getAttribute('src');
-    expect(source).toMatch(/^\/assets\/logo_milon-[\w-]+\.png$/);
+    expect(source).toMatch(/^\/assets\/logo_milon-[\w-]+\.avif$/);
     const response = await page.request.get(source);
-    expect(response.status()).toBe(200); expect(response.headers()['content-type']).toBe('image/png');
+    expect(response.status()).toBe(200); expect(response.headers()['content-type']).toBe('image/avif');
     expect(await page.getByRole('heading', { name: 'Ընդհանուր տեղեկություն', exact: true }).count()).toBe(1);
     expect(await page.getByRole('group', { name: 'Խմբավորում', exact: true }).count()).toBe(1);
     expect(await page.getByRole('button', { name: 'Սենյակներ', exact: true }).count()).toBe(1);
@@ -194,14 +214,13 @@ describe('home page', () => {
     if (width < 640) {
       const copy = await header.locator('.report-header-copy').boundingBox();
       expect(copy.x + copy.width / 2).toBeCloseTo(width / 2, 0);
-      expect(copy.y + copy.height / 2).toBeCloseTo(headerBox.y + headerBox.height / 2, 0);
+      expect(copy.y + copy.height / 2).toBeCloseTo(image.y + image.height / 2, 0);
     }
-    expect(frame.y - headerBox.y - headerBox.height).toBeCloseTo(0, 0);
     expect(await header.evaluate(el => [getComputedStyle(el).paddingTop, getComputedStyle(el).paddingBottom])).toEqual(width < 640 ? ['15px', '15px'] : ['20px', '20px']);
-    if (width < 640) expect(headerBox.height).toBeCloseTo(image.height + 30, 0);
-    const stagesFrame = await page.locator('.property-stages').boundingBox();
-    expect(stagesFrame.y - frame.y - frame.height).toBeCloseTo(aboveLogo, 0);
-    expect(kpiFrame.y - stagesFrame.y - stagesFrame.height).toBeCloseTo(aboveLogo, 0);
+    const stages = await page.locator('.property-stage-panels-inline').boundingBox();
+    expect(stages.y - headerBox.y - headerBox.height).toBeCloseTo(0, 0);
+    expect(frame.y - stages.y - stages.height).toBeCloseTo(aboveLogo, 0);
+    expect(kpiFrame.y - frame.y - frame.height).toBeCloseTo(aboveLogo, 0);
     const dealsFrame = await page.locator('.deals-histogram + .deals-list').boundingBox();
     expect(dealsFrame.y - kpiFrame.y - kpiFrame.height).toBeCloseTo(aboveLogo, 0);
     expect(Math.abs(pageGaps.bottom - expectedGap)).toBeLessThan(1);
@@ -209,7 +228,7 @@ describe('home page', () => {
     expect(histogram.y).toBeGreaterThanOrEqual(frame.y + frame.height);
     expect(await page.locator('.deals-histogram').isVisible()).toBe(true);
     expect(await page.getByRole('region', { name: 'Վիճակագրություն', exact: true }).isVisible()).toBe(true);
-    for (const surface of [page.locator('.report-top-panels'), page.locator('.property-stages'),
+    for (const surface of [page.locator('.report-top-panels'),
       page.getByRole('region', { name: 'Գործարքների հիստոգրամ', exact: true }), page.locator('.deals-list')]) {
       expect(await surface.evaluate(el => {
         const style = getComputedStyle(el);

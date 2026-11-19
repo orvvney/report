@@ -3,8 +3,8 @@ import { computed, ref, watch } from 'vue';
 import { ArrowUp, ArrowDown } from '@lucide/vue';
 import kpi from '../report/kpi.cjs';
 import KpiChart from './KpiChart.vue';
-import buildingIcon from '../../images/building.png';
-import walletIcon from '../../images/wallet.png';
+import buildingIcon from '../../images/building.avif';
+import walletIcon from '../../images/wallet.avif';
 const { valueText } = kpi;
 const props = defineProps({
   wide: Boolean, metric: String, title: String, data: Object, period: String,
@@ -31,7 +31,7 @@ function selectType(value) { type.value = value; expanded.value = false; }
   <section :tabindex="wide ? -1 : undefined" class="kpi-card" :class="{ 'kpi-clickable': !wide && !unavailable, 'kpi-balanced': wide && !data?.ranking }" :aria-labelledby="`kpi-${metric}-title`" :aria-busy="loading" :data-testid="`kpi-${metric}`" @click="cardClick">
     <div class="kpi-scroll" data-testid="kpi-scroll">
     <div class="kpi-heading"><h2 :id="`kpi-${metric}-title`">{{ title }}</h2>
-      <img :src="metric === 'count' ? buildingIcon : walletIcon" alt="" width="40" height="40" />
+      <img :src="metric === 'count' ? buildingIcon : walletIcon" alt="" width="20" height="20" />
     </div>
     <div aria-live="polite" aria-atomic="true">
       <p v-if="loading || (!data && !failed)" class="kpi-notice">Տվյալները բեռնվում են…</p>

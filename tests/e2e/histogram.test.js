@@ -86,14 +86,15 @@ test.each([1920, 1440, 1024, 375, 320])('histogram matches filter width, follows
     const icon = button.querySelector('img');
     const label = button.querySelector('span');
     return { src: icon.getAttribute('src'), loaded: icon.complete && icon.naturalWidth > 0,
+      width: icon.getBoundingClientRect().width, height: icon.getBoundingClientRect().height,
       decorative: icon.alt === '', right: icon.getBoundingClientRect().x >= label.getBoundingClientRect().right };
   }));
   expect(icons.map(icon => icon.src)).toEqual([
-    expect.stringMatching(/\/assets\/building-.*\.png$/),
-    expect.stringMatching(/\/assets\/wallet-.*\.png$/),
-    expect.stringMatching(/\/assets\/rooms-.*\.png$/),
+    expect.stringMatching(/\/assets\/building-.*\.avif$/),
+    expect.stringMatching(/\/assets\/wallet-.*\.avif$/),
+    expect.stringMatching(/\/assets\/rooms-.*\.avif$/),
   ]);
-  expect(icons.every(icon => icon.loaded && icon.decorative && icon.right)).toBe(true);
+  expect(icons.every(icon => icon.loaded && icon.decorative && icon.right && icon.width === 20 && icon.height === 20)).toBe(true);
   const fontSizes = await histogram().locator('.histogram-axis, .histogram-comparison-toggle, .histogram-summary p')
     .evaluateAll(els => els.map(el => getComputedStyle(el).fontSize));
   expect(fontSizes).toEqual(Array(4).fill('14px'));

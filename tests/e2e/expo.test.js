@@ -278,16 +278,20 @@ test('comparison hides stale values during refresh and errors and recovers with 
   expect(await page.getByTestId('expo-comparison-value').allTextContents()).toEqual(['0', '0']);
 });
 
-test('direct Expo opening defers apartment APIs until the first visit and preserves data through history navigation', async () => {
+test('direct Expo opening defers apartment deal data until the first visit and preserves data through history navigation', async () => {
   const paths=[];
   page.on('request',request=>{const path=new URL(request.url()).pathname;if(path.startsWith('/api/'))paths.push(path);});
   await page.goto('/#toon-expo');
   await page.getByTestId('expo-leads').waitFor({state:'visible'});
-  expect(paths.filter(path=>path==='/api/report'||path==='/api/property-stages')).toEqual([]);
+  expect(paths.filter(path=>path==='/api/report')).toEqual([]);
+  const stageRequests = () => paths.filter(path => ['/api/property-stages','/api/parking-stages'].includes(path));
+  const stagePanels = page.locator('.property-stage-panels-inline, #floating-property-stages');
+  expect(stageRequests()).toEqual([]);
+  expect(await stagePanels.count()).toBe(0);
   await page.getByRole('button',{name:'Հաշվետվությունների տեսակ',exact:true}).click();
   await page.getByRole('menuitem',{name:'Կնքված բնակարաններ',exact:true}).click();
   await page.getByTestId('statistics-count').waitFor({state:'visible'});
-  await page.locator('.property-stages article').first().waitFor();
+  await page.locator('.property-stage-panels-inline .property-stages article').first().waitFor();
   expect(paths.filter(path=>path==='/api/report')).toHaveLength(1);
   expect(paths.filter(path=>path==='/api/property-stages')).toHaveLength(1);
   await page.goBack();
@@ -295,7 +299,8 @@ test('direct Expo opening defers apartment APIs until the first visit and preser
   await page.getByRole('button',{name:'Թարմացնել ամբողջ հաշվետվությունը',exact:true}).click();
   await page.getByTestId('expo-leads').waitFor({state:'visible'});
   expect(paths.filter(path=>path==='/api/report')).toHaveLength(1);
-  expect(paths.filter(path=>path==='/api/property-stages')).toHaveLength(1);
+  expect(stageRequests()).toEqual(['/api/property-stages']);
+  expect(await stagePanels.count()).toBe(0);
   await page.goForward();
   await page.getByTestId('statistics-count').waitFor({state:'visible'});
   expect(paths.filter(path=>path==='/api/report')).toHaveLength(1);

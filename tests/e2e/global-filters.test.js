@@ -186,7 +186,7 @@ test('refresh preserves global selections and drafts, recomputes presets, and re
   await reset().click(); await count(1);
 });
 
-test('filter icons load from bundled PNGs, controls share rounding and insets, and the period has no blue focus frame', async () => {
+test('filter icons load from bundled AVIFs, controls share rounding and insets, and the period has no blue focus frame', async () => {
   await page.setViewportSize({ width: 1440, height: 1000 }); await page.goto(url); await ready();
   const panel = page.getByRole('form', { name: 'Զտիչներ' });
   const icons = panel.locator('.filter-icon');
@@ -198,17 +198,18 @@ test('filter icons load from bundled PNGs, controls share rounding and insets, a
       const img = new Image(); img.src = url; await img.decode();
       return { url, width: img.naturalWidth };
     });
-    expect(source.url).toMatch(new RegExp(`/assets/${name}-[\\w-]+\\.png$`));
-    expect(source.width).toBe(1254);
+    expect(source.url).toMatch(new RegExp(`/assets/${name}-[\\w-]+\\.avif$`));
+    expect(source.width).toBe(512);
     const response = await page.request.get(source.url);
-    expect(response.status()).toBe(200); expect(response.headers()['content-type']).toBe('image/png');
+    expect(response.status()).toBe(200); expect(response.headers()['content-type']).toBe('image/avif');
     const head = await page.request.head(source.url);
     expect(head.headers()['content-length']).toBe(response.headers()['content-length']);
     expect(await head.body()).toHaveLength(0);
     expect(await icon.getAttribute('aria-hidden')).toBe('true');
-    expect(await icon.boundingBox()).toMatchObject(i === 0 ? { width: 15, height: 15 } : { width: 10, height: 10 });
+    const size = name === 'reset' ? 16 : 20;
+    expect(await icon.boundingBox()).toMatchObject({ width: size, height: size });
   }
-  expect(await page.request.get(`${url}/images/filter.png`).then(r => r.status())).toBe(404);
+  expect(await page.request.get(`${url}/images/filter.avif`).then(r => r.status())).toBe(404);
   for (const control of await panel.locator('button:not(.filter-help), select, input:visible').all()) {
     expect(await control.evaluate(el => getComputedStyle(el).borderTopLeftRadius)).toBe('15px');
     expect((await control.boundingBox()).height).toBe(32);

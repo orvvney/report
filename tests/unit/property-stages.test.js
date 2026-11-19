@@ -2,15 +2,15 @@ const { createPropertyStagesLoader, STAGES, readCounts } = require('../../src/re
 const { createFixture } = require('../support/crm-fixture.cjs');
 const item = (id, stage = 0, property = '71') => ({ id, categoryId: 5, stageId: `DT177_5:${stage}`, ufCrmProperty: property });
 test('uses totals beyond the first page, preserves zeros and excludes other property types', async () => {
-  const fixture = createFixture({ propertyItems: [...Array.from({length: 180}, (_, i) => item(i + 1, i % 3)), item(181, 6), item(182, 7), item(183, 7, '72')] });
+  const fixture = createFixture({ propertyItems: [...Array.from({length: 180}, (_, i) => item(i + 1, i % 3)), item(181, 6), item(182, 7), item(183, 7, '72'), item(184, 3), item(185, 4), item(186, 5)] });
   const load = createPropertyStagesLoader(fixture);
   const result = await load();
   expect(result.status).toBe(200);
-  expect(result.body.stages).toEqual(STAGES.map((name, i) => ({name, count: [60,60,60,0,0,0,1,1][i]})));
+  expect(result.body.stages).toEqual([{name:'Ազատ',count:60},{name:'Ռեզերվ',count:60},{name:'Վաճառքի ընթացքում',count:63},{name:'Վաճառված',count:2}]);
   const batch = fixture.state.httpRequests.filter(request => request.method === 'batch' && Object.values(request.params.cmd)[0].startsWith('crm.item.list?'));
   expect(batch).toHaveLength(1);
   const counts = fixture.state.requests.filter(request => request.method === 'crm.item.list');
-  expect(counts).toHaveLength(8);
+  expect(counts).toHaveLength(4);
   expect(counts.every(({params}) => params.start === 0 && JSON.stringify(params.select) === '["id"]')).toBe(true);
   const requests = fixture.state.requests.length;
   expect(await load()).toEqual(result);
@@ -46,12 +46,12 @@ test('rejects missing stages, duplicate processes, invalid property metadata and
   }
 });
 
-test('CRM one dot leader matches the dotted card and stays distinct from the undotted stage', async () => {
+test('CRM one dot leader combines with the undotted stage in the sold group', async () => {
   const fixture = createFixture({propertyStageNames: STAGES.map(name => name === 'Կնքված.' ? 'Կնքված․' : name),
     propertyItems: [item(1,6), item(2,6), item(3,7)]});
   const result = await createPropertyStagesLoader(fixture)();
   expect(result.status).toBe(200);
-  expect(result.body.stages.slice(-2)).toEqual([{name:'Կնքված.',count:2},{name:'Կնքված',count:1}]);
+  expect(result.body.stages.at(-1)).toEqual({name:'Վաճառված',count:3});
 });
 
 
@@ -60,7 +60,7 @@ test.each([undefined, null, -1, 1.5, '3', Number.MAX_SAFE_INTEGER + 1])('rejects
   const { createClient } = require('../../src/bitrix24/client.cjs');
   const call = createClient({webhookUrl: require('../support/crm-fixture.cjs').WEBHOOK, ...fixture});
   const batch = call.batch;
-  call.batch = async commands => commands[0].method === 'crm.item.list' ? STAGES.map(() => ({total})) : batch(commands);
+  call.batch = async commands => commands[0].method === 'crm.item.list' ? commands.map(() => ({total})) : batch(commands);
   await expect(readCounts(call)).rejects.toThrow('Invalid total');
 });
 
@@ -92,7 +92,7 @@ test('sums matching names across categories while keeping category/stage pairs a
   fixture.state.propertyStatuses = {DYNAMIC_177_STAGE_6:[{NAME:STAGES[0],STATUS_ID:'DT177_6:0',ENTITY_ID:'DYNAMIC_177_STAGE_6'}]};
   const result = await createPropertyStagesLoader(fixture)();
   expect(result.status).toBe(200);
-  expect(result.body.stages.map(stage=>stage.count)).toEqual([2,0,0,0,0,0,0,0]);
+  expect(result.body.stages.map(stage=>stage.count)).toEqual([2,0,0,0]);
 });
 
 test('joins simultaneous cold and forced loads and protects cached snapshots from caller mutation', async () => {
@@ -113,16 +113,16 @@ test('does not cache incomplete metadata and recovers after the directory is cor
   expect((await load()).status).toBe(200);
 });
 
-test('parking stages use their own property type and snapshot and preserve all eight stages', async () => {
+test('parking stages use their own property type and snapshot and return all four groups', async () => {
  const fixture = createFixture({ propertyItems: [item(1, 0), item(2, 1, '72'), item(3, 7, '72')] });
  const apartments = createPropertyStagesLoader(fixture);
  const parking = createPropertyStagesLoader({ ...fixture, propertyType: 'Ավտոկայանատեղի' });
- expect((await apartments()).body.stages.map(stage => stage.count)).toEqual([1,0,0,0,0,0,0,0]);
+ expect((await apartments()).body.stages.map(stage => stage.count)).toEqual([1,0,0,0]);
  const first = await parking();
  expect(first.status).toBe(200);
- expect(first.body.stages).toEqual(STAGES.map((name,index) => ({name,count:[0,1,0,0,0,0,0,1][index]})));
+ expect(first.body.stages).toEqual([{name:'Ազատ',count:0},{name:'Ռեզերվ',count:1},{name:'Վաճառքի ընթացքում',count:0},{name:'Վաճառված',count:1}]);
  fixture.state.propertyItems.push(item(4, 7, '72'));
  expect(await parking()).toEqual(first);
- expect((await parking({refresh:true})).body.stages[7].count).toBe(2);
+ expect((await parking({refresh:true})).body.stages[3].count).toBe(2);
  expect((await apartments()).body.stages[0].count).toBe(1);
 });

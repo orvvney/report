@@ -2,7 +2,7 @@
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import App from './App.vue';
 import LoginGuide from './LoginGuide.vue';
-import milonLogo from '../../images/logo_milon.png';
+import milonLogo from '../../images/logo_milon.avif';
 import './login.css';
 
 // Запись в Authenticator называется так же, как issuer на сервере.

@@ -503,6 +503,7 @@ test.each([1440, 375])('filter panel shows only a centered notice on load/failur
 });
 
 test.each([1440, 375])('filters precede charts with reset and without panel scroll and retain keyboard access at %i px', async (width) => {
+  fixture.state.propertyItems = [{id:1,categoryId:5,stageId:'DT177_5:0',ufCrmProperty:'71'}];
   await page.setViewportSize({ width, height: 1000 }); await baseFilters();
   const panel = page.getByRole('form', { name: 'Զտիչներ', exact: true });
   const panelScroll = page.getByLabel('Զտիչների տարածք', { exact: true });
@@ -552,9 +553,16 @@ test.each([1440, 375])('filters precede charts with reset and without panel scro
   expect(await page.getByRole('button', { name: 'Ընդհանուր տեղեկության մասին', exact: true }).evaluate(el => el === document.activeElement)).toBe(true);
   await page.keyboard.press('Tab');
   expect(await page.getByRole('button', { name: 'Բն. քանակ', exact: true }).evaluate(el => el === document.activeElement)).toBe(true);
-  // Header actions precede the filters in keyboard order.
+  // Keyboard navigation passes through the stage help and visible segments before the filters.
+  const stageHelp = page.getByRole('button', {name:'Փուլերի մասին', exact:true});
+  const segment = page.getByRole('button', {name:'Ազատ՝ 1, 100%', exact:true});
+  await segment.waitFor();
   await refresh().focus(); await page.keyboard.press('Tab');
   expect(await page.getByRole('button', { name: 'Հաշվետվությունների տեսակ', exact: true }).evaluate(el => el === document.activeElement)).toBe(true);
+  await page.keyboard.press('Tab');
+  expect(await stageHelp.evaluate(el => el === document.activeElement)).toBe(true);
+  await page.keyboard.press('Tab');
+  expect(await segment.evaluate(el => el === document.activeElement)).toBe(true);
   await page.keyboard.press('Tab');
   expect(await page.getByRole('button', { name: 'Զտիչների մասին', exact: true }).evaluate(el => el === document.activeElement)).toBe(true);
   await page.keyboard.press('Tab');

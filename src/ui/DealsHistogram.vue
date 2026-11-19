@@ -4,9 +4,9 @@ import filters from '../report/filter.cjs';
 import chart from '../report/chart.cjs';
 import histogram from '../report/histogram.cjs';
 import kpi from '../report/kpi.cjs';
-import buildingIcon from '../../images/building.png';
-import walletIcon from '../../images/wallet.png';
-import roomsIcon from '../../images/rooms.png';
+import buildingIcon from '../../images/building.avif';
+import walletIcon from '../../images/wallet.avif';
+import roomsIcon from '../../images/rooms.avif';
 
 const props = defineProps({
   deals: { type: Array, required: true }, filters: { type: Object, required: true },
@@ -143,7 +143,7 @@ watch([() => JSON.stringify(categories.value), () => comparing.value ? JSON.stri
       <div role="group" aria-label="Խմբավորում" class="histogram-modes" :style="{ '--histogram-mode-count': modes.length }">
         <button v-for="[item, title, icon] in modes" :key="item" type="button"
           :aria-pressed="mode === item" :disabled="loading || failed" @click="mode = item">
-          <span>{{ title }}</span><img :src="icon" alt="" width="40" height="40" />
+          <span>{{ title }}</span><img :src="icon" alt="" width="20" height="20" />
         </button>
       </div>
     </div>
@@ -260,8 +260,8 @@ watch([() => JSON.stringify(categories.value), () => comparing.value ? JSON.stri
 .histogram-year-legend i { display: inline-block; width: 14px; height: 10px; border-radius: 2px; background: var(--brand); }
 .histogram-year-legend .previous-year-marker { background: #1d283e59; border: 1px dashed var(--ink); }
 .histogram-modes { display: grid; grid-template-columns: repeat(var(--histogram-mode-count, 3), minmax(0, 1fr)); width: min(100%, calc(var(--histogram-mode-count, 3) * 240px)); padding: 4px; border-radius: 12px; background: var(--brand-tint); }
-.histogram-modes button { display: flex; align-items: center; justify-content: center; gap: 4px; width: 100%; min-width: 0; padding: 6px 12px; border-radius: 8px; font-size: 12px; color: #000; overflow-wrap: anywhere; }
-.histogram-modes button img { flex: 0 0 40px; width: 40px; height: 40px; object-fit: contain; filter: brightness(0); opacity: .55; }
+.histogram-modes button { display: flex; align-items: center; justify-content: center; gap: 4px; width: 100%; min-width: 0; min-height: 52px; padding: 6px 12px; border-radius: 8px; font-size: 12px; color: #000; overflow-wrap: anywhere; }
+.histogram-modes button img { flex: 0 0 var(--report-icon-size); width: var(--report-icon-size); height: var(--report-icon-size); object-fit: contain; filter: brightness(0); opacity: .55; }
 .histogram-modes button[aria-pressed="true"] { background: white; color: #000; box-shadow: 0 1px 3px #1d283e1a; }
 .histogram-modes button:disabled { opacity: .5; }
 .histogram-axis { min-width: 0; }

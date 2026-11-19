@@ -5,23 +5,20 @@ import calendar from '../report/period.cjs';
 import amountInput from '../report/amount-input.cjs';
 import RangeInputs from './RangeInputs.vue';
 import PeriodFilter from './PeriodFilter.vue';
-import PropertyStages from './PropertyStages.vue';
 import StatisticsPanel from './StatisticsPanel.vue';
 import DealsHistogram from './DealsHistogram.vue';
 import DealsTable from './DealsTable.vue';
 import { afterPaint } from './after-paint.js';
 import kpi from '../report/kpi.cjs';
-import filterIcon from '../../images/filter.png';
-import resetIcon from '../../images/reset.png';
+import filterIcon from '../../images/filter.avif';
+import resetIcon from '../../images/reset.avif';
 const { periods, quickPeriods, quickSelection, calendarContext, defaultSelection, initialSelections, reconcileSelections, togglePeriodValue, periodRanges } = calendar;
 const { formatAmountInput, ungroupAmount } = amountInput;
 const { roomOptions, reconcileRooms, toggleRoom, validateRange } = filters;
 const props = defineProps({ parking: Boolean });
 const emit = defineEmits(['expired', 'loading']);
 const report = ref(null), loading = ref(false), failed = ref(false);
-const propertyStages = ref(null);
 const filterHelpOpen = ref(false);
-const stagesReady = ref(false);
 const lowerLoading = ref(false), chartsReady = ref(false), detailsLoading = ref(false), detailsFailed = ref(false), detailsReady = ref(false), listExpanded = ref(false);
 let active = true, revision = 0;
 watch([loading, lowerLoading], () => { if (active) emit('loading', loading.value || lowerLoading.value); });
@@ -46,10 +43,16 @@ function layoutPanels() {
     if (title && legend && !disabled.value) {
       const heading = row.querySelector('.statistics-heading');
       const statTitle = heading.querySelector('h2');
-      const desired = statTitle.getBoundingClientRect().bottom + legend.getBoundingClientRect().top - title.getBoundingClientRect().bottom;
+      const titleBox = title.getBoundingClientRect();
+      const headingGap = legend.getBoundingClientRect().top - titleBox.bottom;
+      const desired = statTitle.getBoundingClientRect().bottom + headingGap;
       row.style.setProperty('--statistics-content-gap', `${Math.max(0, desired - heading.getBoundingClientRect().bottom)}px`);
       const amountMin = form.querySelector('#amount-min');
-      const bottomInset = form.getBoundingClientRect().bottom - amountMin.getBoundingClientRect().bottom;
+      const formBox = form.getBoundingClientRect();
+      const bottomInset = formBox.bottom - amountMin.getBoundingClientRect().bottom;
+      page.style.setProperty('--stage-heading-inset', `${titleBox.top - formBox.top}px`);
+      page.style.setProperty('--stage-distribution-gap', `${Math.max(0, headingGap)}px`);
+      page.style.setProperty('--stage-bottom-inset', `${Math.max(0, bottomInset)}px`);
       row.style.setProperty('--statistics-bottom-inset', `${Math.max(0, bottomInset)}px`);
       const amountMax = form.querySelector('#amount-max');
       if (!row.classList.contains('panels-stacked') && amountMax) {
@@ -72,10 +75,10 @@ const quarterRoomRows = computed(() => Array.from({ length: Math.ceil(availableR
 const emptyRange = () => ({ draft: { min: '', max: '' }, applied: { min: null, max: null }, errors: {}, badInput: {} });
 const ranges = reactive(Object.fromEntries(['amount', 'area', 'date'].map((kind) => [kind, emptyRange()])));
 const selectedPeriod = ref('year'), dateRevision = ref(0);
-watch([availableRooms, selectedPeriod, loading, wideKpi], async () => { await nextTick(); layoutPanels(); });
 const selectedQuick = ref('current-month'), monthPicker = ref(null);
 const hasFilterErrors = computed(() => ['area', 'amount', ...(selectedPeriod.value === 'custom' ? ['date'] : [])]
   .some(kind => Object.keys(ranges[kind].errors).length));
+watch([availableRooms, selectedPeriod, loading, wideKpi, hasFilterErrors], async () => { await nextTick(); layoutPanels(); });
 const periodContext = ref(calendarContext());
 const periodSelections = ref(initialSelections(periodContext.value));
 const activeSelection = computed(() => periodSelections.value[selectedPeriod.value]);
@@ -168,15 +171,12 @@ function editRange(kind, side, event) {
 async function refresh(force = true) {
   if (loading.value || lowerLoading.value) return;
   const current = ++revision;
-  chartsReady.value = false; stagesReady.value = false; lowerLoading.value = true;
+  chartsReady.value = false; lowerLoading.value = true;
   detailsReady.value = false; detailsFailed.value = false; detailsLoading.value = false;
-  propertyStages.value?.reset();
   monthPicker.value?.close(); report.value = null; failed.value = false; loading.value = true;
-  let stagesPending;
   try {
     const endpoint = props.parking ? '/api/parking-report' : '/api/report';
     const responsePending = fetch(`${endpoint}?view=summary${force ? '&refresh=1' : ''}`, { cache: 'no-store' });
-    stagesPending = propertyStages.value?.refresh(force);
     const response = await responsePending;
     if (response.status === 401) { emit('expired'); lowerLoading.value = false; return; }
     if (!response.ok) throw new Error();
@@ -189,10 +189,6 @@ async function refresh(force = true) {
     updatePeriod();
   } catch { failed.value = true; }
   finally { loading.value = false; }
-  if (current !== revision) return;
-  await afterPaint();
-  stagesReady.value = true;
-  await stagesPending;
   if (current !== revision) return;
   await afterPaint();
   chartsReady.value = true; lowerLoading.value = false;
@@ -222,7 +218,7 @@ function expandList(value) { listExpanded.value = value; if (value) loadDetails(
 onMounted(() => { refresh(false); });
 </script>
 <template>
-<div>
+<div class="property-report">
       <div ref="filterContainer" class="filter-container" :class="{ 'parking-filters': parking }">
       <div class="report-top-panels" :class="{ 'top-wide': wideKpi }">
       <form class="filter-panel" :class="{ 'filter-panel-unavailable': disabled, 'filter-panel-with-errors': hasFilterErrors, 'stacked-filters': stackedFilters, 'month-filter': selectedPeriod === 'month', 'quarter-filter': selectedPeriod === 'quarter' }" aria-label="Զտիչներ" @submit.prevent>
@@ -288,7 +284,6 @@ onMounted(() => { refresh(false); });
       <StatisticsPanel :parking="parking" :deals="report?.deals || []" :filters="appliedFilters" :period="selectedPeriod" :loading="loading || (!report && !failed)" :failed="failed" :reset-revision="kpiResetRevision" />
       </div>
       </div>
-      <PropertyStages :parking="parking" :hold="!stagesReady" ref="propertyStages" @expired="emit('expired')" />
       <DealsHistogram :parking="parking" :wide="wideKpi" :deals="report?.deals || []" :filters="appliedFilters" :months="months"
         :data="kpiData" :period="effectivePeriod.period"
         :year="effectivePeriod.selection?.year || report?.year || periodContext.year"
