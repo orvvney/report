@@ -104,6 +104,7 @@ describe('home page', () => {
     })).toEqual({ background: 'rgb(29, 40, 62)', radius: '12px', shadow: true });
     const logo = header.getByRole('img', { name: 'Milon Mining', exact: true });
     const refresh = header.getByRole('button', { name: 'Թարմացնել ամբողջ հաշվետվությունը', exact: true });
+    await page.locator('.property-stage-panels-inline .property-stages[aria-busy="false"]').waitFor();
     const frame = await page.locator('.report-top-panels').boundingBox();
     const title = await header.getByRole('heading', { name: reportTitle, exact: true }).boundingBox();
     const image = await logo.boundingBox(), button = await refresh.boundingBox();
@@ -289,4 +290,47 @@ describe('home page', () => {
     expect(response.status()).toBe(404);
     expect(await response.text()).toBe('Not found');
   });
+});
+
+test.each(['', '#parking', '#toon-expo'])('brand reloads the current section locally (%s)', async hash => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  if (hash === '#toon-expo') {
+    await page.route('**/api/toon-expo?*', route => route.fulfill({ json: {
+      snapshotId: 'test-expo', leads: [], deals: [], directDeals: [],
+      createdDealsComparison: { baselineMonthlyAverage: 2, expoCount: 7 },
+    } }));
+  }
+  await page.goto('/' + hash);
+  const url = page.url();
+  const brand = page.getByRole('button', { name: /^MILON MINING/ });
+  const requests = [];
+  const recordRequest = request => {
+    if (request.isNavigationRequest() || new URL(request.url()).pathname.startsWith('/api/')) {
+      requests.push(request.url());
+    }
+  };
+
+  if (hash === '#toon-expo') {
+    await page.getByTestId('expo-comparison-value').first().waitFor();
+    const list = page.locator('.expo-desktop-toggle');
+    await Promise.all([
+      page.waitForResponse(response => response.url().includes('view=details')),
+      list.click(),
+    ]);
+    expect(await list.getAttribute('aria-expanded')).toBe('true');
+    page.on('request', recordRequest);
+    await brand.getByRole('img').click();
+    expect(await list.getAttribute('aria-expanded')).toBe('false');
+    expect(await page.getByTestId('expo-comparison-value').first().isVisible()).toBe(true);
+  } else {
+    const amount = page.locator('#amount-min');
+    await amount.fill('123');
+    page.on('request', recordRequest);
+    await brand.getByText('MILON MINING', { exact: true }).click();
+    expect(await amount.inputValue()).toBe('');
+    expect(await page.getByTestId('statistics-count').isVisible()).toBe(true);
+  }
+
+  expect(page.url()).toBe(url);
+  expect(requests).toEqual([]);
 });

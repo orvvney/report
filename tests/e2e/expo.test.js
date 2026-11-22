@@ -196,7 +196,8 @@ test.each([320, 375, 1440])('comparison shows monthly average and total after li
   expect(await chart.innerText()).not.toContain('Բոլոր աղբյուրները · 5 ամիս');
   expect(await chart.innerText()).not.toContain('Գործարքի աղբյուրը՝ Տուն Էքսպո');
   const heading = chart.getByRole('heading', { name: 'Ավելացված գործարքների համեմատություն', exact: true });
-  expect(await heading.evaluate(el => getComputedStyle(el).fontSize)).toBe('14px');
+  expect(await heading.evaluate(el => [getComputedStyle(el).fontSize, getComputedStyle(el).fontWeight]))
+    .toEqual(['14px', '600']);
   expect(await chart.locator('svg').evaluate(el => el.getBoundingClientRect().height)).toBe(380);
   expect(await chart.getByTestId('expo-comparison-value').first().getAttribute('font-size')).toBe('14');
   const help = chart.getByRole('button', { name: 'Ավելացված գործարքների համեմատության մասին' });
@@ -212,11 +213,9 @@ test.each([320, 375, 1440])('comparison shows monthly average and total after li
   await page.mouse.move(0, 0);
   const titleBox = await heading.boundingBox(), helpBox = await help.boundingBox(), chartBox = await chart.boundingBox();
   expect((titleBox.x + helpBox.x + helpBox.width) / 2).toBeCloseTo(chartBox.x + chartBox.width / 2, 0);
-  const header = await page.locator('.report-header').boundingBox();
+  const stages = await page.locator('.expo-stages').boundingBox();
   const firstHeading = await page.locator('.expo-column-title').first().boundingBox();
-  const card = await page.locator('.expo-totals').first().boundingBox();
-  const firstList = await page.locator(width < 640 ? '.expo-column .expo-lists' : '.expo-panel > .expo-lists').first().boundingBox();
-  expect(Math.abs((firstHeading.y - header.y - header.height) - (firstList.y - card.y - card.height))).toBeLessThanOrEqual(0.5);
+  expect(firstHeading.y).toBeGreaterThan(stages.y + stages.height);
   for (const column of await page.locator('.expo-column').all()) {
     const title = await column.locator('h3').boundingBox();
     const total = await column.locator('.expo-totals').boundingBox();
@@ -228,10 +227,7 @@ test.each([320, 375, 1440])('comparison shows monthly average and total after li
     const style = getComputedStyle(el);
     return [style.fontSize, style.fontWeight, style.color];
   });
-  expect(labelStyle).toEqual(await heading.evaluate(el => {
-    const style = getComputedStyle(el);
-    return [style.fontSize, style.fontWeight, style.color];
-  }));
+  expect(labelStyle).toEqual(['14px', '500', 'rgb(67, 76, 93)']);
   const panelBox = await page.locator('.expo-panel').boundingBox();
   const sectionGap = await page.locator('.report-page').evaluate(el => parseFloat(getComputedStyle(el).getPropertyValue('--section-gap')));
   expect(chartBox.y - panelBox.y - panelBox.height).toBeCloseTo(sectionGap, 0);
@@ -264,7 +260,7 @@ test('comparison hides stale values during refresh and errors and recovers with 
   await page.route('**/api/toon-expo*', async route => {
     await new Promise(resolve => { release = resolve; }); await route.fulfill({ status: 502, json: { error: 'CRM_READ_ERROR' } });
   });
-  await page.locator('.report-header button').first().click();
+  await page.getByRole('button', { name: 'Թարմացնել ամբողջ հաշվետվությունը', exact: true }).click();
   await page.getByRole('status').filter({ hasText: 'Տվյալները բեռնվում են' }).first().waitFor();
   expect(await page.locator('.expo-comparison').count()).toBe(0);
   release();
@@ -285,7 +281,7 @@ test('direct Expo opening defers apartment deal data until the first visit and p
   await page.getByTestId('expo-leads').waitFor({state:'visible'});
   expect(paths.filter(path=>path==='/api/report')).toEqual([]);
   const stageRequests = () => paths.filter(path => ['/api/property-stages','/api/parking-stages'].includes(path));
-  const stagePanels = page.locator('.property-stage-panels-inline, #floating-property-stages');
+  const stagePanels = page.locator('.property-stage-panels-inline:not(.expo-stages), #floating-property-stages');
   expect(stageRequests()).toEqual([]);
   expect(await stagePanels.count()).toBe(0);
   await page.getByRole('button',{name:'Հաշվետվությունների տեսակ',exact:true}).click();
@@ -304,4 +300,155 @@ test('direct Expo opening defers apartment deal data until the first visit and p
   await page.goForward();
   await page.getByTestId('statistics-count').waitFor({state:'visible'});
   expect(paths.filter(path=>path==='/api/report')).toHaveLength(1);
+});
+
+test.each([320, 390, 1440])('shows Expo stage distributions and highlights the result at %i px', async width => {
+  await page.setViewportSize({ width, height: 850 });
+  const salesStages = ['Ազատ', 'Ռեզերվ', 'Վաճառքի ընթացքում', 'Վաճառված'];
+  const counts = values => salesStages.map((name, index) => ({
+    id: `stage-${index}`, name, count: values[index] ?? 0,
+  }));
+  await page.route('**/api/expo-stages', route => route.fulfill({
+    json: { stages: counts([83, 0, 0, 490]), after: counts([47, 2, 0, 490]) },
+  }));
+  await page.goto('/#toon-expo');
+  const stages = page.getByRole('region', { name: width < 640 ? 'Առաջ ու հետո' : 'Տուն Էքսպոյից առաջ ու հետո', exact: true });
+  const card = stages.locator('article').first();
+  await card.waitFor();
+  expect(await stages.locator('article h3').allTextContents()).toEqual(salesStages);
+  expect(await stages.getByRole('button', { name: /^(Առաջ|Հետո)$/ }).count()).toBe(0);
+  const beforeTrack = stages.getByRole('group', { name: 'Առաջ', exact: true });
+  const afterTrack = stages.getByRole('group', { name: 'Հետո', exact: true });
+  expect(await beforeTrack.getByRole('button').count()).toBe(2);
+  expect(await afterTrack.getByRole('button').count()).toBe(3);
+  const segment = beforeTrack.getByRole('button', { name: 'Ազատ՝ 83', exact: true });
+  const track = beforeTrack.locator('.property-stage-track');
+  expect((await segment.boundingBox()).width / (await track.boundingBox()).width).toBeCloseTo(83 / 573, 2);
+  await segment.focus();
+  expect(await beforeTrack.getByRole('tooltip').innerText()).toBe('Ազատ՝ 83');
+  await page.keyboard.press('Escape');
+  expect(await beforeTrack.getByRole('tooltip').count()).toBe(0);
+  expect(await stages.locator('.property-stage-share').count()).toBe(0);
+  const totals = stages.locator('.expo-total-values');
+  expect((await totals.textContent()).replace(/\s+/g, ' ').trim()).toBe('573 → 539');
+  const offsets = await totals.evaluate(node => {
+    const center = item => {
+      const bounds = item.getBoundingClientRect();
+      return bounds.top + bounds.height / 2;
+    };
+    const arrowCenter = center(node.querySelector('svg'));
+    return [...node.querySelectorAll('span:not(.sr-only)')].map(item => center(item) - arrowCenter);
+  });
+  expect(offsets).toEqual([expect.closeTo(0, 1), expect.closeTo(0, 1)]);
+  expect(await stages.locator('.expo-stage-baseline').allTextContents()).toEqual(['Առաջ՝ 83', 'Առաջ՝ 0', 'Առաջ՝ 0', 'Առաջ՝ 490']);
+  expect(await card.locator('.expo-stage-result').textContent()).toBe('Հետո՝ 47');
+  expect(await card.locator('.expo-stage-result .sr-only').evaluate(node => getComputedStyle(node).clipPath))
+    .toBe('inset(50%)');
+  expect(await card.locator('.expo-stage-result svg').count()).toBe(0);
+  const deltas = stages.locator('.expo-stage-delta');
+  expect((await deltas.allTextContents()).map(value => value.trim()))
+    .toEqual([expect.stringMatching(/^−36 \(−43[.,]4%\)$/), '+2 (—)', '0 (0%)', '0 (0%)']);
+  const shareMeter = card.getByRole('meter', { name: 'Մասնաբաժինը ընդհանուրում' });
+  expect(await card.locator('.expo-stage-share-percent').innerText()).toMatch(/^8[.,]7%$/);
+  expect(Number(await shareMeter.getAttribute('aria-valuenow'))).toBeCloseTo(100 * 47 / 539, 3);
+  const shareBox = await shareMeter.boundingBox();
+  const markerBox = await shareMeter.locator('.expo-stage-share-marker').boundingBox();
+  expect(shareBox.height).toBe(8);
+  expect(markerBox.height).toBe(16);
+  await shareMeter.hover();
+  expect(await shareMeter.getByRole('tooltip').innerText()).toMatch(/Նշագիծը ցույց է տալիս\u00a0նախկին մասնաբաժինը՝/);
+  expect((markerBox.x + markerBox.width / 2 - shareBox.x) / shareBox.width).toBeCloseTo(83 / 573, 2);
+  expect(await card.locator('.expo-stage-share > p').evaluate(node => getComputedStyle(node).textAlign)).toBe('start');
+  expect((await shareMeter.locator('.expo-stage-share-fill').boundingBox()).width / shareBox.width)
+    .toBeCloseTo(47 / 539, 2);
+  expect(await deltas.evaluateAll(nodes => nodes.map(node => getComputedStyle(node).backgroundColor)))
+    .toEqual(salesStages.map(() => 'rgb(238, 240, 242)'));
+  expect(await deltas.locator('svg').count()).toBe(salesStages.length);
+  expect(await stages.locator('article .property-stage-card-stripe').count()).toBe(salesStages.length);
+  const cardTrack = card.locator('.property-stage-card-stripe');
+  expect((await cardTrack.boundingBox()).width).toBeCloseTo((await card.boundingBox()).width - 2, 1);
+  const [resultSize, baselineSize] = await card.locator('.expo-stage-values > p')
+    .evaluateAll(nodes => nodes.map(node => parseFloat(getComputedStyle(node).fontSize)));
+  expect(resultSize).toBeGreaterThan(baselineSize);
+  await page.getByTestId('expo-direct-deals').waitFor();
+  const titleSize = await stages.locator('h2').evaluate(node => getComputedStyle(node).fontSize);
+  expect(titleSize).toBe('14px');
+  expect(await page.locator('.expo-column-title').evaluateAll(nodes => nodes.map(node => getComputedStyle(node).fontSize)))
+    .toEqual([titleSize, titleSize, titleSize]);
+  expect(await page.locator('.expo-totals strong').evaluateAll(nodes => nodes.map(node => parseFloat(getComputedStyle(node).fontSize))))
+    .toEqual([resultSize, resultSize, resultSize]);
+  expect(await stages.locator('article h3').evaluateAll(nodes => nodes.map(node => getComputedStyle(node).fontSize)))
+    .toEqual(salesStages.map(() => '14px'));
+  expect(await stages.locator('article h3').evaluateAll(nodes => nodes.map(node =>
+    [getComputedStyle(node).justifyContent, getComputedStyle(node, '::before').content])))
+    .toEqual(salesStages.map(() => ['flex-start', '""']));
+  expect(baselineSize).toBe(12);
+  const insets = await stages.locator('article').evaluateAll(cards => cards.map(card => {
+    const cardBox = card.getBoundingClientRect(), valuesBox = card.querySelector('.expo-stage-values').getBoundingClientRect();
+    const titleBox = card.querySelector('h3').getBoundingClientRect();
+    return {
+      gap: valuesBox.top - titleBox.bottom,
+      above: titleBox.top - cardBox.top,
+      below: cardBox.bottom - card.querySelector('.expo-stage-share').getBoundingClientRect().bottom,
+    };
+  }));
+  for (const { gap, above, below } of insets) {
+    expect(above).toBeCloseTo(gap, 1);
+    expect(below).toBeCloseTo(gap, 1);
+  }
+  const rowLayout = await stages.locator('article').evaluateAll(cards => {
+    const panel = cards[0].closest('.property-stages');
+    const headingInset = panel.querySelector('h2').getBoundingClientRect().left - panel.getBoundingClientRect().left;
+    return cards.map(card => {
+      const frame = card.getBoundingClientRect();
+      const result = card.querySelector('.expo-stage-result').getBoundingClientRect();
+      const baseline = card.querySelector('.expo-stage-baseline').getBoundingClientRect();
+      const titleLeft = card.querySelector('h3 span').getBoundingClientRect().left;
+      const delta = card.querySelector('.expo-stage-delta').getBoundingClientRect();
+      const share = card.querySelector('.expo-stage-share').getBoundingClientRect();
+      return {
+        titleInsetError: titleLeft - frame.left - headingInset,
+        sameRow: baseline.left >= result.right && baseline.bottom > result.top && baseline.right <= frame.right,
+        aligned: [result.left, delta.left, share.left].every(left => Math.abs(left - titleLeft) < 0.1),
+        shareBelowDelta: share.top > delta.bottom,
+      };
+    });
+  });
+  expect(rowLayout).toEqual(salesStages.map(() => ({
+    titleInsetError: expect.closeTo(width < 640 ? 4 : 0, 1), sameRow: true, aligned: true, shareBelowDelta: true,
+  })));
+  if (width < 640) {
+    expect(await stages.locator('.property-stages-total, .property-stages-total strong').evaluateAll(nodes =>
+      nodes.map(node => [getComputedStyle(node).fontSize, getComputedStyle(node).fontWeight])))
+      .toEqual([['14px', '600'], ['14px', '600']]);
+    expect(await page.locator('.expo-column-title, .expo-records-title').evaluateAll(nodes =>
+      nodes.every(node => getComputedStyle(node).fontSize === '14px' && getComputedStyle(node).fontWeight === '600'))).toBe(true);
+    const heights = await stages.locator('article').evaluateAll(cards => cards.map(item => item.getBoundingClientRect().height));
+    expect(heights[3]).toBeCloseTo(heights[2], 1);
+    const titleCenters = await stages.locator('article h3 span').evaluateAll(items => items.map(item => {
+      const bounds = item.getBoundingClientRect();
+      return bounds.top + bounds.height / 2;
+    }));
+    expect(titleCenters[3]).toBeCloseTo(titleCenters[2], 1);
+    for (const selector of ['.expo-stage-result', '.expo-stage-baseline', '.expo-stage-delta']) {
+      const positions = await stages.locator(selector).evaluateAll(items => items.map(item => item.getBoundingClientRect().top));
+      expect(positions[3]).toBeCloseTo(positions[2], 1);
+    }
+  }
+  expect(await stages.getByText('Մինչև 01.11.2026 · Բոլոր աղբյուրները', { exact: true }).count()).toBe(0);
+  expect(await stages.getByText('01.11.2026-ից · Տուն Էքսպո', { exact: true }).count()).toBe(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await stages.screenshot({ path: `test-results/expo-stage-periods-${width}.png` });
+  await page.goto('/#parking');
+  const parkingCard = page.locator('.property-stage-panels-inline .property-stages article').filter({
+    has: page.getByRole('heading', { name: 'Վաճառքի ընթացքում', exact: true }),
+  });
+  await parkingCard.waitFor();
+  await page.waitForFunction(() => document.querySelector('.report-page').style.getPropertyValue('--stage-heading-inset') !== '');
+  const titleInset = await parkingCard.evaluate(async card => {
+    await document.fonts.ready;
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    return card.querySelector('h3').getBoundingClientRect().top - card.getBoundingClientRect().top;
+  });
+  expect(insets.map(({ gap }) => gap)).toEqual(salesStages.map(() => expect.closeTo(titleInset, 1)));
 });

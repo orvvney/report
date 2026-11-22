@@ -22,6 +22,14 @@ function refresh() {
   if (activeSection.value === 'expo') expoPanel.value?.refresh();
   else reportPanel.value?.refresh();
 }
+function reloadSection() {
+  if (activeSection.value === 'expo') expoPanel.value?.resetView();
+  else {
+    propertyStages.value?.resetView();
+    reportPanel.value?.resetView();
+  }
+  window.scrollTo(0, 0);
+}
 function syncSection() {
   activeSection.value = sectionFromHash();
   if (activeSection.value === 'expo') expoVisited.value = true;
@@ -46,7 +54,7 @@ onBeforeUnmount(() => window.removeEventListener('hashchange', syncSection));
   <main class="report-page">
     <section aria-label="Գործարքների հաշվետվություն" class="report-shell">
       <ReportHeader :account="account" :section="activeSection" :section-title="sectionTitles[activeSection]" :loading="activeSection === 'expo' ? expoLoading : loading"
-        @logout="emit('logout')" @navigate="navigate" @refresh="refresh" />
+        @logout="emit('logout')" @navigate="navigate" @refresh="refresh" @reload-section="reloadSection" />
       <div v-if="activeSection !== 'expo'" ref="stagePanels" class="property-stage-panels-inline">
         <PropertyStages :key="activeSection" ref="propertyStages" :parking="activeSection === 'parking'" @expired="emit('expired')" />
       </div>

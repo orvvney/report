@@ -309,3 +309,14 @@ test('progressive Expo publishes counts before history and contacts, with versio
  const before=f.requests.length;await load({view:'details',snapshotId:first.body.snapshotId});expect(f.requests).toHaveLength(before);
  await load({view:'summary',refresh:true});expect((await load({view:'comparison',snapshotId:first.body.snapshotId})).status).toBe(409);
 });
+
+test('summary uses the first Expo-source deal day on or after November 1 regardless of lead', async () => {
+  const f = fixture(0);
+  f.deals[0].DATE_CREATE = '2026-10-31T19:59:59Z';
+  f.deals[1].DATE_CREATE = '2026-10-31T20:00:00Z';
+  const { status, body } = await createExpoLoader(f.options)({ view: 'summary' });
+  expect(status).toBe(200);
+  expect(body.firstExpoDealDate).toBe('2026-11-01');
+  expect(body.lastExpoDealDate).toBe('2026-11-02');
+  expect(body.directDeals).toHaveLength(0);
+});

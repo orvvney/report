@@ -4,7 +4,7 @@ import milonLogo from '../../images/logo_milon.avif';
 import resetIcon from '../../images/reset.avif';
 import menuIcon from '../../images/menu.avif';
 const props = defineProps({ loading: Boolean, sectionTitle: String, account: { type: String, default: '' }, section: { type: String, default: 'apartments' } });
-const emit = defineEmits(['refresh', 'navigate', 'logout']);
+const emit = defineEmits(['refresh', 'reload-section', 'navigate', 'logout']);
 const header = ref(null), propertyMenu = ref(null), wide = ref(false);
 let observer, tooltipTimer;
 const tooltip = ref(null);
@@ -38,10 +38,10 @@ onBeforeUnmount(() => { observer?.disconnect(); hideTooltip(); });
 <template>
       <header class="report-header" :class="{ 'header-wide': wide, 'header-with-subtitle': ['apartments', 'parking', 'expo'].includes(section) }" ref="header">
         <div class="report-header-row">
-          <div class="report-brand">
+          <button type="button" class="report-brand" aria-label="MILON MINING — Թարմացնել ընթացիկ բաժինը" @click="emit('reload-section')">
             <img :src="milonLogo" alt="Milon Mining" class="report-logo">
             <span class="report-brand-name">MILON MINING</span>
-          </div>
+          </button>
           <div class="report-header-copy">
             <h1>Հաշվետվություն</h1>
             <p v-if="['apartments', 'parking', 'expo'].includes(section)" class="report-header-subtitle"><span>{{ sectionTitle }}</span></p>

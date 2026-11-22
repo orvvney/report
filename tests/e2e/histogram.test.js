@@ -80,6 +80,8 @@ test.each([1920, 1440, 1024, 375, 320])('histogram matches filter width, follows
   expect(await counts().getAttribute('aria-pressed')).toBe('true');
   await rooms().click();
   const heading = histogram().getByRole('heading', { name: 'Ընդհանուր տեղեկություն', exact: true });
+  expect(await heading.evaluate(el => [getComputedStyle(el).fontSize, getComputedStyle(el).fontWeight]))
+    .toEqual(['14px', '600']);
   const modes = histogram().getByRole('group', { name: 'Խմբավորում', exact: true });
   expect(await modes.getByRole('button').allTextContents()).toEqual(['Բն. քանակ', 'Վաճառքի գումար', 'Սենյակներ']);
   const icons = await modes.locator('button').evaluateAll(buttons => buttons.map(button => {

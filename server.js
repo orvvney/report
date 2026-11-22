@@ -90,8 +90,14 @@ function createServer({ distPath = path.join(__dirname, 'dist'), dataDir = path.
   const loadReport = createReportLoader({ env, envPath, ...reportOptions });
   const loadParking = createReportLoader({ env, envPath, ...reportOptions, propertyType: 'Ավտոկայանատեղի' });
   const loadPropertyStages = createPropertyStagesLoader({ env, envPath, ...reportOptions });
+  const loadExpoStageCounts = createPropertyStagesLoader({ env, envPath, ...reportOptions, expo: true });
   const loadParkingStages = createPropertyStagesLoader({ env, envPath, ...reportOptions, propertyType: 'Ավտոկայանատեղի' });
   const loadExpo = createExpoLoader({ env, envPath, ...reportOptions });
+  async function loadExpoStages(options) {
+    const summary = await loadExpo({ view: 'summary' });
+    if (summary.status !== 200) return summary;
+    return loadExpoStageCounts({ ...options, expoSummary: summary.body });
+  }
 
   const app = express();
   app.disable('x-powered-by');
@@ -115,11 +121,11 @@ function createServer({ distPath = path.join(__dirname, 'dist'), dataDir = path.
   const reportGuards = authService
     ? [requireSession(authService), createRateLimiter({ limit: 60, windowMs: 60 * 1000, key: (request) => request.user?.username || request.ip })]
     : [];
-  app.get(['/api/report', '/api/parking-report', '/api/parking-stages', '/api/toon-expo', '/api/property-stages'], ...reportGuards, async (request, response) => {
+  app.get(['/api/report', '/api/parking-report', '/api/parking-stages', '/api/toon-expo', '/api/expo-stages', '/api/property-stages'], ...reportGuards, async (request, response) => {
     const query = new URL(request.url, 'http://localhost').searchParams;
     const view = query.get('view') || 'full';
     if (!['full', 'summary', 'details', 'comparison'].includes(view)) return response.status(400).json({ error: 'INVALID_VIEW' });
-    const { status, body } = await (request.path === '/api/parking-report' ? loadParking : request.path === '/api/parking-stages' ? loadParkingStages : request.path === '/api/property-stages' ? loadPropertyStages : request.path === '/api/toon-expo' ? loadExpo : loadReport)({ refresh: query.get('refresh') === '1', view, snapshotId: query.get('snapshot') });
+    const { status, body } = await (request.path === '/api/parking-report' ? loadParking : request.path === '/api/parking-stages' ? loadParkingStages : request.path === '/api/property-stages' ? loadPropertyStages : request.path === '/api/expo-stages' ? loadExpoStages : request.path === '/api/toon-expo' ? loadExpo : loadReport)({ refresh: query.get('refresh') === '1', view, snapshotId: query.get('snapshot') });
     if (authService) audit('report_viewed', { username: request.user.username, path: request.path, status, ip: request.ip });
     response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
     response.end(JSON.stringify(body));

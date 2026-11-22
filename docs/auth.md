@@ -24,7 +24,7 @@ Google Authenticator. Форма и серверная логика перене
 
 Сессия живёт 15 минут. Остаток присылает сервер (`expiresIn`), страница считает
 его по монотонным часам: сбитые часы браузера не выбрасывают пользователя раньше
-времени. Истечение сессии и ответ `401` от `/api/report`, `/api/parking-report`, `/api/parking-stages`, `/api/toon-expo` или `/api/property-stages`
+времени. Истечение сессии и ответ `401` от `/api/report`, `/api/parking-report`, `/api/parking-stages`, `/api/toon-expo`, `/api/expo-stages` или `/api/property-stages`
 возвращают форму входа и убирают отчёт со страницы. При возврате очищаются
 прежние email, код, QR/ручной ключ и состояние руководства.
 
@@ -101,7 +101,7 @@ origins** должен быть указан тот же `PUBLIC_ORIGIN`. Без
 
 | Код | Значение |
 | --- | --- |
-| `401 authentication_required` | Нет действующей сессии; так же отвечают `/api/report`, `/api/parking-report`, `/api/parking-stages`, `/api/toon-expo` и `/api/property-stages` |
+| `401 authentication_required` | Нет действующей сессии; так же отвечают `/api/report`, `/api/parking-report`, `/api/parking-stages`, `/api/toon-expo`, `/api/expo-stages` и `/api/property-stages` |
 | `401 google_authentication_required` | Нет подтверждённого Google-аккаунта |
 | `401 invalid_google_credential` | Токен Google не прошёл проверку |
 | `401 invalid_code` | Неверный или просроченный код Authenticator |
@@ -111,7 +111,7 @@ origins** должен быть указан тот же `PUBLIC_ORIGIN`. Без
 | `429 too_many_attempts` | Пять неверных кодов подряд; пауза 5 минут |
 | `429 too_many_requests` | Больше 20 POST-запросов Google/enroll/login за 5 минут с адреса |
 
-`/api/report`, `/api/parking-report`, `/api/parking-stages`, `/api/toon-expo` и `/api/property-stages` используют общий лимит 60 запросов в минуту
+`/api/report`, `/api/parking-report`, `/api/parking-stages`, `/api/toon-expo`, `/api/expo-stages` и `/api/property-stages` используют общий лимит 60 запросов в минуту
 на аккаунт. Сессия проверяется до вызова загрузчика CRM, включая `?refresh=1`.
 HTML и файлы `/assets/` остаются публичными: внутри собранного приложения
 живёт сама форма входа. Успешные и неуспешные попытки пишутся в журнал процесса

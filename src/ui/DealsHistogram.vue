@@ -248,8 +248,8 @@ watch([() => JSON.stringify(categories.value), () => comparing.value ? JSON.stri
 .deals-histogram { position: relative; width: 100%; margin: var(--section-gap, 24px) auto 0; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--surface); }
 .histogram-wide { width: 100%; }
 .histogram-controls { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 20px 12px; border-bottom: 1px solid var(--brand-tint); }
-.histogram-controls h2, .histogram-axis { font-size: 14px; font-weight: 500; color: var(--muted); }
-.histogram-controls h2 { text-align: center; }
+.histogram-axis { font-size: 14px; font-weight: 500; color: var(--muted); }
+.histogram-controls h2 { text-align: center; font-size: 14px; font-weight: 600; }
 .histogram-title > .filter-help { flex-shrink: 0; }
 .histogram-title > .filter-help-tooltip { left: 50%; transform: translateX(-50%); }
 .histogram-graph-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 24px 20px 0; }

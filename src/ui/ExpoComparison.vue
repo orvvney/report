@@ -57,7 +57,7 @@ const labels = [
 .expo-comparison { margin-top: var(--section-gap, 24px); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--card-shadow); background: var(--surface); }
 .expo-comparison-controls { display: flex; justify-content: center; padding: 20px 12px; border-bottom: 1px solid var(--brand-tint); }
 .expo-comparison-controls .filter-title { max-width: 100%; }
-h2 { text-align: center; font-size: 14px; font-weight: 500; color: var(--muted); overflow-wrap: anywhere; }
+h2 { text-align: center; font-size: var(--expo-heading-size); font-weight: 600; overflow-wrap: anywhere; }
 .filter-help { flex-shrink: 0; }
 .filter-help-tooltip { left: 50%; transform: translateX(-50%); }
 .expo-comparison-plot { margin: 16px 8px 0; }

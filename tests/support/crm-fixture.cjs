@@ -61,6 +61,9 @@ function createFixture(state = {}) {
     const reply = (body) => ({ ok: true, status: 200, json: async () => body });
     if (method === 'crm.type.list') return reply({ result: { types: [{ entityTypeId: 177, title: 'Անշարժ գույք' }] } });
     if (params.entityTypeId === 177 && method === 'crm.category.list') return reply({ result: { categories: state.propertyCategories || [{ id: 5 }] } });
+    if (method === 'crm.status.list' && params.filter.ENTITY_ID === 'SOURCE') {
+      return reply({ result: state.sourceDirectory ?? [{ ID: '305', STATUS_ID: 'UC_TOON_EXPO' }] });
+    }
     if (method === 'crm.status.list' && state.propertyStatuses?.[params.filter.ENTITY_ID]) return reply({result:state.propertyStatuses[params.filter.ENTITY_ID]});
     if (method === 'crm.status.list' && params.filter.ENTITY_ID === 'DYNAMIC_177_STAGE_5') {
       const { STAGES } = require('../../src/report/property-stages.cjs');

@@ -6,6 +6,8 @@ function fixture(count = 51) {
   const stages = { SOURCE:[{ ID: '305', STATUS_ID: 'UC_TOON_EXPO', NAME: 'Toon Expo' }], STATUS: [{ STATUS_ID: 'NEW', NAME: 'Նոր լիդ' }], DEAL_STAGE: [{ STATUS_ID: 'NEW', NAME: 'Նոր գործարք' }], DEAL_STAGE_3: [{ STATUS_ID: 'C3:WON', NAME: 'Կնքված' }] };
   const categories = [{ id: 0, name: 'Վաճառք' }];
   const fields = { UF_CRM_PROPERTY: { title: 'Անշարժ գույքի տեսակ', type: 'enumeration', isMultiple: false, items: [{ ID: '71', VALUE: 'Բնակարան' }, { ID: '72', VALUE: 'Ավտոկայանատեղի' }] } };
+  const properties = [];
+  const propertyHistory = [];
   const requests = [], httpRequests = [];
   const options = { env, batchReads:false, scheduleRequest:task=>task(), waitRetry:async()=>{}, fetchImpl:async(url,init)=>{
     const method = new URL(url).pathname.split('/').at(-1).replace('.json','');
@@ -24,8 +26,27 @@ function fixture(count = 51) {
       return {ok:true,json:async()=>({result})};
     }
     requests.push({method,params});
+    if (method === 'crm.type.list') return { ok: true, json: async () => ({ result: { types: [{ entityTypeId: 177, title: 'Անշարժ գույք' }] } }) };
+    if (String(params.entityTypeId) === '177') {
+      const reply = body => ({ ok: true, json: async () => body });
+      const cutoff = Date.parse(params.filter?.['<createdTime'] ?? params.filter?.['<CREATED_TIME']);
+      const page = rows => {
+        const start = Number(params.start);
+        return reply({ result: { items: rows.slice(start, start + 50) }, total: rows.length,
+          ...(start + 50 < rows.length ? { next: start + 50 } : {}) });
+      };
+      if (method === 'crm.category.list') return reply({ result: { categories: [{ id: 5 }] } });
+      if (method === 'crm.item.list') return page(properties.filter(row =>
+        String(row.UF_CRM_PROPERTY) === String(params.filter.UF_CRM_PROPERTY) && Date.parse(row.createdTime) < cutoff));
+      if (method === 'crm.stagehistory.list') return page(propertyHistory.filter(row => Date.parse(row.CREATED_TIME) < cutoff));
+    }
     if (method === 'crm.category.list') return { ok: true, json: async () => ({ result: { categories } }) };
     if (method === 'crm.item.fields') return { ok: true, json: async () => ({ result: { fields } }) };
+    if (method === 'crm.status.list' && params.filter.ENTITY_ID === 'DYNAMIC_177_STAGE_5') {
+      const { STAGES } = require('../../src/report/property-stages.cjs');
+      return { ok: true, json: async () => ({ result: STAGES.map((NAME, index) =>
+        ({ ENTITY_ID: 'DYNAMIC_177_STAGE_5', STATUS_ID: String(index), NAME })) }) };
+    }
     if (method === 'crm.status.list') return { ok: true, json: async () => ({ result: (stages[params.filter.ENTITY_ID] || []) }) };
     if (method === 'crm.item.list') return { ok: true, json: async () => ({ result: { items: [{ id: 8, name: 'Անի', lastName: 'Պետրոսյան' }] } }) };
     let rows;
@@ -39,6 +60,6 @@ function fixture(count = 51) {
     const page = rows.slice(params.start, params.start + 50);
     return { ok: true, json: async () => ({ result: page, total:rows.length, ...(params.start + 50 < rows.length ? { next: params.start + 50 } : {}) }) };
   }
-  return { options, leads, deals, stages, categories, fields, requests, httpRequests };
+  return { options, leads, deals, stages, categories, fields, properties, propertyHistory, requests, httpRequests };
 }
 module.exports = { fixture };

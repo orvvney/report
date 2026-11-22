@@ -31,8 +31,10 @@ test.each([
   expect(await block.locator('h3').allTextContents()).toEqual(stageNames);
   expect(await counts(block)).toEqual(totals);
   const total = block.locator('.property-stages-total');
-  expect(await total.innerText()).toBe(hash ? 'Ընդհանուր 1' : 'Ընդհանուր 2');
+  expect(await total.innerText()).toBe(hash ? 'Ընդհանուր՝ 1' : 'Ընդհանուր՝ 2');
   const stageColors = ['rgb(229, 183, 38)', 'rgb(118, 131, 149)', 'rgb(54, 119, 192)', 'rgb(0, 127, 105)'];
+  expect(await block.locator('article .property-stage-card-stripe').evaluateAll(stripes =>
+    stripes.map(stripe => getComputedStyle(stripe).backgroundColor))).toEqual(stageColors);
   expect(await block.locator('article').evaluateAll(cards =>
     cards.map(card => getComputedStyle(card).backgroundColor))).toEqual(Array(4).fill('rgba(0, 0, 0, 0)'));
   expect(await block.locator('h3').evaluateAll(labels => labels.map(label => {

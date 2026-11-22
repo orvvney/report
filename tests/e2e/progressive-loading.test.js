@@ -34,6 +34,7 @@ test.each(['apartments','parking'])('%s paints statistics and charts while heade
 });
 test('Expo paints totals before historical comparison and waits for expansion before contact reads',async()=>{
  const f=expoFixture(3),history=gate(),contacts=gate();let historyStarted;
+ const contactReads=()=>f.requests.filter(r=>r.method==='crm.item.list'&&r.params.entityTypeId===3);
  const historyRead=new Promise(resolve=>{historyStarted=resolve;});
  const original=f.options.fetchImpl;
  const {decodeCommand}=require('../support/crm-fixture.cjs');
@@ -46,17 +47,17 @@ test('Expo paints totals before historical comparison and waits for expansion be
  await page.goto(`${base}/#toon-expo`);await page.getByTestId('expo-leads').waitFor();await historyRead;
  expect(await page.getByTestId('expo-direct-deals').innerText()).toBe('1');
  expect(await page.getByTestId('expo-comparison-value').count()).toBe(0);
- expect(f.requests.filter(r=>r.method==='crm.item.list')).toHaveLength(0);
+ expect(contactReads()).toHaveLength(0);
  history.release();await page.getByTestId('expo-comparison-value').first().waitFor();
- expect(f.requests.filter(r=>r.method==='crm.item.list')).toHaveLength(0);
+ expect(contactReads()).toHaveLength(0);
  const request=page.waitForRequest(r=>new URL(r.url()).searchParams.get('view')==='details');
  await page.locator('.expo-desktop-toggle').click();await request;
  expect(await page.getByTestId('expo-leads').isVisible()).toBe(true);
  contacts.release();await page.getByRole('link',{name:'Անի Պետրոսյան',exact:true}).waitFor();
  await page.locator('.expo-desktop-toggle').click();
- const contactsBefore=f.requests.filter(r=>r.method==='crm.item.list').length;
+ const contactsBefore=contactReads().length;
  const response=page.waitForResponse(r=>new URL(r.url()).searchParams.get('view')==='summary');
  await page.getByRole('button',{name:'Թարմացնել ամբողջ հաշվետվությունը',exact:true}).click();await response;
  await page.waitForFunction(()=>document.querySelector('.report-header .refresh-button')?.disabled===false);
- expect(f.requests.filter(r=>r.method==='crm.item.list')).toHaveLength(contactsBefore);
+ expect(contactReads()).toHaveLength(contactsBefore);
 });

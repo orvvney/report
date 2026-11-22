@@ -23,7 +23,14 @@ const lowerLoading = ref(false), chartsReady = ref(false), detailsLoading = ref(
 let active = true, revision = 0;
 watch([loading, lowerLoading], () => { if (active) emit('loading', loading.value || lowerLoading.value); });
 onDeactivated(() => { active = false; });
-defineExpose({ refresh });
+const viewRevision = ref(0);
+function resetView() {
+  resetFilters();
+  filterHelpOpen.value = false;
+  listExpanded.value = false;
+  viewRevision.value++;
+}
+defineExpose({ refresh, resetView });
 onActivated(() => { active = true; emit('loading', loading.value || lowerLoading.value); nextTick(layoutPanels); });
 const filterContainer = ref(null), wideKpi = ref(false);
 let kpiObserver;
@@ -284,11 +291,11 @@ onMounted(() => { refresh(false); });
       <StatisticsPanel :parking="parking" :deals="report?.deals || []" :filters="appliedFilters" :period="selectedPeriod" :loading="loading || (!report && !failed)" :failed="failed" :reset-revision="kpiResetRevision" />
       </div>
       </div>
-      <DealsHistogram :parking="parking" :wide="wideKpi" :deals="report?.deals || []" :filters="appliedFilters" :months="months"
+      <DealsHistogram :key="viewRevision" :parking="parking" :wide="wideKpi" :deals="report?.deals || []" :filters="appliedFilters" :months="months"
         :data="kpiData" :period="effectivePeriod.period"
         :year="effectivePeriod.selection?.year || report?.year || periodContext.year"
         :loading="loading || !chartsReady" :failed="failed" />
-      <DealsTable :parking="parking" :details-loading="detailsLoading || (listExpanded && report && !failed && !detailsReady && !detailsFailed)" :details-failed="detailsFailed" @expand="expandList" @retry="loadDetails" :deals="kpiData?.selected.current || []" :filters="appliedFilters"
+      <DealsTable :key="viewRevision" :parking="parking" :details-loading="detailsLoading || (listExpanded && report && !failed && !detailsReady && !detailsFailed)" :details-failed="detailsFailed" @expand="expandList" @retry="loadDetails" :deals="kpiData?.selected.current || []" :filters="appliedFilters"
         :loading="loading || !chartsReady" :failed="failed" />
 
 </div>

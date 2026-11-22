@@ -1,14 +1,17 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { afterPaint } from './after-paint.js';
+import PropertyStages from './PropertyStages.vue';
 import ExpoComparison from './ExpoComparison.vue';
 import ExpoRecordsList from './ExpoRecordsList.vue';
 import selection from '../report/expo-selection.cjs';
+const stagesPanel = ref(null);
 const listsExpanded = ref(false);
 const snapshot = ref(null), loading = ref(false), failed = ref(false);
 const helpOpen = ref(null);
 const comparison = ref(null), comparisonLoading = ref(false), comparisonFailed = ref(false);
 const detailsLoading = ref(false), detailsFailed = ref(false), detailsReady = ref(false), mobileExpanded = ref(new Set());
+const viewRevision = ref(0);
 let revision = 0;
 watch(listsExpanded, value => { if (value) loadDetails(); });
 const hasOpenLists = computed(() => phone.value ? mobileExpanded.value.size > 0 : listsExpanded.value);
@@ -62,6 +65,7 @@ async function refresh(force = true) {
   finally { loading.value = false; }
   if (current !== revision) return;
   if (!snapshot.value) { comparisonLoading.value = false; emit('loading', false); return; }
+  if (force) stagesPanel.value?.refresh();
   await afterPaint();
   if (current !== revision) return;
   await loadComparison();
@@ -107,12 +111,22 @@ function expandColumn(key, expanded) {
 }
 
 onMounted(() => refresh(false));
-defineExpose({ refresh });
+function resetView() {
+  stagesPanel.value?.resetView();
+  listsExpanded.value = false;
+  mobileExpanded.value = new Set();
+  helpOpen.value = null;
+  viewRevision.value++;
+}
+defineExpose({ resetView, refresh });
 </script>
 
 <template>
   <div class="expo-section">
-  <section class="expo-panel" aria-label="Տուն Էքսպո Նոյեմբեր 2026">
+  <div class="property-stage-panels-inline expo-stages">
+    <PropertyStages ref="stagesPanel" expo @expired="emit('expired')" />
+  </div>
+  <section :key="viewRevision" class="expo-panel" aria-label="Տուն Էքսպո Նոյեմբեր 2026">
     <p v-if="loading" role="status">Տվյալները բեռնվում են…</p>
     <div v-else-if="failed" role="alert">Չհաջողվեց բեռնել Տուն Էքսպոյի տվյալները։ <button type="button" @click="refresh()">Կրկին փորձել</button></div>
     <div v-show="snapshot && !loading && !failed" class="expo-columns">
@@ -154,6 +168,6 @@ defineExpose({ refresh });
   <section v-if="snapshot && !loading && !failed && (comparisonLoading || comparisonFailed)" class="expo-comparison" aria-label="Ավելացված գործարքների համեմատություն" :aria-busy="comparisonLoading">
     <p role="status" class="kpi-notice">{{ comparisonFailed ? 'Տվյալներն անհասանելի են։' : 'Տվյալները բեռնվում են…' }} <button v-if="comparisonFailed" type="button" @click="loadComparison">Կրկին փորձել</button></p>
   </section>
-  <ExpoComparison v-if="comparison && !loading && !failed" :data="comparison" />
+  <ExpoComparison :key="viewRevision" v-if="comparison && !loading && !failed" :data="comparison" />
   </div>
 </template>

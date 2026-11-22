@@ -1,6 +1,7 @@
 const path = require('node:path');
 const { loadConfig } = require('../bitrix24/config.cjs');
 const { createClient, isObject } = require('../bitrix24/client.cjs');
+const { readExpoStageCounts } = require('./expo-stages.cjs');
 const { apartmentItems, PROPERTY_TYPE } = require('./apartments.cjs');
 
 const STAGE_GROUPS = [
@@ -79,15 +80,21 @@ async function readCounts(call, metadata) {
 }
 
 function createPropertyStagesLoader({ env = process.env, envPath = path.resolve(__dirname, '../../.env'),
-  fetchImpl = globalThis.fetch, now = () => new Date(), scheduleRequest, waitRetry, timeoutMs, batcher, metadataCache, propertyType = 'Բնակարան' } = {}) {
+  fetchImpl = globalThis.fetch, now = () => new Date(), scheduleRequest, waitRetry, timeoutMs, batcher, metadataCache, propertyType = 'Բնակարան', expo = false } = {}) {
   const sources = new Map();
-  return async ({ refresh = false } = {}) => {
+  return async ({ refresh = false, expoSummary } = {}) => {
     let config;
     try { config = loadConfig({ env, envPath }); }
     catch { return { status: 500, body: { error: 'CONFIGURATION_ERROR' } }; }
     const key = config.webhookUrl;
     if (!sources.has(key)) sources.set(key, {});
     const state = sources.get(key);
+    const snapshotId = expoSummary?.snapshotId;
+    while (state.pending && state.snapshotId !== snapshotId) await state.pending;
+    if (state.snapshotId !== snapshotId) {
+      state.body = null;
+      state.snapshotId = snapshotId;
+    }
     if (state.pending) return structuredClone(await state.pending);
     if (!refresh && state.body && now().getTime() - state.at < TTL) return { status: 200, body: structuredClone(state.body) };
     state.body = null;
@@ -99,7 +106,7 @@ function createPropertyStagesLoader({ env = process.env, envPath = path.resolve(
           state.metadata = await readMetadata(call, propertyType);
           state.metadataAt = now().getTime();
         }
-        const body = await readCounts(call, state.metadata);
+        const body = await (expo ? readExpoStageCounts(call, state.metadata, STAGE_GROUPS, expoSummary) : readCounts(call, state.metadata));
         body.updatedAt = now().toISOString();
         state.body = body; state.at = now().getTime();
         return { status: 200, body };

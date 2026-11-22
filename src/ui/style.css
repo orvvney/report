@@ -100,6 +100,7 @@ body { margin: 0; background: var(--page-bg); color: var(--ink); }
 .report-header-row { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 20px; width: calc(100% - 50px); margin-inline: auto; }
 .report-logo { display: block; width: 102px; height: 102px; object-fit: contain; object-position: left center; }
 .report-brand { display: flex; align-items: center; gap: 12px; min-width: 0; text-align: left; }
+.report-brand:focus-visible { outline: 2px solid white; outline-offset: 2px; }
 .report-brand-name { color: white; font-family: Georgia, serif; font-size: 18px; font-weight: 400; letter-spacing: .06em; line-height: 1.35; }
 .report-header-copy { min-width: 0; }
 .report-header p, .report-header h1 { padding: 0 12px; overflow-wrap: anywhere; }
@@ -400,7 +401,7 @@ dialog::backdrop { background: rgb(29 40 62 / 45%); }
 .expo-panel [role=alert] { color: var(--danger); }
 .expo-totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
 .expo-totals > div { padding: 20px; border-radius: 12px; background: var(--brand-tint); text-align: center; }
-.expo-totals strong { display: block; font-size: 32px; font-variant-numeric: tabular-nums; }
+.expo-totals strong { display: block; font-size: var(--expo-count-size); font-variant-numeric: tabular-nums; }
 .expo-totals span { display: block; margin-top: 8px; font-size: 13px; }
 .expo-explanation { margin-block: 20px; }
 .expo-panel h3 { margin-block: 24px 12px; font-weight: 600; }
@@ -419,7 +420,7 @@ dialog::backdrop { background: rgb(29 40 62 / 45%); }
 .expo-columns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .expo-column { container-type: inline-size; container-name: expo-column; min-width: 0; padding-inline: 16px; }
 .expo-column + .expo-column { border-left: 1px solid var(--border); padding-left: 16px; }
-.expo-column .expo-column-title { display: grid; align-items: center; min-height: 54px; margin: 0 0 20px; font-size: 18px; text-align: center; }
+.expo-column .expo-column-title { display: grid; align-items: center; min-height: 54px; margin: 0 0 20px; font-size: var(--expo-heading-size); text-align: center; }
 @media (max-width: 900px) {
   .expo-columns { grid-template-columns: minmax(0, 1fr); }
   .expo-column { border-left: 0; padding: 0 0 24px; }
@@ -437,7 +438,7 @@ dialog::backdrop { background: rgb(29 40 62 / 45%); }
 .header-tooltip-anchor { position: relative; display: inline-flex; }
 .header-tooltip { position: absolute; top: calc(100% + 8px); right: 0; z-index: 30; width: max-content; max-width: min(280px, calc(100vw - 32px)); padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--ink); box-shadow: var(--card-shadow); font-size: 12px; line-height: 1.5; font-weight: 400; text-align: left; pointer-events: none; }
 
-.expo-column-heading { display: flex; align-items: flex-end; justify-content: center; min-height: 54px; margin-bottom: 24px; }
+.expo-column-heading { display: flex; align-items: flex-end; justify-content: center; min-height: 54px; margin-bottom: var(--expo-heading-card-gap); }
 .expo-column-heading .filter-title { min-width: 0; max-width: calc(100% - 40px); }
 .expo-column-heading .expo-column-title { min-width: 0; min-height: 0; margin: 0; overflow-wrap: anywhere; }
 .expo-column-heading .filter-help { position: absolute; left: calc(100% + 6px); top: 50%; transform: translateY(-50%); flex-shrink: 0; }
@@ -590,7 +591,10 @@ dialog::backdrop { background: rgb(29 40 62 / 45%); }
   .expo-column { display: block; grid-row: auto; }
 }
 
-.expo-section { display: flow-root; }
+.expo-section {
+  display: flow-root; --expo-heading-card-gap: 24px;
+  --expo-heading-size: 14px; --expo-count-size: clamp(20px, 3vw, 36px);
+}
 
 .property-report { margin-top: var(--section-gap); }
 .property-stages {
@@ -623,7 +627,9 @@ dialog::backdrop { background: rgb(29 40 62 / 45%); }
   padding-bottom: max(0px, calc(var(--stage-bottom-inset, 13px) - 1px));
 }
 .property-stages article {
-  display: grid; align-content: space-between; justify-items: center; gap: 4px; text-align: center;
+  --stage-card-gap: 4px;
+  position: relative;
+  display: grid; align-content: space-between; justify-items: center; gap: var(--stage-card-gap); text-align: center;
   container-type: inline-size;
   min-width: 0; min-height: 64px; padding: 6px 3px; border: 1px solid var(--border); border-radius: 8px;
 }
@@ -712,4 +718,81 @@ dialog::backdrop { background: rgb(29 40 62 / 45%); }
 @media (max-width: 639px) {
   .parking-filters .filter-first-row { grid-template-columns: minmax(0, 1fr); }
   .parking-filters .filter-first-row > fieldset { grid-column: 1; }
+}
+
+.expo-stages { margin-bottom: 16px; --stage-color: #768395; }
+.expo-stages .property-stages h3 {
+  justify-self: stretch; justify-content: flex-start; max-width: 100%;
+  text-align: start; white-space: normal; font-size: 14px;
+}
+.expo-stages .property-stages h3 { position: relative; }
+.expo-stages .property-stages h3::before {
+  position: absolute; inset-inline-end: calc(100% + 4px); width: 0.6em; transform: none;
+}
+.expo-stage-distribution { margin: 8px 0 0; }
+.expo-stage-distribution .property-stage-track { margin-top: 4px; }
+.expo-stage-comparison-row { margin-top: 12px; }
+.expo-stage-comparison-row article {
+  --stage-card-gap: 17.5px;
+  align-self: start;
+  min-height: 0;
+  justify-items: start;
+  padding-block: calc(var(--stage-card-gap) - 1px);
+  padding-inline: var(--report-period-inset) 3px;
+}
+.property-stage-card-stripe {
+  position: absolute; inset: 0 0 auto; height: 4px;
+  background: var(--stage-color); border-radius: 7px 7px 0 0;
+}
+
+.expo-stage-values {
+  display: flex; align-items: baseline; gap: clamp(4px, 5cqi, 12px);
+  width: 100%; white-space: nowrap;
+}
+.expo-stage-values .expo-stage-result { font-size: var(--expo-count-size); line-height: 1; }
+.expo-stage-baseline { font-size: 12px; font-weight: 500; color: var(--muted); }
+.expo-stage-value-label { color: var(--muted); font-size: 12px; }
+.expo-stage-delta {
+  display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px;
+  border-radius: 999px; background: #eef0f2; color: var(--ink);
+  font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums;
+}
+.expo-stage-delta svg { flex: 0 0 auto; }
+.expo-stage-share { justify-self: stretch; margin-inline-end: calc(var(--report-period-inset) - 3px); text-align: start; }
+.expo-stage-share-row { display: flex; align-items: center; gap: 4px; margin-top: 4px; }
+.expo-stage-share-track { position: relative; flex: 1; height: 8px; border-radius: 4px; background: #eef0f2; }
+.expo-stage-share-percent { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.expo-stages-header .property-stages-total { white-space: nowrap; }
+.expo-total-values { display: inline-flex; align-items: center; gap: 4px; vertical-align: middle; }
+.expo-stage-share-fill { display: block; height: 100%; border-radius: inherit; background: var(--stage-color); }
+.expo-stage-share-marker {
+  position: absolute; top: -4px; width: 2px; height: 16px;
+  transform: translateX(-50%); border-radius: 1px; background: var(--ink);
+}
+.expo-stage-share-tooltip {
+  display: none; top: calc(100% + 6px); width: max-content;
+  max-width: calc(100vw - 40px);
+}
+.expo-stage-comparison-row article:last-child .expo-stage-share-tooltip { inset-inline: auto 0; }
+.expo-stage-share-track:hover .expo-stage-share-tooltip,
+.expo-stage-share-track:focus-visible .expo-stage-share-tooltip { display: block; }
+.expo-stages .expo-stages-header h2 { font-size: var(--expo-heading-size); }
+
+@media (max-width: 639px) {
+  .expo-stages .property-stages-row { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: auto; }
+  .expo-stage-comparison-row article {
+    align-self: stretch;
+    grid-template-rows: auto auto auto 1fr;
+    padding-inline-start: calc(var(--report-period-inset) + 4px);
+  }
+  .expo-stage-comparison-row .expo-stage-share { align-self: end; }
+  .expo-stages .expo-stage-comparison-row article:nth-child(n + 3) h3 {
+    min-block-size: 2lh;
+  }
+  .expo-stage-comparison-row article:nth-child(even) .expo-stage-share-tooltip { inset-inline: auto 0; }
+  .expo-column .expo-column-title { font-weight: 600; }
+  .expo-records-title { font-size: var(--expo-heading-size); }
+  .expo-stages-header .property-stages-total { font-size: var(--expo-heading-size); }
+  .expo-stages-header .property-stages-total strong { font-weight: inherit; }
+  .expo-stages-header h2 img { display: none; }
 }
