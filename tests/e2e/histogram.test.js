@@ -284,6 +284,7 @@ test.each([1440, 375])('count mode shares KPI totals and changes, shows 12 month
   expect(await histogram().locator('.histogram-kpi').innerText()).not.toMatch(/Ընտրված՝|Համեմատություն՝/);
   const selectedRange = await legend.locator('span').first().innerText();
   const compareToggle = histogram().getByRole('checkbox', { name: 'Ցուցադրել համեմատական հիստոգրամը', exact: true });
+  expect(await compareToggle.evaluate(element => getComputedStyle(element, '::before').transitionDuration)).toBe('0.15s');
   await compareToggle.check();
   expect(await histogram().getByTestId('histogram-kpi-change').evaluate(el => getComputedStyle(el).justifyContent)).toBe('center');
   expect(await histogram().getByTestId('bar-amount').first().evaluate(el => getComputedStyle(el).fontSize)).toBe('12px');
@@ -320,6 +321,14 @@ test.each([1440, 375])('count mode shares KPI totals and changes, shows 12 month
   expect(await histogram().getByTestId('bar-amount').allTextContents()).toEqual(['2', '1', ...Array(10).fill('0')]);
   expect(await histogram().getByTestId('y-tick').allTextContents()).toEqual(['0', '1', '2', '3', '4']);
   const january = histogram().getByRole('button', { name: 'Հունվար · 2 բնակարան · 126 ֏', exact: true });
+  const januaryBar = january.locator('rect');
+  await januaryBar.hover();
+  expect(await januaryBar.evaluate(async element => {
+    await Promise.all(element.getAnimations().map(animation => animation.finished));
+    const { filter, transitionDuration } = getComputedStyle(element);
+    return { filter, transitionDuration };
+  })).toEqual({ filter: 'brightness(0.9)', transitionDuration: '0.15s' });
+  expect(await histogram().getByRole('tooltip').evaluate(element => getComputedStyle(element).transitionDuration)).toBe('0.15s');
   await page.mouse.move(0, 0);
   await january.focus();
   expect(await histogram().getByRole('tooltip').innerText()).toBe('Հունվար · 2 բնակարան · 126 ֏');
@@ -399,6 +408,9 @@ test.each([1440, 375])('comparison checkbox shows paired KPI-period histograms i
   const requests = fixture.state.httpRequests.length;
   const originalTicks = await histogram().getByTestId('y-tick').allTextContents();
   await checkbox.check();
+  const comparison = histogram().locator('.comparison-column, .histogram-previous-period');
+  expect(await comparison.evaluateAll(elements => elements.map(element => getComputedStyle(element).transitionDuration)))
+    .toEqual(Array(13).fill('0.15s'));
   expect(await histogram().getByTestId('y-tick').allTextContents()).not.toEqual(originalTicks);
   expect(await histogram().getByTestId('y-tick').allTextContents()).toContain('100 մլն');
   expect(await histogram().getByLabel('Համեմատվող ժամանակահատվածներ', { exact: true }).innerText()).toContain('2025');

@@ -145,7 +145,7 @@ test.each([1440, 1920, 1024, 375, 320])('filter layout reflows without scrolling
     }));
     inputBoxes.forEach((box) => expectEqualPixels(box.height, buttons[0].height));
 
-    const controlsFit = await filterPanel().locator('fieldset input:visible, fieldset button, fieldset legend, fieldset select').evaluateAll((elements) => elements.every((el) => {
+    const controlsFit = await filterPanel().locator('fieldset input:visible, fieldset button:visible, fieldset legend, fieldset select:visible').evaluateAll((elements) => elements.every((el) => {
       const box = el.getBoundingClientRect(), parent = el.closest('fieldset').getBoundingClientRect();
       return box.x >= parent.x - 1 && box.right <= parent.right + 1 && box.top >= parent.top && box.bottom <= parent.bottom + 1;
     }));
@@ -204,7 +204,7 @@ test.each([1440, 375])('filter hints stay inside empty controls and preserve par
       expect(await control.evaluate((el) => el.matches(':placeholder-shown'))).toBe(shown);
       return;
     }
-    const hint = control.locator('..').locator('[aria-hidden="true"]');
+    const hint = control.locator('..').locator('.date-placeholder');
     expect(await hint.count()).toBe(shown ? 1 : 0);
     expect(await nativeDateOpacity(side)).toBe(shown ? '0' : '1');
     if (shown) {
@@ -261,7 +261,8 @@ test.each([1440, 375])('filter hints stay inside empty controls and preserve par
 
 test('room buttons retain their size and distinguish selected and unselected colors', async () => {
   await baseFilters();
-  const appearance = () => room(1).evaluate((el) => {
+  const appearance = () => room(1).evaluate(async el => {
+    await Promise.all(el.getAnimations().map(animation => animation.finished));
     const style = getComputedStyle(el), box = el.getBoundingClientRect();
     return { background: style.backgroundColor, border: style.borderTopColor, color: style.color,
       fontSize: style.fontSize, width: box.width, height: box.height };
@@ -464,9 +465,14 @@ test.each([1440, 375])('filter panel shows only a centered notice on load/failur
     expect(await panel.getByRole('group').count()).toBe(0);
     expect(await panel.getByRole('button').count()).toBe(0);
     expect(await panel.getByRole('alert').count()).toBe(0);
-    const panelBox = await panel.boundingBox(), noticeBox = await notice.boundingBox();
-    expect(Math.abs(noticeBox.x + noticeBox.width / 2 - panelBox.x - panelBox.width / 2)).toBeLessThan(1);
-    expect(Math.abs(noticeBox.y + noticeBox.height / 2 - panelBox.y - panelBox.height / 2)).toBeLessThan(1);
+    const [horizontalOffset, verticalOffset] = await notice.evaluate(element => {
+      const box = element.getBoundingClientRect();
+      const panel = element.closest('form').getBoundingClientRect();
+      return [Math.abs(box.x + box.width / 2 - panel.x - panel.width / 2),
+        Math.abs(box.y + box.height / 2 - panel.y - panel.height / 2)];
+    });
+    expect(horizontalOffset).toBeLessThan(1);
+    expect(verticalOffset).toBeLessThan(1);
     expect(await notice.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
   }
   fixture.state.gate = new Promise((resolve) => { release = resolve; });
@@ -533,15 +539,29 @@ test.each([1440, 375])('filters precede charts with reset and without panel scro
   expect(await input('amount', 'max').evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('none');
   await panel.locator('fieldset').filter({ has: input('amount', 'min') }).evaluate((el) => el.scrollIntoView({ block: 'nearest', inline: 'center' }));
   await page.screenshot({ path: `test-results/filters-error-${width}.png`, fullPage: true });
-  await input('date', 'min').focus();
-  await input('date', 'min').evaluate((el) => el.showPicker());
+  const calendarTrigger = page.getByRole('button', { name: 'Օրացույց՝ Սկսած', exact: true });
+  const calendar = page.getByRole('dialog', { name: 'Օրացույց՝ Սկսած', exact: true });
+  await calendarTrigger.click();
+  await calendar.waitFor();
+  expect(await calendar.getByText('Նոյեմբեր 2026', { exact: true }).isVisible()).toBe(true);
+  expect(await calendar.evaluate(element => getComputedStyle(element).transitionDuration)).toBe('0.15s');
+  const calendarBox = await calendar.boundingBox();
+  expect(calendarBox.x).toBeGreaterThanOrEqual(0);
+  expect(calendarBox.x + calendarBox.width).toBeLessThanOrEqual(width);
   await page.screenshot({ path: `test-results/filters-date-control-${width}.png`, fullPage: true });
   await page.keyboard.press('Escape');
+  await calendar.waitFor({ state: 'hidden' });
   await input('date', 'min').fill('2026-06-15');
-  await input('date', 'min').evaluate((el) => el.showPicker());
+  await calendarTrigger.click();
+  const selectedDay = calendar.locator('button[aria-pressed="true"]');
+  await page.waitForFunction(() => document.activeElement?.matches('.date-picker-days [data-current-day]'));
+  expect(await selectedDay.innerText()).toBe('15');
   await page.keyboard.press('ArrowRight');
   await page.keyboard.press('Enter');
   expect(await input('date', 'min').inputValue()).toBe('2026-06-16');
+  await calendarTrigger.click();
+  await calendar.getByRole('button', { name: 'Մաքրել', exact: true }).click();
+  expect(await input('date', 'min').inputValue()).toBe('');
   await input('amount', 'max').focus();
   // Statistics follows the filters and precedes the chart modes.
   const statStops = page.locator('.statistics-heading .filter-help, .statistics-trigger, .statistics-body [tabindex="0"]');

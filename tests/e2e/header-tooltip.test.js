@@ -9,10 +9,12 @@ test.each([
 ])('shows %s tooltip at 400ms for hover and focus and cancels it on exit', async (label, id) => {
   const button = page.getByRole('button', { name: label, exact: true });
   expect(await button.getAttribute('title')).toBeNull();
+  expect(await button.evaluate(el => getComputedStyle(el).transitionDuration)).toBe('0.15s, 0.15s, 0.15s');
   await button.hover(); await page.clock.runFor(399);
   expect(await page.locator(`#${id}`).count()).toBe(0);
   await page.clock.runFor(1);
   expect(await page.getByRole('tooltip', { name: label, exact: true }).isVisible()).toBe(true);
+  expect(await page.locator(`#${id}`).evaluate(el => getComputedStyle(el).transitionDuration)).toBe('0.15s');
   expect(await button.getAttribute('aria-describedby')).toBe(id);
   await page.mouse.move(0, 300);
   expect(await page.locator(`#${id}`).count()).toBe(0);
@@ -30,4 +32,5 @@ test('hides the menu tooltip when opening the menu', async () => {
   await menu.hover(); await page.clock.runFor(400); await menu.click();
   expect(await page.getByRole('tooltip').count()).toBe(0);
   expect(await page.getByRole('menu').isVisible()).toBe(true);
+  expect(await page.getByRole('menu').evaluate(el => getComputedStyle(el).transitionDuration)).toBe('0.15s');
 });

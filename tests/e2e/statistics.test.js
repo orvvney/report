@@ -13,11 +13,39 @@ expect(boxes[0].height).toBe(258);expect(boxes[1].height).toBe(258);
 await page.screenshot({path:'test-results/statistics-wide.png',fullPage:true});
 expect(await panel.getByRole('button',{name:'Ըստ սենյակի',exact:true}).isVisible()).toBe(true);await panel.getByRole('button',{name:'Ըստ սենյակի',exact:true}).hover();const popup=page.getByRole('dialog',{name:'Վիճակագրության խմբավորում'});await popup.getByRole('button',{name:'Համալիր',exact:true}).click();expect(await panel.locator('.statistics-legend').innerText()).toContain('75%');expect(await popup.isVisible()).toBe(false);await page.getByRole('form',{name:'Զտիչներ',exact:true}).getByRole('button',{name:'Հիլլս',exact:true}).click();await expectValue('3');expect(await panel.locator('.statistics-legend').innerText()).toContain('100%');expect(requests).toBe(1);for(const width of [1920,1024,375]){await page.setViewportSize({width,height:1200});await page.waitForTimeout(100);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);}await page.getByRole('button',{name:'Վերականգնել',exact:true}).click();await expectValue('4');expect(await panel.getByRole('button',{name:'Ըստ սենյակի',exact:true}).isVisible()).toBe(true);await page.screenshot({path:'test-results/statistics-narrow.png',fullPage:true});async function expectValue(v){await page.waitForFunction(value=>document.querySelector('[data-testid=statistics-count]')?.textContent===value,v);}});
 
+test.each(['', '#parking'])('statistics grouping options darken on hover in %s', async hash => {
+ await page.goto(`${url}/${hash}`);
+ await page.getByTestId('statistics-count').waitFor();
+ await page.locator('.statistics-trigger').hover();
+ const popup = page.getByRole('dialog', { name: 'Վիճակագրության խմբավորում' });
+ const idle = popup.locator('button[aria-pressed="false"]').first();
+ const selected = popup.locator('button[aria-pressed="true"]');
+ for (const option of [idle, selected]) {
+  const before = await option.evaluate(element => getComputedStyle(element).backgroundColor);
+  await option.hover();
+  const after = await option.evaluate(async element => {
+   await Promise.all(element.getAnimations().map(animation => animation.finished));
+   const { backgroundColor, transitionDuration } = getComputedStyle(element);
+   return { backgroundColor, transitionDuration };
+  });
+  expect(after.backgroundColor).not.toBe(before);
+  expect(after.transitionDuration).toBe('0.15s');
+ }
+});
+
 test('all grouping options, calendar mapping and keyboard tooltip work locally',async()=>{
  await page.goto(url);await page.getByTestId('statistics-count').waitFor();
  const panel=page.getByRole('region',{name:'Վիճակագրություն',exact:true});
  const button=()=>panel.locator('.statistics-trigger');
  const popup=page.getByRole('dialog',{name:'Վիճակագրության խմբավորում'});
+ await button().hover();
+ expect(await popup.evaluate(element=>getComputedStyle(element).transitionDuration)).toBe('0.15s');
+ expect(await button().evaluate(async element=>{
+  await Promise.all(element.getAnimations().map(animation=>animation.finished));
+  const { opacity, transitionDuration }=getComputedStyle(element);
+  return { opacity, transitionDuration };
+ })).toEqual({opacity:'0.7',transitionDuration:'0.15s'});
+ await page.keyboard.press('Escape');
  for(const [label,expected] of [['Համալիր','75%'],['Սենյակ','50%'],['Մակերես','20–30'],['Բն. Արժեք','30 մլն–40 մլն']]){
   await button().focus();await page.keyboard.press('Enter');await popup.waitFor();
   expect(await popup.getByRole('button').count()).toBe(5);
@@ -114,6 +142,8 @@ test('legend headings, compact cards and shared hover and keyboard highlighting'
  const slice=panel.locator('svg g').first();const key=await slice.getAttribute('data-key');
  const row=table.locator(`[data-key="${key}"]`);
  await slice.hover();
+ expect(await slice.evaluate(element=>getComputedStyle(element).transitionDuration)).toBe('0.15s');
+ expect(await row.evaluate(element=>getComputedStyle(element).transitionDuration)).toBe('0.15s');
  expect(await slice.getAttribute('class')).toContain('is-active');expect(await row.getAttribute('class')).toContain('is-active');
  expect(await slice.evaluate(e=>getComputedStyle(e).outlineStyle)).toBe('none');
  await panel.getByRole('heading',{level:2}).hover();expect(await row.getAttribute('class')).not.toContain('is-active');
@@ -227,6 +257,7 @@ test.each([1440,1920])('four largest intervals, expandable Other and equal legen
   expect(await table.evaluate(e=>e.scrollHeight>e.clientHeight)).toBe(true);
   await expectLegendSpacing(panel,true);
   const child=table.locator('.statistics-other-child').first();const key=await child.getAttribute('data-key');
+  expect(await child.evaluate(element=>getComputedStyle(element).transitionDuration)).toBe('0.15s, 0.15s');
   await child.hover();expect(await panel.locator(`svg g[data-key="${key}"]`).getAttribute('class')).toContain('is-active');
   expect(await panel.getByTestId('statistics-count').innerText()).toBe('37');expect(await panel.getByTestId('statistics-amount').innerText()).toBe(amount);
   await other.focus();await page.keyboard.press('Space');

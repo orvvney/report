@@ -112,7 +112,7 @@ button:disabled { cursor: wait; }
 dialog::backdrop { background: rgb(29 40 62 / 45%); }
 .refresh-button { display: grid; place-items: center; margin-left: auto; max-width: 100%; min-height: 40px; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-button); background: white; font-size: 14px; line-height: 20px; font-weight: 500; }
 .refresh-button { color: var(--ink); background: white; border-color: white; }
-.refresh-button:hover { background: var(--brand-strong); border-color: var(--brand-strong); color: white; }
+.refresh-button:hover, .property-menu-trigger:hover { background: var(--brand-strong); border-color: var(--brand-strong); color: white; }
 .report-header .refresh-button { font-weight: 400; }
 .refresh-button:disabled { opacity: .5; }
 .report-header:not(.header-wide) .report-header-row { grid-template-columns: minmax(0, 1fr); gap: 12px; }
@@ -160,8 +160,34 @@ dialog::backdrop { background: rgb(29 40 62 / 45%); }
 .range-inputs input, .date-filter select { width: 100%; min-width: 0; height: var(--filter-control-size); padding: 4px var(--filter-input-inset); border: 1px solid var(--control-border); border-radius: var(--radius-button); background: white; font: inherit; font-size: 12px; }
 .range-inputs input:focus, .date-filter select:focus { outline: none; }
 .range-inputs input::placeholder { color: var(--muted); opacity: 1; }
-/* Native date inputs ignore placeholder. Preserve the picker and keyboard editing. */
+/* Native date inputs ignore placeholder. */
 .date-empty::-webkit-datetime-edit { opacity: 0; }
+.range-with-date-picker input { padding-right: 32px; }
+.range-with-date-picker input::-webkit-calendar-picker-indicator { display: none; }
+.date-picker-trigger {
+  position: absolute; inset: 0 5px 0 auto; display: grid; place-items: center;
+  width: 27px; color: var(--ink);
+}
+.date-picker-popup {
+  position: fixed; inset: auto; position-area: bottom span-right;
+  position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline;
+  margin: 4px; width: min(288px, calc(100vw - 16px)); max-height: calc(100dvh - 16px);
+  overflow: auto; padding: 10px; border: 1px solid var(--control-border);
+  border-radius: 12px; background: var(--surface); color: var(--ink); box-shadow: var(--card-shadow);
+  font-size: 12px;
+}
+@supports not (position-area: bottom span-right) {
+  .date-picker-popup { inset: 0; margin: auto; height: max-content; }
+}
+.date-picker-header { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+.date-picker-header button { padding: 5px 8px; }
+.date-picker-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; margin-block: 6px; text-align: center; }
+.date-picker-days span { color: var(--muted); }
+.date-picker-days button { min-height: 28px; border-radius: 6px; }
+.date-picker-days button[aria-current="date"] { box-shadow: inset 0 0 0 1px var(--brand-strong); }
+.date-picker-popup button:hover { background: var(--brand-tint); }
+.date-picker-days button[aria-pressed="true"] { background: var(--brand-strong); color: white; }
+.date-picker-popup button:focus-visible, .date-picker-trigger:focus-visible { outline: 2px solid var(--brand-strong); outline-offset: -2px; }
 .date-placeholder { position: absolute; left: calc(var(--filter-input-inset) + 1px); top: 0; height: var(--filter-control-size); display: flex; align-items: center; font-size: 12px; color: var(--muted); pointer-events: none; }
 .range-inputs input:disabled ~ .date-placeholder { opacity: .5; }
 .range-inputs input[aria-invalid="true"] { border-color: var(--danger); }
@@ -177,6 +203,8 @@ dialog::backdrop { background: rgb(29 40 62 / 45%); }
 .custom-period { margin-top: 8px; }
 
 .filter-heading button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+:is(.filter-reset-button, .complex-buttons button, .room-buttons button, .date-filter button):enabled:hover { opacity: 0.7; }
+.filter-panel button:enabled:active { opacity: 0.4; }
 .filter-title { position: relative; display: flex; align-items: center; gap: 6px; }
 .filter-help, .filter-heading .filter-help { display: inline-flex; align-items: center; justify-content: center; width: 14.4px; height: 14.4px; padding: 0; border: 1px solid var(--control-border); border-radius: 50%; background: white; color: var(--muted); font-size: 9.6px; font-weight: 600; }
 .filter-help-tooltip { position: absolute; top: 100%; left: 0; z-index: 10; width: min(224px, calc(100vw - 96px)); padding: 8px 9.6px; border-radius: 6.4px; background: var(--ink); color: white; box-shadow: 0 4px 16px #1d283e26; font-size: 12px; line-height: 1.6; font-weight: 400; }
@@ -185,6 +213,37 @@ dialog::backdrop { background: rgb(29 40 62 / 45%); }
 .filter-heading .reset-icon { --report-icon-size: 16px; }
 .period-select { position: relative; }
 .date-filter select { appearance: none; padding-right: calc(var(--filter-input-inset) * 2 + 10px); }
+@supports (appearance: base-select) and selector(::picker(select)) {
+  .filter-panel .date-filter select,
+  .filter-panel .date-filter select::picker(select) { appearance: base-select; }
+  .filter-panel .date-filter select { display: flex; align-items: center; }
+  .filter-panel .date-filter select::picker-icon { display: none; }
+  .filter-panel .date-filter select::picker(select) {
+    padding: var(--filter-input-inset) 0;
+    border: 1px solid var(--control-border);
+    border-radius: var(--radius-button);
+    background: var(--surface);
+    color: var(--ink);
+    font: inherit;
+  }
+  .filter-panel .date-filter select option {
+    align-items: center;
+    padding-left: var(--filter-input-inset);
+  }
+  .filter-panel .date-filter select option::checkmark { display: none; }
+  .filter-panel .date-filter select option:checked {
+    background-color: color-mix(in srgb, var(--surface), var(--ink) 8%);
+  }
+  .filter-panel .date-filter select option:enabled:hover { opacity: 0.7; }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .filter-panel .date-filter select:open::picker(select) {
+      transition: opacity 0.15s ease;
+      @starting-style { opacity: 0; }
+    }
+    .filter-panel .date-filter select option { transition: opacity 0.15s ease; }
+  }
+}
 .select-arrow { position: absolute; top: 50%; right: calc(var(--filter-input-inset) + 1px); width: 10px; height: 6px; transform: translateY(-50%); background: var(--ink); clip-path: polygon(0 0, 50% 65%, 100% 0, 100% 35%, 50% 100%, 0 35%); pointer-events: none; }
 
 .period-details { display: grid; gap: 8px; margin-top: 8px; }
@@ -302,6 +361,26 @@ dialog::backdrop { background: rgb(29 40 62 / 45%); }
 .statistics-trigger { margin-left: auto; position: relative; width: 136.05px; min-width: 0; flex: 0 0 136.05px; white-space: nowrap; padding-inline: 10px 26px !important; }
 .statistics-trigger::after { content: ''; position: absolute; right: 10px; top: calc(50% - 4px); width: 6px; height: 6px; border-right: 1px solid currentColor; border-bottom: 1px solid currentColor; transform: rotate(45deg); pointer-events: none; }
 .statistics-trigger[aria-expanded=true]::after { top: calc(50% - 1px); transform: rotate(225deg); }
+:is(.statistics-trigger, .histogram-modes button, .deals-list-pagination button):enabled:hover { opacity: 0.7; }
+:is(.histogram-modes button, .deals-list-pagination button):enabled:active { opacity: 0.4; }
+.histogram-comparison-toggle input {
+  appearance: none; display: grid; flex-shrink: 0; place-items: center;
+  border: 1px solid var(--control-border); border-radius: 3px; background: var(--surface);
+}
+.histogram-comparison-toggle input:checked {
+  background: var(--brand-strong); border-color: var(--brand-strong);
+}
+.histogram-comparison-toggle input::before {
+  content: ""; width: 9px; height: 7px; background: white; opacity: 0;
+  clip-path: polygon(0 43%, 13% 28%, 38% 60%, 86% 0, 100% 16%, 38% 100%);
+}
+.histogram-comparison-toggle input:checked::before { opacity: 1; }
+.histogram-comparison-toggle input:disabled { opacity: 0.5; }
+@media (forced-colors: active) {
+  .histogram-comparison-toggle input { appearance: auto; }
+  .histogram-comparison-toggle input::before { content: none; }
+}
+:is(.chart-column, .comparison-column) rect:hover, .expo-comparison-bar:is(:hover, :focus-visible) { filter: brightness(0.9); }
 .statistics-body { --statistics-legend-gap: calc(10px + var(--statistics-content-height, 168px) / 20); display: grid; grid-template-columns: max-content var(--statistics-content-height, 168px) minmax(0,1fr); gap: 10px; padding: 0 16px; height: var(--statistics-content-height, 176px); margin-top: var(--statistics-content-gap, 8px); align-items: center; font-size: 12px; }
 .statistics-totals { display: grid; gap: 8px; height: 100%; grid-template-rows: 1fr 1fr; }
 .statistics-totals article { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 8px; display: flex; flex-direction: column; justify-content: center; overflow-wrap: anywhere; text-align: center; }
@@ -314,12 +393,15 @@ dialog::backdrop { background: rgb(29 40 62 / 45%); }
 .statistics-pie [role=tooltip] { bottom: 0; left: 50%; transform: translateX(-50%); width: max-content; max-width: min(250px, calc(100vw - 32px)); margin: 0; text-align: center; overflow-wrap: anywhere; pointer-events: none; }
 .statistics-pie svg { width: 100%; height: 100%; display: block; }
 .statistics-pie svg, .statistics-pie g { outline: none; }
+.statistics-pie g { stroke: var(--ink); stroke-width: 0; }
 .statistics-pie g.is-active { stroke: var(--ink); stroke-width: 2; }
 .statistics-status { display: grid; place-items: center; padding: 24px; min-height: 170px; text-align: center; font-size: 13px; }
 .statistics-popup { width: 240px; display: none; }
 .statistics-popup:popover-open { display: grid; gap: 4px; }
 .statistics-popup button { padding: 8px; text-align: left; font-size: 12px; }
 .statistics-popup button[aria-pressed=true] { background: var(--brand-strong); color: white; }
+.statistics-popup button:hover { background: color-mix(in srgb, var(--surface), var(--ink) 8%); }
+.statistics-popup button[aria-pressed=true]:hover { background: color-mix(in srgb, var(--brand-strong), var(--ink) 12%); }
 
 .statistics-legend { display: grid; grid-template-columns: minmax(0,1fr) max-content max-content; align-content: start; gap: 0 10px; max-height: var(--statistics-content-height, 184px); overflow-y: auto; min-width: 0; }
 .statistics-intervals .statistics-legend { padding-right: calc(var(--statistics-legend-gap) - 2px); scrollbar-gutter: stable; }
@@ -373,6 +455,7 @@ dialog::backdrop { background: rgb(29 40 62 / 45%); }
 
 .header-actions { display: flex; justify-self: end; align-items: center; gap: 8px; }
 .header-icon-button { display: grid; place-items: center; width: 40px; height: 40px; min-width: 40px; padding: 0; border: 1px solid var(--border); border-radius: var(--radius-button); background: white; color: var(--ink); }
+.header-icon-button { transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease; }
 .header-actions .refresh-button { margin: 0; padding: 0; }
 .property-menu-trigger { anchor-name: --property-menu-trigger; }
 .property-menu { position: fixed; position-anchor: --property-menu-trigger; inset: auto; top: anchor(bottom); right: anchor(right); margin: 8px 0 0; padding: 6px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--ink); box-shadow: var(--card-shadow); }
@@ -697,8 +780,40 @@ dialog::backdrop { background: rgb(29 40 62 / 45%); }
   .property-stage-panels-floating .property-stages-row { column-gap: 12px; }
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  .header-tooltip, .filter-help + .filter-help-tooltip,
+  .property-stage-segment-tooltip, .property-menu:popover-open,
+  .filter-panel .month-popup:popover-open, .statistics-popup:popover-open, .date-picker-popup:popover-open,
+  .statistics-pie [role=tooltip], .statistics-other-child,
+  .histogram-tooltip, .expo-comparison-tooltip, .expo-stage-share-tooltip {
+    transition: opacity 0.15s ease;
+    @starting-style { opacity: 0; }
+  }
+  .filter-panel button {
+    transition: opacity 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  }
+  .statistics-pie g { transition: stroke-width 0.15s ease; }
+  .statistics-popup button { transition: background-color 0.15s ease; }
+  .statistics-legend > [data-key] { transition: background-color 0.15s ease; }
+  .statistics-legend > .statistics-other-child {
+    transition: background-color 0.15s ease, opacity 0.15s ease;
+  }
+  :is(.statistics-trigger, .deals-list-pagination button) { transition: opacity 0.15s ease; }
+  .histogram-modes button {
+    transition: opacity 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .histogram-comparison-toggle input { transition: background-color 0.15s ease, border-color 0.15s ease; }
+  .histogram-comparison-toggle input::before { transition: opacity 0.15s ease; }
+  :is(.chart-column, .comparison-column) rect, .expo-comparison-bar { transition: filter 0.15s ease; }
+  :is(.deals-list-content, .expo-records-content) {
+    transition: opacity 0.15s ease, display 0.15s allow-discrete;
+    @starting-style { opacity: 0; }
+  }
+  :is(.deals-list-content, .expo-records-content)[inert] { opacity: 0; }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .property-stage-panels-floating { transition: none; }
+  .property-stage-panels-floating, .header-icon-button { transition: none; }
 }
 
 /* Mirror the statistics cards' 16px inset from the central divider. */

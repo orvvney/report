@@ -14,6 +14,31 @@ beforeEach(async () => {
 });
 afterEach(async () => { release?.(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); });
 
+test.each([
+  ['', '.filter-reset-button'],
+  ['', '.complex-buttons button'],
+  ['', '.room-buttons .all-rooms'],
+  ['', '.room-values button'],
+  ['', '.filter-heading .filter-help'],
+  ['#parking', '.filter-reset-button'],
+  ['#parking', '.complex-buttons button'],
+])('filter button hover and press styling in section %s for %s', async (hash, selector) => {
+  await page.goto(`${url}/${hash}`); await ready();
+  const control = panel().locator(selector).first();
+  const opacityAfterTransition = () => control.evaluate(async element => {
+    await Promise.all(element.getAnimations().map(animation => animation.finished));
+    return getComputedStyle(element).opacity;
+  });
+  await control.hover();
+  expect(await control.evaluate(element => getComputedStyle(element).transitionDuration)).toBe('0.15s, 0.15s, 0.15s, 0.15s');
+  expect(await opacityAfterTransition()).toBe(selector.endsWith('.filter-help') ? '1' : '0.7');
+  await page.mouse.down();
+  expect(await opacityAfterTransition()).toBe('0.4');
+  await page.mouse.move(0, 0);
+  await page.mouse.up();
+  expect(await opacityAfterTransition()).toBe('1');
+});
+
 test.each([320, 1440])('filter help explains the section with mouse and keyboard at %i', async width => {
   await page.setViewportSize({ width, height: 1200 }); await page.goto(url); await ready();
   const help = panel().getByRole('button', { name: 'Զտիչների մասին', exact: true });
@@ -157,6 +182,7 @@ test.each([375, 768, 1024, 1440])('month popup supports hover, keyboard and mult
   const trigger = button('Ամիսներ'), popup = page.getByRole('dialog', { name: 'Ամիսների ընտրություն' });
   const reference = await panel().boundingBox();
   await trigger.hover(); await popup.waitFor();
+  expect(await popup.evaluate(element => getComputedStyle(element).transitionDuration)).toBe('0.15s');
   await button('Հունվար').hover(); expect(await popup.isVisible()).toBe(true);
   await button('Հունվար').click(); expect(await popup.isVisible()).toBe(true);
   const grid = page.getByRole('group', { name: 'Ամիսներ', exact: true });
@@ -220,6 +246,35 @@ test.each([375, 768, 1024, 1189, 1190, 1440])('resizing retains the existing ada
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
+test.each(['', '#parking'])('opens the period list with a 150ms transition in %s', async hash => {
+  await page.goto(`${url}/${hash}`); await ready();
+  await period().click();
+  expect(await period().evaluate(select => ({
+    open: select.matches(':open'),
+    duration: getComputedStyle(select, '::picker(select)').transitionDuration,
+  }))).toEqual({ open: true, duration: '0.15s' });
+  const backgrounds = await period().evaluate(select => ({
+    selected: getComputedStyle(select.selectedOptions[0]).backgroundColor,
+    other: getComputedStyle(select.querySelector('option:not(:checked)')).backgroundColor,
+  }));
+  expect(backgrounds.selected).not.toBe(backgrounds.other);
+  const insets = await period().evaluate(select => {
+    const field = getComputedStyle(select);
+    const picker = getComputedStyle(select, '::picker(select)');
+    const leftInset = style => parseFloat(style.borderLeftWidth) + parseFloat(style.paddingLeft);
+    return {
+      field: leftInset(field),
+      options: [...select.options].map(option => leftInset(picker) + leftInset(getComputedStyle(option))),
+      verticalPadding: [picker.paddingTop, picker.paddingBottom],
+      fieldPadding: field.paddingLeft,
+    };
+  });
+  expect(insets.options).toEqual(insets.options.map(() => insets.field));
+  expect(insets.verticalPadding).toEqual([insets.fieldPadding, insets.fieldPadding]);
+  await page.keyboard.press('Escape');
+  expect(await period().evaluate(select => select.matches(':open'))).toBe(false);
+});
+
 test('touch opens the month popup and keeps the mobile grid usable', async () => {
   const context = await page.context().browser().newContext({ hasTouch: true, viewport: { width: 375, height: 812 } });
   try {
@@ -228,6 +283,7 @@ test('touch opens the month popup and keeps the mobile grid usable', async () =>
     await touch.getByRole('combobox', { name: 'Կնքման ժամանակահատված', exact: true }).selectOption('month');
     await touch.getByRole('button', { name: 'Ամիսներ', exact: true }).tap();
     const popup = touch.getByRole('dialog', { name: 'Ամիսների ընտրություն' }); await popup.waitFor();
+    expect(await popup.evaluate(element => getComputedStyle(element).transitionDuration)).toBe('0.15s');
     await popup.getByRole('button', { name: 'Հունվար', exact: true }).tap();
     expect(await popup.isVisible()).toBe(true);
     expect(await popup.getByRole('button', { name: 'Հունվար', exact: true }).getAttribute('aria-pressed')).toBe('true');

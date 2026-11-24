@@ -5,7 +5,7 @@ import RangeInputs from './RangeInputs.vue';
 import MonthPicker from './MonthPicker.vue';
 const { periods, quickPeriods } = calendar;
 defineProps({ selectedPeriod: String, selectedQuick: String, activeSelection: Object,
-  periodContext: Object, availableMonths: Number, disabled: Boolean, title: String,
+  periodContext: Object, availableMonths: Number, disabled: Boolean, title: String, datePicker: Boolean,
   range: Object, dateRevision: Number, months: Array, idPrefix: { type: String, default: '' } });
 const emit = defineEmits(['period', 'quick', 'year', 'select', 'months', 'edit']);
 const monthPicker = ref(null);
@@ -47,6 +47,7 @@ defineExpose({ close: () => monthPicker.value?.close() });
               </div>
               <div v-show="selectedPeriod === 'custom'" class="custom-period">
                 <RangeInputs :key="dateRevision" kind="date" :title="title" :range="range" :id-prefix="idPrefix"
+                  :date-picker="datePicker" :months="months" :disabled="disabled || selectedPeriod !== 'custom'"
                   @edit="(side, event) => emit('edit', side, event)" />
               </div>
             </fieldset>

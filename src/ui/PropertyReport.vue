@@ -238,11 +238,11 @@ onMounted(() => { refresh(false); });
                 @focus="filterHelpOpen = true" @blur="filterHelpOpen = false" @click="filterHelpOpen = true">!</button>
               <div v-show="filterHelpOpen" id="filter-help-text" class="filter-help-tooltip" role="tooltip">{{ parking ? 'Այս բաժինը նախատեսված է վաճառված կայանատեղիները զտելու համար։' : 'Այս բաժինը նախատեսված է վաճառված բնակարանները զտելու համար։' }}</div>
             </div>
-            <button type="button" :disabled="disabled" @click="resetFilters"><span class="filter-icon reset-icon" :style="{ maskImage: `url(${resetIcon})` }" aria-hidden="true"></span>Վերականգնել</button>
+            <button type="button" class="filter-reset-button" :disabled="disabled" @click="resetFilters"><span class="filter-icon reset-icon" :style="{ maskImage: `url(${resetIcon})` }" aria-hidden="true"></span>Վերականգնել</button>
           </div>
           <div class="filter-row">
             <div class="filter-first-row" :style="{ '--room-row-width': `${Math.max(156, availableRooms.length * 32 - 4)}px` }">
-            <PeriodFilter ref="monthPicker" :selected-period="selectedPeriod" :selected-quick="selectedQuick"
+            <PeriodFilter ref="monthPicker" :selected-period="selectedPeriod" :selected-quick="selectedQuick" date-picker
               :active-selection="activeSelection" :period-context="periodContext" :available-months="availableMonths"
               :disabled="disabled" :title="filterFields.date" :range="ranges.date" :date-revision="dateRevision" :months="months"
               @period="value => { selectedPeriod = value; updatePeriod(); }"

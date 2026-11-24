@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue';
-const helpOpen = ref(false), plot = ref(null), width = ref(500);
+const helpOpen = ref(false), activeBar = ref(null), plot = ref(null), width = ref(500);
 let observer;
 onMounted(() => {
   observer = new ResizeObserver(([entry]) => { width.value = entry.contentRect.width; });
@@ -19,6 +19,7 @@ const labels = [
   'Միջին ամսական գործարքների քանակ',
   'Տուն Էքսպո · ընդհանուր գործարքների քանակ',
 ];
+const barLabel = (value, index) => `${labels[index]}՝ ${format.format(value)}`;
 </script>
 <template>
   <section class="expo-comparison" aria-labelledby="expo-comparison-title">
@@ -31,7 +32,7 @@ const labels = [
       </div>
     </div>
     <div ref="plot" class="expo-comparison-plot">
-    <svg :viewBox="`0 0 ${width} 380`" height="380" role="img" aria-label="Ավելացված գործարքների համեմատություն">
+    <svg :viewBox="`0 0 ${width} 380`" height="380" role="group" aria-label="Ավելացված գործարքների համեմատություն">
       <g v-for="step in [0, 1, 2, 3, 4]" :key="step">
         <line :x1="left" :x2="width - right" :y1="310 - step * 65" :y2="310 - step * 65"
           :stroke="step ? 'var(--border)' : 'var(--control-border)'" :stroke-dasharray="step ? '4 4' : undefined" />
@@ -39,12 +40,15 @@ const labels = [
       </g>
       <line :x1="left" :x2="left" y1="50" y2="310" stroke="var(--control-border)" />
       <g v-for="(value, i) in values" :key="i">
-        <rect :x="center(i) - barWidth / 2" :y="310 - value / max * 260" :width="barWidth"
-          :height="value / max * 260" :fill="i ? '#00a387' : '#8bd5c8'" />
+        <rect class="expo-comparison-bar" :x="center(i) - barWidth / 2" :y="310 - value / max * 260" :width="barWidth"
+          :height="value / max * 260" :fill="i ? '#00a387' : '#8bd5c8'" role="img" tabindex="0" :aria-label="barLabel(value, i)"
+          @mouseenter="activeBar = i" @mouseleave="activeBar = null" @focus="activeBar = i" @blur="activeBar = null"
+          @keydown.esc="activeBar = null" />
         <text :x="center(i)" :y="300 - value / max * 260" text-anchor="middle" font-size="14"
           data-testid="expo-comparison-value">{{ format.format(value) }}</text>
       </g>
     </svg>
+    <p v-if="activeBar !== null" class="expo-comparison-tooltip" role="tooltip">{{ barLabel(values[activeBar], activeBar) }}</p>
     </div>
     <div class="expo-comparison-labels">
       <div v-for="(label, i) in labels" :key="i">
@@ -60,7 +64,13 @@ const labels = [
 h2 { text-align: center; font-size: var(--expo-heading-size); font-weight: 600; overflow-wrap: anywhere; }
 .filter-help { flex-shrink: 0; }
 .filter-help-tooltip { left: 50%; transform: translateX(-50%); }
-.expo-comparison-plot { margin: 16px 8px 0; }
+.expo-comparison-plot { position: relative; margin: 16px 8px 0; }
+.expo-comparison-tooltip {
+  position: absolute; z-index: 2; bottom: 72px; left: 50%; transform: translateX(-50%);
+  width: max-content; max-width: calc(100% - 24px); padding: 8px 10px; border: 1px solid var(--border);
+  border-radius: 8px; background: var(--surface); color: var(--ink); box-shadow: var(--card-shadow);
+  font-size: 12px; text-align: center; pointer-events: none;
+}
 svg { width: 100%; height: 380px; display: block; }
 .expo-comparison-labels { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; text-align: center; padding: 0 50px 20px 80px; margin-top: -49px; position: relative; }
 .expo-comparison-labels > div { overflow-wrap: anywhere; min-width: 0; }

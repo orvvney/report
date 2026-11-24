@@ -221,6 +221,8 @@ test('parking stages and two histogram modes show parking data and respond to fi
  await chart.getByRole('checkbox',{name:'Ցուցադրել համեմատական հիստոգրամը'}).check();
  expect(await chart.locator('.comparison-column').count()).toBe(12);
  expect(await chart.getByTestId('histogram-kpi-change').isVisible()).toBe(true);
+ expect(await chart.getByTestId('histogram-kpi-change').evaluate(element => getComputedStyle(element).transitionDuration)).toBe('0.15s');
+ expect(await chart.locator('.comparison-column').first().evaluate(element => getComputedStyle(element).transitionDuration)).toBe('0.15s');
  await chart.getByRole('checkbox',{name:'Ցուցադրել համեմատական հիստոգրամը'}).uncheck();
  expect(await chart.getByTestId('histogram-kpi-change').count()).toBe(0);
  for (const width of [1024,375,320]) {

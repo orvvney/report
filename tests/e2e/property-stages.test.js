@@ -80,6 +80,7 @@ test.each([
   await help.focus();
   const tooltip = block.getByRole('tooltip');
   await tooltip.waitFor();
+  expect(await tooltip.evaluate(el => getComputedStyle(el).transitionDuration)).toBe('0.15s');
   expect((await tooltip.innerText()).trim()).toBe(hash
     ? 'Այս բաժինը նախատեսված է կայանատեղիների քանակն ու մասնաբաժինը յուրաքանչյուր փուլում դիտելու համար:'
     : 'Այս բաժինը նախատեսված է բնակարանների քանակն ու մասնաբաժինը յուրաքանչյուր փուլում դիտելու համար:');
@@ -89,6 +90,7 @@ test.each([
   const segmentTooltip = distribution.getByRole('tooltip');
   await segment.hover();
   expect(await segmentTooltip.innerText()).toBe(hash ? 'Ազատ՝ 1, 100%' : 'Ռեզերվ՝ 1, 50%');
+  expect(await segmentTooltip.evaluate(el => getComputedStyle(el).transitionDuration)).toBe('0.15s');
   await block.locator('h2').hover();
   await segmentTooltip.waitFor({state:'hidden'});
   await segment.focus();
@@ -215,6 +217,7 @@ test.each([
   expect(await caption.locator('img').getAttribute('src')).toBe(await panels.locator('h2 img').getAttribute('src'));
   expect(await floating.getByRole('button', {name:'Փուլերի մասին'}).count()).toBe(0);
   expect(await floating.locator('.property-stage-share').count()).toBe(0);
+  expect(await floating.locator('.property-stage-card-stripe').count()).toBe(0);
   const headingBox = await caption.boundingBox();
   const totalBox = await floating.locator('.property-stages-total').boundingBox();
   const center = headingBox.y + headingBox.height / 2;

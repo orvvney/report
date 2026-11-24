@@ -15,6 +15,7 @@ test.each([
   await page.goto('/#toon-expo'); await page.getByTestId('expo-leads').waitFor();
   const button = page.getByRole('button', { name: label, exact: true }), tooltip = page.locator(`#${id}`);
   expect(await tooltip.isVisible()).toBe(false); await button.hover(); expect(await tooltip.innerText()).toBe(text);
+  expect(await tooltip.evaluate(el => getComputedStyle(el).transitionDuration)).toBe('0.15s');
   const h = await column(index).locator('h3').boundingBox(), t = await tooltip.boundingBox(), b = await button.boundingBox();
   expect(t.x + t.width / 2).toBeCloseTo(h.x + h.width / 2, 0); expect(t.y).toBeGreaterThanOrEqual(h.y + h.height); expect(b.x).toBeGreaterThanOrEqual(h.x + h.width);
   await page.mouse.move(0, 300); expect(await tooltip.isVisible()).toBe(false); await button.focus(); expect(await tooltip.isVisible()).toBe(true); await page.keyboard.press('Escape'); expect(await tooltip.isVisible()).toBe(false); await button.click(); expect(await tooltip.isVisible()).toBe(true);
@@ -53,7 +54,7 @@ test.each([320, 390, 600])('phone keeps each collapsed list within its section a
       expect(help.x).toBeGreaterThanOrEqual(heading.x + heading.width);
       expect(help.y + help.height / 2).toBeCloseTo(heading.y + heading.height / 2, 0);
     }
-    await toggle.click(); expect(await records.locator('table').isVisible()).toBe(false);
+    await toggle.click(); await records.locator('table').waitFor({ state: 'hidden' });
   }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: `test-results/expo-mobile-${width}.png`, fullPage: true });
@@ -87,9 +88,10 @@ test.each([640, 900, 1440])('toggles all desktop tables together with one keyboa
   for (let i = 0; i < 3; i++) expect(await list(i).locator('table').isVisible()).toBe(false);
   await toggle.focus(); await page.keyboard.press('Enter'); await list(0).locator('.deals-list-scroll').waitFor({state:'visible'});
   expect(await toggle.getAttribute('aria-expanded')).toBe('true');
+  expect(await page.locator('#expo-lists-content').evaluate(element => getComputedStyle(element).transitionDuration)).toBe('0.15s, 0.15s');
   for (let i = 0; i < 3; i++) expect(await list(i).locator('table').isVisible()).toBe(true);
   await page.keyboard.press('Space');
-  for (let i = 0; i < 3; i++) expect(await list(i).locator('table').isVisible()).toBe(false);
+  for (let i = 0; i < 3; i++) await list(i).locator('table').waitFor({ state: 'hidden' });
   await page.screenshot({ path: `test-results/expo-collapsed-${width}.png`, fullPage: true });
 });
 
@@ -200,6 +202,17 @@ test.each([320, 375, 1440])('comparison shows monthly average and total after li
     .toEqual(['14px', '600']);
   expect(await chart.locator('svg').evaluate(el => el.getBoundingClientRect().height)).toBe(380);
   expect(await chart.getByTestId('expo-comparison-value').first().getAttribute('font-size')).toBe('14');
+  const bar = chart.locator('.expo-comparison-bar').last();
+  await bar.hover();
+  expect(await bar.evaluate(async element => {
+    await Promise.all(element.getAnimations().map(animation => animation.finished));
+    const { filter, transitionDuration } = getComputedStyle(element);
+    return { filter, transitionDuration };
+  })).toEqual({ filter: 'brightness(0.9)', transitionDuration: '0.15s' });
+  const barTooltip = chart.getByRole('tooltip');
+  expect(await barTooltip.innerText()).toBe('Տուն Էքսպո · ընդհանուր գործարքների քանակ՝ 7');
+  expect(await barTooltip.evaluate(element => getComputedStyle(element).transitionDuration)).toBe('0.15s');
+  await page.mouse.move(0, 0);
   const help = chart.getByRole('button', { name: 'Ավելացված գործարքների համեմատության մասին' });
   const tooltip = chart.getByRole('tooltip');
   await help.focus();
@@ -326,6 +339,7 @@ test.each([320, 390, 1440])('shows Expo stage distributions and highlights the r
   expect((await segment.boundingBox()).width / (await track.boundingBox()).width).toBeCloseTo(83 / 573, 2);
   await segment.focus();
   expect(await beforeTrack.getByRole('tooltip').innerText()).toBe('Ազատ՝ 83');
+  expect(await beforeTrack.getByRole('tooltip').evaluate(element => getComputedStyle(element).transitionDuration)).toBe('0.15s');
   await page.keyboard.press('Escape');
   expect(await beforeTrack.getByRole('tooltip').count()).toBe(0);
   expect(await stages.locator('.property-stage-share').count()).toBe(0);

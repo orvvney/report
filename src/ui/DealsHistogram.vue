@@ -175,7 +175,7 @@ watch([() => JSON.stringify(categories.value), () => comparing.value ? JSON.stri
       <p v-if="!totalCount && (!comparing || previous.every(entry => !entry.count))" role="status" class="histogram-empty">Տվյալներ չկան</p>
       <div v-if="data" class="histogram-year-legend" aria-label="Համեմատվող ժամանակահատվածներ">
         <span><i></i>Ընտրված՝ {{ kpi.rangeText(data.ranges.current) || 'Տվյալներ չկան' }}</span>
-        <span v-if="comparing"><i class="previous-year-marker"></i>Համեմատություն՝ {{ kpi.rangeText(data.ranges.previous) }}</span>
+        <span v-if="comparing" class="histogram-previous-period"><i class="previous-year-marker"></i>Համեմատություն՝ {{ kpi.rangeText(data.ranges.previous) }}</span>
       </div>
       <div class="histogram-plot" :style="plotStyle">
         <svg ref="yAxis" class="histogram-y-axis" data-testid="histogram-y-axis" :viewBox="`0 0 ${yAxisWidth} 380`" :width="yAxisWidth" :style="{ flexBasis: `${yAxisWidth}px` }" height="380" role="img" :aria-label="yTitle">
@@ -286,6 +286,12 @@ watch([() => JSON.stringify(categories.value), () => comparing.value ? JSON.stri
 .histogram-legend li { display: flex; align-items: center; gap: 6px; }
 .histogram-legend i { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
 .histogram-tooltip { position: fixed; z-index: 20; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: white; box-shadow: 0 4px 16px #1d283e26; color: var(--ink); font-size: 12px; pointer-events: none; }
+@media (prefers-reduced-motion: no-preference) {
+  .histogram-kpi-change, .histogram-previous-period, .comparison-column {
+    transition: opacity 0.15s ease;
+    @starting-style { opacity: 0; }
+  }
+}
 .histogram-status { display: grid; min-height: 380px; place-items: center; padding: 24px; color: var(--muted); text-align: center; }
 .histogram-empty { position: absolute; left: 0; right: 0; margin-top: 8px; text-align: center; color: var(--muted); }
 .histogram-summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 20px; font-size: 14px; color: var(--muted); }

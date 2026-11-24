@@ -210,7 +210,7 @@ test('filter icons load from bundled AVIFs, controls share rounding and insets, 
     expect(await icon.boundingBox()).toMatchObject({ width: size, height: size });
   }
   expect(await page.request.get(`${url}/images/filter.avif`).then(r => r.status())).toBe(404);
-  for (const control of await panel.locator('button:not(.filter-help), select, input:visible').all()) {
+  for (const control of await panel.locator('button:visible:not(.filter-help, .date-picker-trigger), select:visible, input:visible').all()) {
     expect(await control.evaluate(el => getComputedStyle(el).borderTopLeftRadius)).toBe('15px');
     expect((await control.boundingBox()).height).toBe(32);
   }

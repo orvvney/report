@@ -154,7 +154,7 @@ defineExpose({ resetView, refresh });
       <span class="expo-records-title">Ցանկ</span>
       <svg class="deals-list-chevron" :class="{ 'is-expanded': listsExpanded }" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m4 6 4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
     </button>
-    <div v-show="listsExpanded" id="expo-lists-content" class="deals-list-content">
+    <div v-show="listsExpanded" id="expo-lists-content" class="deals-list-content" :inert="!listsExpanded">
       <p v-if="loading" class="kpi-notice" role="status">Տվյալները բեռնվում են…</p>
       <p v-else-if="failed" class="kpi-notice" role="status">Տվյալներն անհասանելի են։</p>
       <div v-else-if="snapshot" class="expo-records-columns">

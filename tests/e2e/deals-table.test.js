@@ -33,6 +33,24 @@ beforeEach(async () => {
 });
 afterEach(async () => { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); });
 
+test('apartments list fades and pagination gives hover and press feedback', async () => {
+  await page.goto(url); await ready(); await toggleList();
+  const content = block().locator('#deals-list-content');
+  expect(await content.evaluate(element => getComputedStyle(element).transitionDuration)).toBe('0.15s, 0.15s');
+  const opacity = () => next().evaluate(async element => {
+    await Promise.all(element.getAnimations().map(animation => animation.finished));
+    return getComputedStyle(element).opacity;
+  });
+  await next().hover();
+  expect(await opacity()).toBe('0.7');
+  await page.mouse.down();
+  expect(await opacity()).toBe('0.4');
+  await page.mouse.move(0, 0); await page.mouse.up();
+  await toggleList();
+  expect(await content.getAttribute('inert')).not.toBeNull();
+  await content.waitFor({ state: 'hidden' });
+});
+
 test.each([320, 1440])('deal list help explains filtered deals without expanding the list at %i', async width => {
   await page.setViewportSize({ width, height: 1000 }); await page.goto(url); await ready();
   const help = block().getByRole('button', { name: 'Գործարքների մասին', exact: true });

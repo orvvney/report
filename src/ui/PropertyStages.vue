@@ -138,7 +138,7 @@ defineExpose({ refresh, resetView });
         </div>
         <div class="property-stages-row" :class="{ 'expo-stage-comparison-row': expo }">
           <article v-for="(card, index) in stages" :key="card.id ?? card.name">
-            <div class="property-stage-card-stripe" aria-hidden="true"></div>
+            <div v-if="!floating" class="property-stage-card-stripe" aria-hidden="true"></div>
             <h3><span :ref="!expo && !floating && index === 2 ? setInProgressLabel : undefined">{{ card.name }}</span></h3>
             <div v-if="expo" class="expo-stage-values">
               <p class="property-stage-value expo-stage-result"><span class="sr-only">Հետո՝ </span>{{ expoStages[index].count ?? '—' }}</p>

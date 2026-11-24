@@ -41,7 +41,7 @@ function sort(key) {
           <path d="m4 6 4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
         </svg>
     </div>
-    <div v-show="expanded" id="deals-list-content" class="deals-list-content">
+    <div v-show="expanded" id="deals-list-content" class="deals-list-content" :inert="!expanded">
       <p v-if="loading || detailsLoading" class="kpi-notice" role="status">Տվյալները բեռնվում են…</p>
       <p v-else-if="failed" class="kpi-notice" role="status">Տվյալներն անհասանելի են։</p>
       <p v-else-if="detailsFailed" class="kpi-notice" role="status">Տվյալներն անհասանելի են։ <button type="button" @click="emit('retry')">Կրկին փորձել</button></p>
